@@ -27,3 +27,52 @@ doc/api/
 
 .flutter-plugins
 .flutter-plugins-dependencies
+
+# === 추가 항목 ===
+
+# OS
+.DS_Store
+Thumbs.db
+
+# env 파일 보호 (.env.example은 허용)
+!.env.example
+
+# Flutter generated
+flutter_export_environment.sh
+*.g.dart
+*.freezed.dart
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.iml
+
+# Android
+android/.gradle/
+android/app/debug/
+android/app/profile/
+android/app/release/
+android/local.properties
+android/key.properties
+*.jks
+
+# iOS
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/Flutter/Generated.xcconfig
+ios/Flutter/app.flx
+ios/Flutter/app.zip
+ios/Flutter/engine/
+ios/Flutter/flutter_assets/
+ios/ServiceDefinitions.json
+ios/Runner/GeneratedPluginRegistrant.*
+
+# Misc
+*.bak
+*.tmp
+*.log
