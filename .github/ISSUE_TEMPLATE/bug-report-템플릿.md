@@ -1,4 +1,4 @@
-`---
+---
 name: Bug report 템플릿
 about: 버그를 제보합니다.
 title: "[BUG] "
