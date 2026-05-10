@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class BottomNav extends StatelessWidget {
   const BottomNav({
@@ -15,25 +16,25 @@ class BottomNav extends StatelessWidget {
     return NavigationBar(
       selectedIndex: currentIndex,
       onDestinationSelected: onDestinationSelected,
-      destinations: const [
+      destinations: [
         NavigationDestination(
-          icon: Icon(Icons.home_outlined),
-          selectedIcon: Icon(Icons.home),
+          icon: PhosphorIcon(PhosphorIcons.house()),
+          selectedIcon: PhosphorIcon(PhosphorIcons.house(PhosphorIconsStyle.fill)),
           label: '홈',
         ),
         NavigationDestination(
-          icon: Icon(Icons.map_outlined),
-          selectedIcon: Icon(Icons.map),
-          label: '여행',
+          icon: PhosphorIcon(PhosphorIcons.mapTrifold()),
+          selectedIcon: PhosphorIcon(PhosphorIcons.mapTrifold(PhosphorIconsStyle.fill)),
+          label: '여행 계획',
         ),
         NavigationDestination(
-          icon: Icon(Icons.bookmark_outline),
-          selectedIcon: Icon(Icons.bookmark),
+          icon: PhosphorIcon(PhosphorIcons.bookmarkSimple()),
+          selectedIcon: PhosphorIcon(PhosphorIcons.bookmarkSimple(PhosphorIconsStyle.fill)),
           label: '저장',
         ),
         NavigationDestination(
-          icon: Icon(Icons.person_outline),
-          selectedIcon: Icon(Icons.person),
+          icon: PhosphorIcon(PhosphorIcons.user()),
+          selectedIcon: PhosphorIcon(PhosphorIcons.user(PhosphorIconsStyle.fill)),
           label: '마이',
         ),
       ],
