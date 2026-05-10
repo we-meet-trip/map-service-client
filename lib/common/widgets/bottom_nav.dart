@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import '../theme/app_icons.dart';
 
 class BottomNav extends StatelessWidget {
   const BottomNav({
@@ -18,23 +19,23 @@ class BottomNav extends StatelessWidget {
       onDestinationSelected: onDestinationSelected,
       destinations: [
         NavigationDestination(
-          icon: PhosphorIcon(PhosphorIcons.house()),
-          selectedIcon: PhosphorIcon(PhosphorIcons.house(PhosphorIconsStyle.fill)),
+          icon: PhosphorIcon(AppIcons.navHome),
+          selectedIcon: PhosphorIcon(AppIcons.navHomeFill),
           label: '홈',
         ),
         NavigationDestination(
-          icon: PhosphorIcon(PhosphorIcons.mapTrifold()),
-          selectedIcon: PhosphorIcon(PhosphorIcons.mapTrifold(PhosphorIconsStyle.fill)),
+          icon: PhosphorIcon(AppIcons.navTrip),
+          selectedIcon: PhosphorIcon(AppIcons.navTripFill),
           label: '여행 계획',
         ),
         NavigationDestination(
-          icon: PhosphorIcon(PhosphorIcons.bookmarkSimple()),
-          selectedIcon: PhosphorIcon(PhosphorIcons.bookmarkSimple(PhosphorIconsStyle.fill)),
+          icon: PhosphorIcon(AppIcons.navSaved),
+          selectedIcon: PhosphorIcon(AppIcons.navSavedFill),
           label: '저장',
         ),
         NavigationDestination(
-          icon: PhosphorIcon(PhosphorIcons.user()),
-          selectedIcon: PhosphorIcon(PhosphorIcons.user(PhosphorIconsStyle.fill)),
+          icon: PhosphorIcon(AppIcons.navMypage),
+          selectedIcon: PhosphorIcon(AppIcons.navMypageFill),
           label: '마이',
         ),
       ],
