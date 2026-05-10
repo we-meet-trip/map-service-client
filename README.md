@@ -1,42 +1,99 @@
 # map-service-client
 
-## 개요
-MAP 서비스의 프론트엔드(Flutter) 클라이언트 레포지토리. 모바일(Android/iOS) 앱을 담당한다.
+> MAP Mobile App (Flutter)
+
+Flutter 기반 크로스 플랫폼 모바일 앱. 사용자가 여행 테마/분위기를 선택하면 AI 추천 결과를 받아 네이버 지도 위에 최적 경로를 표시한다.
 
 ## 기술 스택
-- Flutter / Dart
-- 상태관리: Provider (예정)
-- 지도: flutter_naver_map (예정)
-- 플랫폼: Android (API 21+), iOS (13+)
 
-## 디렉토리 구조
-초기 셋업 단계 — 추후 추가 예정.
+| 항목 | 기술 |
+|------|------|
+| Framework | Flutter |
+| Language | Dart |
+| Map | 네이버 지도 SDK (`flutter_naver_map`) |
+| State | Provider |
+| IDE | Android Studio |
+| Design | Figma |
+
+## 디렉토리 구조 
 
 ```
-.
-├── .github/
-│   ├── ISSUE_TEMPLATE/
-│   └── pull_request_template.md
+map-service-client/
+├── android/
+├── ios/
+│   ├── Runner/Info.plist       # 위치 권한 설정
+│   └── Podfile                 # iOS 최소 버전 13+
+├── lib/
+│   ├── main.dart               # 앱 진입점
+│   ├── app.dart                # MaterialApp, 테마/라우팅 설정
+│   ├── common/
+│   │   ├── layout/             # 공통 레이아웃 (헤더, 하단 메뉴바)
+│   │   └── widgets/            # 공통 재사용 위젯
+│   ├── core/
+│   │   ├── constants/          # 상수 (색상, URL 등)
+│   │   ├── router/             # 라우팅 설정
+│   │   ├── theme/              # 앱 테마
+│   │   └── utils/              # 유틸 함수
+│   ├── data/
+│   │   ├── models/             # 데이터 클래스
+│   │   ├── repositories/       # 데이터 가공 및 전달
+│   │   └── services/           # 외부 API 호출
+│   └── features/
+│       ├── home/
+│       │   ├── screens/        # 화면 위젯
+│       │   └── widgets/        # 기능 전용 위젯
+│       └─...
+├── pubspec.yaml
+├── analysis_options.yaml
 ├── .gitignore
+├── .metadata
 ├── LICENSE
 └── README.md
 ```
 
-진행 중인 구조 정의는 `develop` 브랜치 참고.
+## 실행 방법
 
-## 시작하기
-추후 추가 예정 (`pubspec.yaml` 작성 후).
+### 사전 조건
 
-```
+- Flutter SDK 설치
+- Android Studio 또는 Xcode
+- 백엔드 실행 중 (Docker Compose — [map-service-user](https://github.com/we-meet-trip/map-service-user) 참고)
+
+### 실행
+
+```bash
 flutter pub get
 flutter run
 ```
 
-## 환경변수
-`.env.example` 추가 시 갱신 예정. 백엔드 베이스 URL, 지도 API 키 등.
+## 타겟 플랫폼
+
+| 항목 | Android | iOS |
+|------|---------|-----|
+| 최소 버전 | API 21 (5.0) | iOS 13+ |
+| 빌드 도구 | Android Studio | Xcode (Mac 필수) |
+| PoC 시연 | 에뮬레이터 또는 실기기 APK | 시뮬레이터 |
+
+## 주요 화면 (예정)
+
+| 화면 | 기능 |
+|------|------|
+| 온보딩 | 선호 모빌리티, 테마 태그 초기 선택 |
+| 홈 | 현재 위치 기반 추천 진입, 날씨 표시 |
+| 태그 선택 | 테마/분위기/활동 태그 다중 선택 + 자유 텍스트 입력 |
+| 추천 결과 | 네이버 지도 위 경로 표시, 장소 카드 리스트 |
+| 장소 상세 | 장소 정보, 리뷰 요약, 태그, 실내/실외 표시 |
+| 경로 저장 | 추천 경로 저장 및 재조회 |
+| 즐겨찾기 | 관심 장소 목록 |
+| 마이페이지 | 프로필, 선호 설정 수정, 저장 경로 목록 |
 
 ## 관련 레포
 - [map-service-agent](https://github.com/we-meet-trip/map-service-agent) — FastAPI AI 에이전트 백엔드
 - [map-service-user](https://github.com/we-meet-trip/map-service-user) — Spring Boot 사용자/인증 백엔드
 - [map-service-client](https://github.com/we-meet-trip/map-service-client) — 본 레포 (Flutter 클라이언트)
 - [map-service-info](https://github.com/we-meet-trip/map-service-info) — 아키텍처 및 공통 문서
+
+## License
+
+MIT
+
