@@ -1,5 +1,4 @@
 import 'package:go_router/go_router.dart';
-import 'package:flutter/material.dart';
 import '../../common/layout/main_layout.dart';
 import '../../features/home/screens/home_screen.dart';
 import '../../features/trip/screens/trip_screen.dart';
