@@ -10,6 +10,8 @@ class AppIcons {
   static final navTripFill = PhosphorIcons.mapTrifold(PhosphorIconsStyle.fill);
   static final navSaved = PhosphorIcons.bookmarkSimple();
   static final navSavedFill = PhosphorIcons.bookmarkSimple(PhosphorIconsStyle.fill);
+  static final navChat = PhosphorIcons.chatCircleDots();
+  static final navChatFill = PhosphorIcons.chatCircleDots(PhosphorIconsStyle.fill);
   static final navMypage = PhosphorIcons.user();
   static final navMypageFill = PhosphorIcons.user(PhosphorIconsStyle.fill);
 }
