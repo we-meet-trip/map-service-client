@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'common/theme/app_colors.dart';
 import 'core/router/app_router.dart';
 
 class App extends StatelessWidget {
@@ -10,9 +11,9 @@ class App extends StatelessWidget {
       title: 'Map Service',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        scaffoldBackgroundColor: const Color(0xFFF9F8FA),
+        scaffoldBackgroundColor: AppColors.background,
         navigationBarTheme: const NavigationBarThemeData(
-          backgroundColor: Color(0xFF201F21),
+          backgroundColor: AppColors.tabBarBackground,
           indicatorColor: Colors.transparent,
           surfaceTintColor: Colors.transparent,
         ),

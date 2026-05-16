@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import '../theme/app_colors.dart';
 import '../theme/app_icons.dart';
 
 class BottomNav extends StatelessWidget {
@@ -12,28 +13,24 @@ class BottomNav extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onDestinationSelected;
 
-  static const _backgroundColor = Color(0xFFF9F8FA);
-  static const _selectedColor = Color(0xFF201F21);
-  static const _unselectedColor = Color(0xFF6E6C70);
-
   @override
   Widget build(BuildContext context) {
     return NavigationBarTheme(
       data: NavigationBarThemeData(
-        backgroundColor: _backgroundColor,
+        backgroundColor: AppColors.background,
         indicatorColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         iconTheme: WidgetStateProperty.resolveWith((states) {
           final isSelected = states.contains(WidgetState.selected);
           return IconThemeData(
-            color: isSelected ? _selectedColor : _unselectedColor,
+            color: isSelected ? AppColors.tabBarSelected : AppColors.tabBarUnselected,
             size: 26,
           );
         }),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           final isSelected = states.contains(WidgetState.selected);
           return TextStyle(
-            color: isSelected ? _selectedColor : _unselectedColor,
+            color: isSelected ? AppColors.tabBarSelected : AppColors.tabBarUnselected,
             fontSize: 11,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
           );
@@ -43,7 +40,7 @@ class BottomNav extends StatelessWidget {
       child: NavigationBar(
         selectedIndex: currentIndex,
         onDestinationSelected: onDestinationSelected,
-        backgroundColor: _backgroundColor,
+        backgroundColor: AppColors.background,
         surfaceTintColor: Colors.transparent,
         shadowColor: Colors.transparent,
         elevation: 0,
