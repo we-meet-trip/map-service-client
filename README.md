@@ -15,23 +15,38 @@ Flutter 기반 크로스 플랫폼 모바일 앱. 사용자가 여행 테마/분
 | IDE | Android Studio |
 | Design | Figma |
 
-## 디렉토리 구조 (예정)
+## 디렉토리 구조 
 
 ```
 map-service-client/
-├── lib/
-│   ├── main.dart
-│   ├── screens/               # 화면 (홈, 태그선택, 추천결과, 상세 등)
-│   ├── widgets/                # 재사용 위젯
-│   ├── services/               # Spring Boot API 호출
-│   ├── models/                 # 데이터 모델
-│   └── providers/              # 상태 관리
 ├── android/
 ├── ios/
 │   ├── Runner/Info.plist       # 위치 권한 설정
 │   └── Podfile                 # iOS 최소 버전 13+
+├── lib/
+│   ├── main.dart               # 앱 진입점
+│   ├── app.dart                # MaterialApp, 테마/라우팅 설정
+│   ├── common/
+│   │   ├── layout/             # 공통 레이아웃 (헤더, 하단 메뉴바)
+│   │   └── widgets/            # 공통 재사용 위젯
+│   ├── core/
+│   │   ├── constants/          # 상수 (색상, URL 등)
+│   │   ├── router/             # 라우팅 설정
+│   │   ├── theme/              # 앱 테마
+│   │   └── utils/              # 유틸 함수
+│   ├── data/
+│   │   ├── models/             # 데이터 클래스
+│   │   ├── repositories/       # 데이터 가공 및 전달
+│   │   └── services/           # 외부 API 호출
+│   └── features/
+│       ├── home/
+│       │   ├── screens/        # 화면 위젯
+│       │   └── widgets/        # 기능 전용 위젯
+│       └─...
 ├── pubspec.yaml
+├── analysis_options.yaml
 ├── .gitignore
+├── .metadata
 ├── LICENSE
 └── README.md
 ```
@@ -72,6 +87,13 @@ flutter run
 | 즐겨찾기 | 관심 장소 목록 |
 | 마이페이지 | 프로필, 선호 설정 수정, 저장 경로 목록 |
 
+## 관련 레포
+- [map-service-agent](https://github.com/we-meet-trip/map-service-agent) — FastAPI AI 에이전트 백엔드
+- [map-service-user](https://github.com/we-meet-trip/map-service-user) — Spring Boot 사용자/인증 백엔드
+- [map-service-client](https://github.com/we-meet-trip/map-service-client) — 본 레포 (Flutter 클라이언트)
+- [map-service-info](https://github.com/we-meet-trip/map-service-info) — 아키텍처 및 공통 문서
+
 ## License
 
 MIT
+
