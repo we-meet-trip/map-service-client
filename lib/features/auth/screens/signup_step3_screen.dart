@@ -7,17 +7,19 @@ class SignupStep3Screen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('회원가입 Step3 - 관심사 선택'),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () => context.go('/signup/complete'),
-              child: const Text('완료'),
-            ),
-          ],
+      body: SafeArea(
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('회원가입 Step3 - 관심사 선택'),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => context.go('/signup/complete'),
+                child: const Text('완료'),
+              ),
+            ],
+          ),
         ),
       ),
     );

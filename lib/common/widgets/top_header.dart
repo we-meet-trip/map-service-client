@@ -9,10 +9,13 @@ class TopHeader extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SvgPicture.asset(
-      'assets/svg/top_header.svg',
-      fit: BoxFit.fitWidth,
-      alignment: Alignment.topCenter,
+    return SafeArea(
+      bottom: false,
+      child: SvgPicture.asset(
+        'assets/svg/top_header.svg',
+        fit: BoxFit.fitWidth,
+        alignment: Alignment.topCenter,
+      ),
     );
   }
 }
