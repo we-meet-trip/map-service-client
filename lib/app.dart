@@ -11,6 +11,7 @@ class App extends StatelessWidget {
       title: 'Map Service',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        fontFamily: 'Pretendard',
         scaffoldBackgroundColor: AppColors.background,
         navigationBarTheme: const NavigationBarThemeData(
           backgroundColor: AppColors.tabBarBackground,

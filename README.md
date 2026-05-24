@@ -23,17 +23,20 @@ map-service-client/
 ├── ios/
 │   ├── Runner/Info.plist       # 위치 권한 설정
 │   └── Podfile                 # iOS 최소 버전 13+
+├── assets
+│   ├── fonts/                  # 폰트 파일
+│   └── svg/                    # SVG 아이콘 파일
 ├── lib/
 │   ├── main.dart               # 앱 진입점
 │   ├── app.dart                # MaterialApp, 테마/라우팅 설정
 │   ├── common/
 │   │   ├── layout/             # 공통 레이아웃 (헤더, 하단 메뉴바)
-│   │   ├── theme/              # 앱 테마 (색상, 폰트, 간격)
-│   │   └── widgets/            # 공통 재사용 위젯
+│   │   ├── theme/              # 앱 테마 (색상, 간격)
+│   │   └── widgets/            # 공통 재사용 위젯 (버튼, 아이콘 등)
 │   ├── core/
 │   │   ├── constants/          # 상수 (URL 등)
-│   │   ├── router/             # 라우팅 설정
-│   │   └── utils/              # 유틸 함수
+│   │   ├── router/             # 라우팅 설정 
+│   │   └── utils/              # 유틸 함수 (거리 계산, 날짜 포맷 등)
 │   ├── data/
 │   │   ├── models/             # 데이터 클래스
 │   │   ├── repositories/       # 데이터 가공 및 전달
