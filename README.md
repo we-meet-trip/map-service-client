@@ -28,10 +28,10 @@ map-service-client/
 │   ├── app.dart                # MaterialApp, 테마/라우팅 설정
 │   ├── common/
 │   │   ├── layout/             # 공통 레이아웃 (헤더, 하단 메뉴바)
-│   │   ├── theme/              # 앱 테마
+│   │   ├── theme/              # 앱 테마 (색상, 폰트, 간격)
 │   │   └── widgets/            # 공통 재사용 위젯
 │   ├── core/
-│   │   ├── constants/          # 상수 (색상, URL 등)
+│   │   ├── constants/          # 상수 (URL 등)
 │   │   ├── router/             # 라우팅 설정
 │   │   └── utils/              # 유틸 함수
 │   ├── data/
