@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../features/auth/widgets/star_painter.dart';
+import 'star_painter.dart';
 
 class StarryBackground extends StatelessWidget {
   final Widget child;
