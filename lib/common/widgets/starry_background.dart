@@ -9,7 +9,7 @@ class StarryBackground extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: RadialGradient(
           center: Alignment.center,
           radius: 1.0,
@@ -17,12 +17,14 @@ class StarryBackground extends StatelessWidget {
             Color(0xFF5522AC),
             Color(0xFF1B0B33),
           ],
-          stops: [0.0, 0.91],
+          stops: const [0.0, 0.91],
         ),
       ),
       child: Stack(
         children: [
-          CustomPaint(painter: StarPainter(), size: Size.infinite),
+          const Positioned.fill(
+            child: CustomPaint(painter: StarPainter()),
+          ),
           child,
         ],
       ),
