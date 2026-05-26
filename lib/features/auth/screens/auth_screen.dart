@@ -81,7 +81,7 @@ class AuthScreen extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         TextButton(
-                          onPressed: () => context.go('/signup/step1'),
+                          onPressed: () => context.push('/signup/step1'),
                           child: const Text('간편 회원가입'),
                         ),
                         const Text('|'),
