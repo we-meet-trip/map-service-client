@@ -7,6 +7,7 @@ class AppColors {
   static const tabBarBackground = Color(0xFF201F21);
   static const tabBarSelected = Color(0xFF201F21);
   static const tabBarUnselected = Color(0xFF6E6C70);
+  static const error = Color(0xFFFF1751);
 
   static const Map<int, Color> neutralScale = {
     0:   Color(0xFFFDFDFE),
@@ -26,7 +27,7 @@ class AppColors {
     400: Color(0xFF723AFF),
     500: Color(0xFF6412FF),
     600: Color(0xFF5E01FF),
-    700: Color(0xFF5000DA), //default
+    700: Color(0xFF5000DA),
     800: Color(0xFF4202B0),
     900: Color(0xFF280078),
   };
@@ -36,7 +37,7 @@ class AppColors {
     100: Color(0xFFF3E7FF),
     200: Color(0xFFEAD4FF),
     300: Color(0xFFDAB2FF),
-    400: Color(0xFFC98CFF), //default
+    400: Color(0xFFC98CFF),
     500: Color(0xFFAD51FB),
     600: Color(0xFF992EEF),
     700: Color(0xFF841ED2),

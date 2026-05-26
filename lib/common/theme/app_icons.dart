@@ -14,4 +14,7 @@ class AppIcons {
   static final navChatFill = PhosphorIcons.chatCircleDots(PhosphorIconsStyle.fill);
   static final navMypage = PhosphorIcons.user();
   static final navMypageFill = PhosphorIcons.user(PhosphorIconsStyle.fill);
+
+  // Extra
+  static final cancel = PhosphorIcons.xCircle(PhosphorIconsStyle.fill);
 }
