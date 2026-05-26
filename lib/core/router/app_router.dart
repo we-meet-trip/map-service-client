@@ -5,10 +5,15 @@ import '../../features/trip/screens/trip_screen.dart';
 import '../../features/saved/screens/saved_screen.dart';
 import '../../features/chat/screens/chat_screen.dart';
 import '../../features/mypage/screens/mypage_screen.dart';
+import '../../features/splash/screens/splash_screen.dart';
 
 final appRouter = GoRouter(
-  initialLocation: '/',
+  initialLocation: '/splash',
   routes: [
+    GoRoute(
+      path: '/splash',
+      builder: (context, state) => const SplashScreen(),
+    ),
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) =>
           MainLayout(navigationShell: navigationShell),
