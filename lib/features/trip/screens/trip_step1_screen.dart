@@ -6,10 +6,10 @@ import '../widgets/trip_card.dart';
 import '../widgets/trip_step_scaffold.dart';
 import '../widgets/trip_slider_theme.dart';
 
-const _kSelColor = Color(0xFFEAD4FF);
-const _kBarColor = Color(0x4DEAD4FF);
-const _kAccent   = Color(0xFF8D46ED);
-const _kSatColor = Color(0xFF2160FF);
+final _kSelColor = AppColors.secondaryScale[200]!;
+final _kBarColor = AppColors.secondaryScale[200]!.withAlpha(0x4D);
+final _kAccent   = AppColors.gradientScale[300]!;
+final _kSatColor = AppColors.blueScale[500]!;
 
 class TripStep1Screen extends StatefulWidget {
   final VoidCallback onNext;
@@ -165,7 +165,7 @@ class _CalendarCard extends StatelessWidget {
     return Row(
       children: days.asMap().entries.map((e) {
         final color = e.key == 0
-            ? const Color(0xFFE53935)
+            ? AppColors.redScale[400]!
             : e.key == 6
                 ? _kSatColor
                 : AppColors.neutralScale[300]!;
@@ -236,7 +236,7 @@ class _CalendarCard extends StatelessWidget {
     } else if (isToday) {
       textColor = AppColors.secondaryScale[700]!;
     } else if (col == 0) {
-      textColor = const Color(0xFFE53935);
+      textColor = AppColors.redScale[400]!;
     } else if (col == 6) {
       textColor = _kSatColor;
     } else {
@@ -271,7 +271,7 @@ class _CalendarCard extends StatelessWidget {
               Center(
                 child: Container(
                   width: 30, height: 30,
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                       color: _kSelColor, shape: BoxShape.circle),
                 ),
               ),

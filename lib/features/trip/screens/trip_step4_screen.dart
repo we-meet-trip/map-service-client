@@ -18,47 +18,47 @@ class TripStep4Screen extends StatelessWidget {
     required this.onTransportChanged,
   });
 
-  static const _items = [
+  static final _items = [
     _TransportItem(
       id: 'bicycle',   name: '자전거',
       svgPath: SvgIcons.transportBicycle,
       radius: 'RADIUS 10KM', coverage: 70,
-      iconColor:  Color(0xFF8D46ED),
-      iconBg:     Color(0x1A8D46ED),
-      barColor:   Color(0xFF8D46ED),
-      badgeBg:    Color(0x338D46ED),
-      badgeFg:    Color(0xFF8D46ED),
+      iconColor:  AppColors.gradientScale[300]!,
+      iconBg:     AppColors.gradientScale[300]!.withAlpha(0x1A),
+      barColor:   AppColors.gradientScale[300]!,
+      badgeBg:    AppColors.gradientScale[300]!.withAlpha(0x33),
+      badgeFg:    AppColors.gradientScale[300]!,
       popularText: '내 또래가 가장 많이 선택했어요!',
     ),
     _TransportItem(
       id: 'scooter',   name: '전동 킥보드',
       svgPath: SvgIcons.transportScooter,
       radius: 'RADIUS 10KM', coverage: 45,
-      iconColor:  Color(0xFFD864FF),
-      iconBg:     Color(0x1AD864FF),
-      barColor:   Color(0xFFD864FF),
-      badgeBg:    Color(0x33D864FF),
-      badgeFg:    Color(0xFFD864FF),
+      iconColor:  AppColors.secondaryScale[400]!,
+      iconBg:     AppColors.secondaryScale[400]!.withAlpha(0x1A),
+      barColor:   AppColors.secondaryScale[400]!,
+      badgeBg:    AppColors.secondaryScale[400]!.withAlpha(0x33),
+      badgeFg:    AppColors.secondaryScale[400]!,
     ),
     _TransportItem(
       id: 'walk',      name: '도보',
       svgPath: SvgIcons.transportWalk,
       radius: 'RADIUS 3KM', coverage: 20,
-      iconColor:  Color(0xFFEFBE00),
-      iconBg:     Color(0x33FFDE5D),
-      barColor:   Color(0xFFFFDE5D),
-      badgeBg:    Color(0x66FFDE5D),
-      badgeFg:    Color(0xFFEFBE00),
+      iconColor:  AppColors.yellowScale[400]!,
+      iconBg:     AppColors.yellowScale[300]!.withAlpha(0x33),
+      barColor:   AppColors.yellowScale[300]!,
+      badgeBg:    AppColors.yellowScale[300]!.withAlpha(0x66),
+      badgeFg:    AppColors.yellowScale[400]!,
     ),
     _TransportItem(
       id: 'bus',       name: '버스',
       svgPath: SvgIcons.transportBus,
       radius: 'RADIUS 10KM', coverage: 20,
-      iconColor:  Color(0xFF42BDB3),
-      iconBg:     Color(0x3390F3EA),
-      barColor:   Color(0xFF90F3EA),
-      badgeBg:    Color(0x6690F3EA),
-      badgeFg:    Color(0xFF42BDB3),
+      iconColor:  AppColors.tealScale[400]!,
+      iconBg:     AppColors.tealScale[300]!.withAlpha(0x33),
+      barColor:   AppColors.tealScale[300]!,
+      badgeBg:    AppColors.tealScale[300]!.withAlpha(0x66),
+      badgeFg:    AppColors.tealScale[400]!,
     ),
   ];
 
@@ -111,7 +111,7 @@ class _TransportItem {
   final Color badgeFg;
   final String? popularText;
 
-  const _TransportItem({
+  _TransportItem({
     required this.id,
     required this.name,
     required this.svgPath,
@@ -150,13 +150,13 @@ class _TransportCard extends StatelessWidget {
           color: Colors.white,
           borderRadius: BorderRadius.circular(40),
           border: isSelected
-              ? Border.all(color: const Color(0xFF6012DF), width: 1.5)
+              ? Border.all(color: AppColors.gradientScale[500]!, width: 1.5)
               : Border.all(color: Colors.transparent, width: 1.5),
           boxShadow: [
             BoxShadow(
               color: isSelected
-                  ? const Color(0x295C198A) // 16%
-                  : const Color(0x0F5C198A), // 6%
+                  ? AppColors.secondaryScale[900]!.withAlpha(0x29)
+                  : AppColors.secondaryScale[900]!.withAlpha(0x0F),
               offset: const Offset(0, 1),
               blurRadius: isSelected ? 12 : 10,
             ),

@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
+import '../../../common/theme/app_colors.dart';
 
 // 진행 도트 색상
-const _kDotDone    = Color(0xFF5C198A); // 완료
-const _kDotCurrent = Color(0xFFEAD4FF); // 진행중
-const _kDotFuture  = Color(0xFFF2EDF5); // 미진행
+final _kDotDone    = AppColors.secondaryScale[900]!; // 완료
+final _kDotCurrent = AppColors.secondaryScale[200]!; // 진행중
+final _kDotFuture  = AppColors.secondaryScale[0]!;   // 미진행
 
 // STEP 배지 색상
-const _kBadgeBg     = Color(0xFFF4EEFE);
-const _kBadgeBorder = Color(0xFFCFBEFB);
-const _kBadgeText   = Color(0xFF5422AC);
+final _kBadgeBg     = AppColors.secondaryScale[0]!;
+final _kBadgeBorder = AppColors.primaryScale[100]!;
+final _kBadgeText   = AppColors.secondaryScale[900]!;
 
 class TripStepIndicator extends StatelessWidget {
   final int currentStep;
@@ -53,7 +54,7 @@ class _StepBadge extends StatelessWidget {
       ),
       child: Text(
         '✦  STEP ${step.toString().padLeft(2, '0')}',
-        style: const TextStyle(
+        style: TextStyle(
           color: _kBadgeText,
           fontSize: 12,
           fontWeight: FontWeight.w700,
@@ -83,9 +84,9 @@ class _StepDots extends StatelessWidget {
         if (i < currentStep - 1) {
           color = _kDotDone;    size = 7;
         } else if (i == currentStep - 1) {
-          color = isNextEnabled ? _kDotDone : _kDotCurrent; size = 8;
+          color = isNextEnabled ? _kDotDone : _kDotCurrent; size = 7;
         } else {
-          color = _kDotFuture;  size = 6;
+          color = _kDotFuture;  size = 7;
         }
         return Container(
           margin: const EdgeInsets.only(left: 6),

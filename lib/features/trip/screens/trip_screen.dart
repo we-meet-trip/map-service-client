@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'trip_start_screen.dart';
 import 'trip_step1_screen.dart';
 import 'trip_step2_screen.dart';
 import 'trip_step3_screen.dart';
 import 'trip_step4_screen.dart';
+
+final tripScreenResetNotifier = ValueNotifier<int>(0);
 
 class TripScreen extends StatefulWidget {
   const TripScreen({super.key});
@@ -12,7 +15,23 @@ class TripScreen extends StatefulWidget {
 }
 
 class _TripScreenState extends State<TripScreen> {
-  int _currentStep = 1;
+  int _currentStep = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    tripScreenResetNotifier.addListener(_onReset);
+  }
+
+  @override
+  void dispose() {
+    tripScreenResetNotifier.removeListener(_onReset);
+    super.dispose();
+  }
+
+  void _onReset() {
+    if (mounted) setState(() => _currentStep = 0);
+  }
   static const int _totalSteps = 7;
 
   // Step 1
@@ -42,6 +61,8 @@ class _TripScreenState extends State<TripScreen> {
   @override
   Widget build(BuildContext context) {
     switch (_currentStep) {
+      case 0:
+        return TripStartScreen(onStart: _next);
       case 1:
         return TripStep1Screen(
           onNext: _next,

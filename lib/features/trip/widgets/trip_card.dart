@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../common/theme/app_colors.dart';
 
 class TripCard extends StatelessWidget {
   final Widget child;
@@ -19,7 +20,7 @@ class TripCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withAlpha(12),
+            color: AppColors.neutralScale[600]!.withAlpha(12),
             blurRadius: 16,
             offset: const Offset(0, 4),
           ),

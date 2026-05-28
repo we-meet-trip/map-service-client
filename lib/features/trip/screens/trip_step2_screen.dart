@@ -8,7 +8,7 @@ import '../widgets/trip_step_scaffold.dart';
 import '../widgets/trip_slider_theme.dart';
 
 const _kMaxBudget  = 9999999.0;
-const _kErrorColor = Color(0xFFFF1751);
+final _kErrorColor = AppColors.redScale[500]!;
 
 String _fmt(double v) {
   final s = v.round().toString();
@@ -71,7 +71,10 @@ class _TripStep2ScreenState extends State<TripStep2Screen> {
   }
 
   void _onMaxChanged(double v) {
-    setState(() => _max = v);
+    setState(() {
+      _max = v;
+      if (_max < _min) _min = _max;
+    });
     widget.onBudgetChanged(_min.clamp(0, _kMaxBudget), _max.clamp(0, _kMaxBudget));
   }
 
@@ -130,7 +133,7 @@ class _TripStep2ScreenState extends State<TripStep2Screen> {
                   child: Center(
                     child: Text(
                       '최대 예산은 9,999,999 원을 초과할 수 없습니다.',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 11,
                         color: _kErrorColor,
                         fontWeight: FontWeight.w500,
@@ -244,10 +247,10 @@ class _EditableBudgetChipState extends State<_EditableBudgetChip> {
   Widget build(BuildContext context) {
     final textColor   = widget.hasError ? _kErrorColor : AppColors.neutralScale[600]!;
     final borderColor = widget.hasError
-        ? const Color(0x66FF1751) // 40% opacity
+        ? AppColors.redScale[500]!.withAlpha(0x66)
         : AppColors.neutralScale[100]!;
     final bgColor     = widget.hasError
-        ? const Color(0x0FFF1751) // 6% opacity
+        ? AppColors.redScale[500]!.withAlpha(0x0F)
         : AppColors.background;
 
     return GestureDetector(
@@ -280,6 +283,10 @@ class _EditableBudgetChipState extends State<_EditableBudgetChip> {
                     border: InputBorder.none,
                     suffixText: ' 원',
                   ),
+                  onChanged: (text) {
+                    final v = double.tryParse(text);
+                    if (v != null) widget.onChanged(v);
+                  },
                   onSubmitted: (_) => _commit(),
                 ),
               )

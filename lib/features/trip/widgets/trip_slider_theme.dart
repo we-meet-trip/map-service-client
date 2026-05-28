@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import '../../../common/theme/app_colors.dart';
 
-const kSliderActive   = Color(0xFF8D46ED);
-const kSliderInactive = Color(0xFFF2EDF5);
-const _kBorder        = Color(0xFF6012DF);
-const _kFill          = Color(0xFFFCFCFD);
+final kSliderActive   = AppColors.gradientScale[300]!;
+final kSliderInactive = AppColors.secondaryScale[0]!;
+final _kBorder        = AppColors.gradientScale[500]!;
+final _kFill          = AppColors.neutralScale[0]!;
 // 트랙 높이 6px × 3 = 직경 18px → 반지름 9
 const _kRadius        = 9.0;
 

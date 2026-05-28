@@ -25,10 +25,10 @@ class TripStepHeader extends StatelessWidget {
         const SizedBox(height: 24),
         Text(
           title,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 26,
             fontWeight: FontWeight.w800,
-            color: Color(0xFF1A1A2E),
+            color: AppColors.neutralScale[600],
             height: 1.2,
           ),
         ),

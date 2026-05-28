@@ -25,7 +25,7 @@ class TripStep3Screen extends StatelessWidget {
     _ThemeItem(id: 'nature',   label: '자연/풍경', svgPath: SvgIcons.themeNature),
     _ThemeItem(id: 'cafe',     label: '카페 투어', svgPath: SvgIcons.themeCafe),
     _ThemeItem(id: 'history',  label: '역사/문화', svgPath: SvgIcons.themeHistory),
-    _ThemeItem(id: 'activity', label: '엑티비티',  svgPath: SvgIcons.themeActivity),
+    _ThemeItem(id: 'activity', label: '액티비티',  svgPath: SvgIcons.themeActivity),
     _ThemeItem(id: 'shopping', label: '쇼핑',     svgPath: SvgIcons.themeShopping),
     _ThemeItem(id: 'night',    label: '야경',     svgPath: SvgIcons.themeNight),
   ];
@@ -112,10 +112,10 @@ class _ThemeCell extends StatelessWidget {
 
   const _ThemeCell({required this.item, required this.selected, required this.onTap});
 
-  static const _kCellBgSel    = Color(0xFFEAD4FF);
-  static const _kBorderSel    = Color(0xFF6012DF);
-  static const _kContentSel   = Color(0xFF280078);
-  static const _kShadow       = Color(0x0F5C198A); // 6%
+  static final _kCellBgSel    = AppColors.secondaryScale[200]!;
+  static final _kBorderSel    = AppColors.gradientScale[500]!;
+  static final _kContentSel   = AppColors.primaryScale[900]!;
+  static final _kShadow       = AppColors.secondaryScale[900]!.withAlpha(0x0F);
 
   @override
   Widget build(BuildContext context) {
@@ -130,10 +130,10 @@ class _ThemeCell extends StatelessWidget {
             color: selected ? _kBorderSel : Colors.transparent,
             width: 1.5,
           ),
-          boxShadow: const [
+          boxShadow: [
             BoxShadow(
               color: _kShadow,
-              offset: Offset(0, 1),
+              offset: const Offset(0, 1),
               blurRadius: 10,
             ),
           ],

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'trip_next_button.dart';
-import 'trip_prev_button.dart';
+import '../../../common/widgets/next_button.dart';
+import '../../../common/widgets/prev_button.dart';
 
 /// 모든 여행 계획 스텝 화면의 공통 레이아웃.
 /// - 스크롤 가능한 콘텐츠 영역 + 하단 고정 버튼
@@ -9,17 +9,19 @@ class TripStepScaffold extends StatelessWidget {
   final List<Widget> children;
   final VoidCallback? onNext;
   final VoidCallback? onPrev;
+  final String? nextInfo;
 
   const TripStepScaffold({
     super.key,
     required this.children,
     this.onNext,
     this.onPrev,
+    this.nextInfo,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return SizedBox.expand(child: Column(
       children: [
         Expanded(
           child: SingleChildScrollView(
@@ -37,17 +39,17 @@ class TripStepScaffold extends StatelessWidget {
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 10),
-          child: TripNextButton(onPressed: onNext),
+          child: NextButton(onPressed: onNext, info: nextInfo),
         ),
         if (onPrev != null) ...[
           Padding(
-            // 가로 패딩 없음 — TripPrevButton 내부에서 Center로 자체 정렬
+            // 가로 패딩 없음 — PrevButton 내부에서 Center로 자체 정렬
             padding: const EdgeInsets.only(bottom: 20),
-            child: TripPrevButton(onPressed: onPrev!),
+            child: PrevButton(onPressed: onPrev!),
           ),
         ] else
           const SizedBox(height: 26),
       ],
-    );
+    ));
   }
 }
