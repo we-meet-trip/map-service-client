@@ -1,0 +1,26 @@
+import 'package:flutter/foundation.dart';
+
+class TripRepository {
+  TripRepository._();
+  static final TripRepository instance = TripRepository._();
+
+  final ValueNotifier<List<SavedTrip>> plannedTrips = ValueNotifier([]);
+  // 저장 탭 열릴 때 보여줄 탭 인덱스 (0: 완료, 1: 예정)
+  final ValueNotifier<int> requestedTab = ValueNotifier(0);
+
+  void addTrip(SavedTrip trip) {
+    plannedTrips.value = [...plannedTrips.value, trip];
+  }
+}
+
+class SavedTrip {
+  final String name;
+  final String route;
+  final DateTime savedAt;
+
+  SavedTrip({
+    required this.name,
+    required this.route,
+    required this.savedAt,
+  });
+}
