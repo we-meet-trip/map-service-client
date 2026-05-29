@@ -42,7 +42,7 @@ class _SignupStep1ScreenState extends State<SignupStep1Screen> {
     return SignupStepScaffold(
       title: '닉네임을 입력해주세요',
       onBack: () => context.pop(),
-      onNext: _canProceed ? () => context.go('/signup/step2') : null,
+      onNext: _canProceed ? () => context.push('/signup/step2') : null,
       child: AppTextField(
         controller: _controller,
         hintText: '닉네임 입력',

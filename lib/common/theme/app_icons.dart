@@ -17,4 +17,5 @@ class AppIcons {
 
   // Extra
   static final cancel = PhosphorIcons.xCircle(PhosphorIconsStyle.fill);
+  static final chevronDown = PhosphorIcons.caretDown();
 }

@@ -5,6 +5,7 @@ import 'signup_next_button.dart';
 
 class SignupStepScaffold extends StatelessWidget {
   final String title;
+  final String? subtitle;
   final Widget child;
   final VoidCallback onBack;
   final VoidCallback? onNext;
@@ -12,6 +13,7 @@ class SignupStepScaffold extends StatelessWidget {
   const SignupStepScaffold({
     super.key,
     required this.title,
+    this.subtitle,
     required this.child,
     required this.onBack,
     this.onNext,
@@ -41,13 +43,26 @@ class SignupStepScaffold extends StatelessWidget {
                   color: AppColors.neutralScale[600],
                 ),
               ),
-              const SizedBox(height: 32),
+              if (subtitle != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  subtitle!,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.neutralScale[500],
+                  ),
+                ),
+              ],
+              const SizedBox(height: 40),
               child,
               const Spacer(),
               SignupNextButton(onPressed: onNext),
               const SizedBox(height: 20),
             ],
+
           ),
+
         ),
       ),
     );
