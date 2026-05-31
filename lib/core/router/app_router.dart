@@ -1,7 +1,10 @@
 import 'package:go_router/go_router.dart';
 import '../../common/layout/main_layout.dart';
 import '../../features/home/screens/home_screen.dart';
-import '../../features/trip/screens/trip_screen.dart';
+import '../../features/trip/screens/trip_step5_screen.dart';
+import '../../features/trip/screens/trip_step6_screen.dart';
+import '../../features/trip/screens/trip_step7_screen.dart';
+import '../../features/trip/screens/search_step1_screen.dart';
 import '../../features/saved/screens/saved_screen.dart';
 import '../../features/chat/screens/chat_screen.dart';
 import '../../features/mypage/screens/mypage_screen.dart';
@@ -25,7 +28,21 @@ final appRouter = GoRouter(
           routes: [
             GoRoute(
               path: '/trip',
-              builder: (context, state) => const TripScreen(),
+              builder: (context, state) => const TripStep5Screen(),
+              routes: [
+                GoRoute(
+                  path: 'step6',
+                  builder: (context, state) => const TripStep6Screen(),
+                ),
+                GoRoute(
+                  path: 'step7',
+                  builder: (context, state) => const TripStep7Screen(),
+                ),
+                GoRoute(
+                  path: 'search',
+                  builder: (context, state) => const SearchStep1Screen(),
+                ),
+              ],
             ),
           ],
         ),
@@ -34,6 +51,13 @@ final appRouter = GoRouter(
             GoRoute(
               path: '/saved',
               builder: (context, state) => const SavedScreen(),
+              routes: [
+                GoRoute(
+                  path: 'trip',
+                  builder: (context, state) =>
+                      const TripStep6Screen(showBackButton: true),
+                ),
+              ],
             ),
           ],
         ),
