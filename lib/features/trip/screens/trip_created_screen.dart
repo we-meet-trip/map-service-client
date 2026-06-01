@@ -1,21 +1,30 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../common/theme/app_colors.dart';
+import '../../../common/theme/app_icons.dart';
+import '../widgets/transport_theme.dart';
+import '../../../common/widgets/next_button.dart';
+import '../../../common/widgets/prev_button.dart';
 import '../../../core/state/trip_repository.dart';
 
-class TripStep6Screen extends StatefulWidget {
-  const TripStep6Screen({super.key, this.showBackButton = false});
+class TripCreatedScreen extends StatefulWidget {
+  const TripCreatedScreen({
+    super.key,
+    this.showBackButton = false,
+    this.onPrev,
+  });
 
   final bool showBackButton;
+  final VoidCallback? onPrev;
 
   @override
-  State<TripStep6Screen> createState() => _TripStep6ScreenState();
+  State<TripCreatedScreen> createState() => _TripCreatedScreenState();
 }
 
-class _TripStep6ScreenState extends State<TripStep6Screen> {
-  late bool _isSaved = widget.showBackButton; // 저장 탭에서 열면 버튼 숨김
+class _TripCreatedScreenState extends State<TripCreatedScreen> {
+  late bool _isSaved = widget.showBackButton;
 
-  // 샘플 일정 데이터
   final List<_ScheduleStop> _stops = [
     _ScheduleStop(
       name: '속초 버스 터미널',
@@ -32,14 +41,14 @@ class _TripStep6ScreenState extends State<TripStep6Screen> {
       address: '강원특별자치도 속초시 청호동',
       time: '09:12 AM',
       transport: _TransportInfo(
-        label: '이동: 전동 킥보드',
+        label: '이동: 바이크',
         duration: '13분',
-        distance: '2.1km',
+        distance: '3.8km',
       ),
     ),
     _ScheduleStop(
       name: '속초 중앙시장',
-      address: '강원특별자치도 속초시 중앙로 147번길',
+      address: '강원특별자치도 속초시 중앙로 147',
       time: '09:25 AM',
       transport: null,
     ),
@@ -56,11 +65,8 @@ class _TripStep6ScreenState extends State<TripStep6Screen> {
             child: Row(
               children: [
                 IconButton(
-                  icon: Icon(
-                    Icons.arrow_back_ios_new_rounded,
-                    size: 20,
-                    color: AppColors.neutralScale[500],
-                  ),
+                  icon: Icon(Icons.arrow_back_ios_new_rounded,
+                      size: 20, color: AppColors.neutralScale[500]),
                   onPressed: () => context.go('/saved'),
                 ),
                 Text(
@@ -74,28 +80,26 @@ class _TripStep6ScreenState extends State<TripStep6Screen> {
               ],
             ),
           ),
-        // ── 스크롤 가능한 일정 목록 ──
+        // ── 스크롤 영역 ──
         Expanded(
           child: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // ── 지도 영역 (KakaoMap SDK 연결 예정) ──
                 _buildMapArea(),
+                // ── 일정 내용 ──
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildTitle(),
                       const SizedBox(height: 16),
                       _buildTotalTime(),
-                      const SizedBox(height: 20),
-                      ..._stops.asMap().entries.map((entry) {
-                        return _buildStopItem(
-                          entry.value,
-                          entry.key == _stops.length - 1,
-                        );
-                      }),
+                      const SizedBox(height: 28),
+                      ..._stops.asMap().entries.map((entry) =>
+                          _buildStopItem(entry.value, entry.key == _stops.length - 1)),
                     ],
                   ),
                 ),
@@ -103,71 +107,13 @@ class _TripStep6ScreenState extends State<TripStep6Screen> {
             ),
           ),
         ),
-        // ── 저장 후 재탐색 버튼 ──
-        if (_isSaved && !widget.showBackButton)
-          Container(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-            color: Colors.transparent,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(30),
-              child: Container(
-                width: double.infinity,
-                height: 54,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.65),
-                  borderRadius: BorderRadius.circular(30),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.8),
-                    width: 1.5,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.06),
-                      blurRadius: 16,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: TextButton(
-                  onPressed: () => context.go('/trip/search'),
-                  child: Text(
-                    '재탐색하기',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.neutralScale[400],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        // ── 하단 고정 버튼 (저장 전에만 표시) ──
-        if (!_isSaved)
-          Container(
-            decoration: BoxDecoration(
-              color: AppColors.background,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.06),
-                  blurRadius: 12,
-                  offset: const Offset(0, -4),
-                ),
-              ],
-            ),
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildSaveButton(context),
-                const SizedBox(height: 12),
-                _buildExploreMoreButton(context),
-              ],
-            ),
-          ),
+        // ── 하단 고정 버튼 ──
+        if (!widget.showBackButton) _buildBottomButtons(context),
       ],
     );
   }
+
+  // ── 지도 플레이스홀더 ────────────────────────────────────────
 
   Widget _buildMapArea() {
     return Container(
@@ -176,35 +122,18 @@ class _TripStep6ScreenState extends State<TripStep6Screen> {
       color: const Color(0xFFD0E8F0),
       child: Stack(
         children: [
-          // 카카오맵 SDK 영역 (추후 KakaoMap 위젯으로 교체)
-          Container(
-            width: double.infinity,
-            height: double.infinity,
-            color: const Color(0xFFD0E8F0),
-            child: Center(
-              child: Icon(
-                Icons.map_outlined,
-                size: 48,
-                color: Colors.white.withValues(alpha: 0.5),
-              ),
+          // KakaoMap SDK 연결 예정
+          Center(
+            child: Icon(
+              Icons.map_outlined,
+              size: 48,
+              color: Colors.white.withValues(alpha: 0.5),
             ),
           ),
-          // 경로 번호 마커 (샘플)
-          Positioned(
-            left: 80,
-            top: 80,
-            child: _buildNumberMarker('3'),
-          ),
-          Positioned(
-            right: 100,
-            bottom: 80,
-            child: _buildNumberMarker('1'),
-          ),
-          Positioned(
-            right: 60,
-            bottom: 80,
-            child: _buildNumberMarker('2'),
-          ),
+          // 경로 번호 마커
+          Positioned(left: 80, top: 80,   child: _buildNumberMarker('3')),
+          Positioned(right: 100, bottom: 80, child: _buildNumberMarker('1')),
+          Positioned(right: 60,  bottom: 80, child: _buildNumberMarker('2')),
         ],
       ),
     );
@@ -219,7 +148,7 @@ class _TripStep6ScreenState extends State<TripStep6Screen> {
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
+            color: AppColors.neutralScale[600]!.withAlpha(0x26),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -238,6 +167,8 @@ class _TripStep6ScreenState extends State<TripStep6Screen> {
     );
   }
 
+  // ── 제목 / 소요시간 ──────────────────────────────────────────
+
   Widget _buildTitle() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -245,19 +176,16 @@ class _TripStep6ScreenState extends State<TripStep6Screen> {
         Text(
           '일정이 완성되었어요!',
           style: TextStyle(
-            fontSize: 26,
-            fontWeight: FontWeight.w700,
+            fontSize: 28,
+            fontWeight: FontWeight.w800,
             color: AppColors.neutralScale[600],
-            height: 1.3,
+            height: 1.2,
           ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 8),
         Text(
           '일정을 검토하고 경로를 확정해주세요.',
-          style: TextStyle(
-            fontSize: 14,
-            color: AppColors.neutralScale[300],
-          ),
+          style: TextStyle(fontSize: 13, color: AppColors.neutralScale[300]),
         ),
       ],
     );
@@ -266,10 +194,7 @@ class _TripStep6ScreenState extends State<TripStep6Screen> {
   Widget _buildTotalTime() {
     return RichText(
       text: TextSpan(
-        style: TextStyle(
-          fontSize: 14,
-          color: AppColors.neutralScale[400],
-        ),
+        style: TextStyle(fontSize: 14, color: AppColors.neutralScale[400]),
         children: [
           const TextSpan(text: '총 소요시간 : 약 '),
           TextSpan(
@@ -284,12 +209,14 @@ class _TripStep6ScreenState extends State<TripStep6Screen> {
     );
   }
 
+  // ── 일정 아이템 ──────────────────────────────────────────────
+
   Widget _buildStopItem(_ScheduleStop stop, bool isLast) {
     return IntrinsicHeight(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 타임라인 (원 + 선)
+          // 타임라인
           SizedBox(
             width: 32,
             child: Column(
@@ -299,10 +226,7 @@ class _TripStep6ScreenState extends State<TripStep6Screen> {
                   height: 22,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(
-                      color: AppColors.primaryScale[300]!,
-                      width: 2,
-                    ),
+                    border: Border.all(color: AppColors.primaryScale[300]!, width: 2),
                     color: Colors.white,
                   ),
                 ),
@@ -323,7 +247,6 @@ class _TripStep6ScreenState extends State<TripStep6Screen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 장소명 + 시간
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -346,20 +269,15 @@ class _TripStep6ScreenState extends State<TripStep6Screen> {
                   ],
                 ),
                 const SizedBox(height: 4),
-                // 주소
                 Text(
                   stop.address,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.neutralScale[300],
-                  ),
+                  style: TextStyle(fontSize: 12, color: AppColors.neutralScale[300]),
                 ),
-                // 이동 수단 카드
                 if (stop.transport != null) ...[
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
                   _buildTransportCard(stop.transport!),
                 ],
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
               ],
             ),
           ),
@@ -368,106 +286,110 @@ class _TripStep6ScreenState extends State<TripStep6Screen> {
     );
   }
 
+  // ── 이동수단 카드 (글라스 효과 + TransportTheme 색상) ──────────
+
   Widget _buildTransportCard(_TransportInfo transport) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.neutralScale[0],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.neutralScale[100]!),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              color: AppColors.primaryScale[0],
-              shape: BoxShape.circle,
+    final theme = TransportTheme.byLabel(transport.label);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(30),
+      child: BackdropFilter(
+        // Refraction: 35 → 강한 배경 블러
+        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+        child: Container(
+          height: 60,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            // Frost: 0 → 투명한 맑은 유리
+            // Light: -33°, 80% → 좌상단(밝음) → 우하단(어두움) 그라디언트
+            gradient: LinearGradient(
+              begin: const Alignment(-0.54, -0.84),
+              end:   const Alignment( 0.54,  0.84),
+              colors: [
+                Colors.white.withValues(alpha: 0.26),
+                Colors.white.withValues(alpha: 0.06),
+              ],
             ),
-            child: Icon(
-              Icons.electric_scooter,
-              size: 18,
-              color: AppColors.primaryScale[400],
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.65),
+              width: 1.0,
             ),
-          ),
-          const SizedBox(width: 10),
-          Text(
-            transport.label,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: AppColors.neutralScale[500],
-            ),
-          ),
-          const Spacer(),
-          Text(
-            '${transport.duration} · ${transport.distance}',
-            style: TextStyle(
-              fontSize: 13,
-              color: AppColors.neutralScale[300],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSaveButton(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 58,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              AppColors.gradientScale[200]!,
-              AppColors.gradientScale[600]!,
+            boxShadow: [
+              // Depth: 7.24 → 외부 그림자
+              BoxShadow(
+                color: theme.iconColor.withValues(alpha: 0.10),
+                blurRadius: 14,
+                offset: const Offset(0, 4),
+              ),
             ],
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
           ),
-          borderRadius: BorderRadius.circular(30),
-        ),
-        child: ElevatedButton(
-          onPressed: () => _showSaveBottomSheet(context),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.transparent,
-            shadowColor: Colors.transparent,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(30),
-            ),
-          ),
-          child: const Text(
-            '일정 저장하기',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 17,
-              fontWeight: FontWeight.w600,
-            ),
+          child: Row(
+            children: [
+              // 아이콘 원형
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: theme.iconBg,
+                ),
+                child: Center(
+                  child: AppIcon(theme.svgPath, size: 18, color: theme.iconColor),
+                ),
+              ),
+              const SizedBox(width: 12),
+              // 라벨
+              Text(
+                transport.label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.neutralScale[600],
+                ),
+              ),
+              const Spacer(),
+              // 시간 · 거리
+              Text(
+                '${transport.duration} · ${transport.distance}',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: AppColors.neutralScale[400],
+                ),
+              ),
+              const SizedBox(width: 4),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildExploreMoreButton(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 50,
-      child: TextButton(
-        onPressed: () => context.go('/trip/search'),
-        child: Text(
-          '추가 탐색하기',
-          style: TextStyle(
-            color: AppColors.neutralScale[400],
-            fontSize: 15,
-            fontWeight: FontWeight.w400,
+  // ── 하단 버튼 ────────────────────────────────────────────────
+
+  Widget _buildBottomButtons(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (!_isSaved)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 10),
+            child: NextButton(
+              label: '일정 저장하기',
+              onPressed: () => _showSaveBottomSheet(context),
+            ),
+          ),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 20),
+          child: PrevButton(
+            onPressed: () => context.go('/trip/search'),
+            label: _isSaved ? '← 재탐색하러 가기' : '추가 탐색하기',
           ),
         ),
-      ),
+      ],
     );
   }
+
+  // ── 저장 완료 다이얼로그 ─────────────────────────────────────
 
   void _showSavedDialog(BuildContext context, String name) {
     showDialog(
@@ -481,7 +403,6 @@ class _TripStep6ScreenState extends State<TripStep6Screen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // 메시지
               RichText(
                 textAlign: TextAlign.center,
                 text: TextSpan(
@@ -506,18 +427,15 @@ class _TripStep6ScreenState extends State<TripStep6Screen> {
                 ),
               ),
               const SizedBox(height: 28),
-              // 버튼 행
               Row(
                 children: [
-                  // 닫기
                   Expanded(
                     child: OutlinedButton(
                       onPressed: () => Navigator.of(ctx).pop(),
                       style: OutlinedButton.styleFrom(
                         side: BorderSide(color: AppColors.neutralScale[200]!),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                            borderRadius: BorderRadius.circular(12)),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
                       child: Text(
@@ -531,23 +449,19 @@ class _TripStep6ScreenState extends State<TripStep6Screen> {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  // 보러가기
                   Expanded(
                     child: DecoratedBox(
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            AppColors.gradientScale[200]!,
-                            AppColors.gradientScale[600]!,
-                          ],
-                        ),
+                        gradient: LinearGradient(colors: [
+                          AppColors.gradientScale[200]!,
+                          AppColors.gradientScale[600]!,
+                        ]),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: ElevatedButton(
                         onPressed: () {
                           Navigator.of(ctx).pop();
                           TripRepository.instance.requestedTab.value = 0;
-                          // 다이얼로그 닫힌 후 이동
                           WidgetsBinding.instance.addPostFrameCallback((_) {
                             context.go('/saved');
                           });
@@ -556,17 +470,15 @@ class _TripStep6ScreenState extends State<TripStep6Screen> {
                           backgroundColor: Colors.transparent,
                           shadowColor: Colors.transparent,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
+                              borderRadius: BorderRadius.circular(12)),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
                         child: const Text(
                           '보러가기',
                           style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white),
                         ),
                       ),
                     ),
@@ -579,6 +491,8 @@ class _TripStep6ScreenState extends State<TripStep6Screen> {
       ),
     );
   }
+
+  // ── 저장 바텀시트 ─────────────────────────────────────────────
 
   void _showSaveBottomSheet(BuildContext context) {
     showModalBottomSheet(
@@ -594,18 +508,17 @@ class _TripStep6ScreenState extends State<TripStep6Screen> {
             savedAt: DateTime.now(),
           ));
           setState(() => _isSaved = true);
-          _showSavedDialog(context, name); // 스크린 context 사용
+          _showSavedDialog(context, name);
         },
       ),
     );
   }
 }
 
-// ─── 저장 바텀시트 ───────────────────────────────────────────
+// ─── 저장 바텀시트 위젯 ───────────────────────────────────────
 
 class _SaveBottomSheet extends StatefulWidget {
   const _SaveBottomSheet({required this.onSaved});
-
   final void Function(String name) onSaved;
 
   @override
@@ -619,10 +532,7 @@ class _SaveBottomSheetState extends State<_SaveBottomSheet> {
   @override
   void initState() {
     super.initState();
-    // 바텀시트 열릴 때 자동 포커스
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _focusNode.requestFocus();
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _focusNode.requestFocus());
   }
 
   @override
@@ -642,7 +552,10 @@ class _SaveBottomSheetState extends State<_SaveBottomSheet> {
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
-      padding: EdgeInsets.fromLTRB(24, 14, 24, keyboardHeight > 0 ? keyboardHeight + 16 : bottomPadding + 32),
+      padding: EdgeInsets.fromLTRB(
+        24, 14, 24,
+        keyboardHeight > 0 ? keyboardHeight + 16 : bottomPadding + 32,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -650,8 +563,7 @@ class _SaveBottomSheetState extends State<_SaveBottomSheet> {
           // 드래그 핸들
           Center(
             child: Container(
-              width: 44,
-              height: 5,
+              width: 44, height: 5,
               decoration: BoxDecoration(
                 color: AppColors.neutralScale[200],
                 borderRadius: BorderRadius.circular(3),
@@ -672,15 +584,12 @@ class _SaveBottomSheetState extends State<_SaveBottomSheet> {
           const SizedBox(height: 10),
           Text(
             '지정된 여행 목록에 표시될 이름이에요!',
-            style: TextStyle(
-              fontSize: 14,
-              color: AppColors.neutralScale[300],
-            ),
+            style: TextStyle(fontSize: 14, color: AppColors.neutralScale[300]),
           ),
-          const SizedBox(height: 40),
-          // 텍스트 필드
+          const SizedBox(height: 32),
+          // 입력 필드
           _buildNameField(),
-          const SizedBox(height: 40),
+          const SizedBox(height: 32),
           // 저장 버튼
           _buildSaveButton(context),
         ],
@@ -697,19 +606,12 @@ class _SaveBottomSheetState extends State<_SaveBottomSheet> {
           focusNode: _focusNode,
           maxLength: 20,
           onChanged: (_) => setState(() {}),
-          style: TextStyle(
-            fontSize: 16,
-            color: AppColors.neutralScale[600],
-          ),
+          style: TextStyle(fontSize: 16, color: AppColors.neutralScale[600]),
           decoration: InputDecoration(
             hintText: '일정 이름',
-            hintStyle: TextStyle(
-              color: AppColors.neutralScale[200],
-              fontSize: 16,
-            ),
+            hintStyle: TextStyle(color: AppColors.neutralScale[200], fontSize: 16),
             counterText: '',
             contentPadding: const EdgeInsets.only(bottom: 12),
-            // × 버튼: 항상 표시, 텍스트 없으면 연회색
             suffixIcon: Padding(
               padding: const EdgeInsets.only(bottom: 4),
               child: IconButton(
@@ -721,74 +623,58 @@ class _SaveBottomSheetState extends State<_SaveBottomSheet> {
                       : AppColors.neutralScale[100],
                 ),
                 onPressed: _controller.text.isNotEmpty
-                    ? () {
-                        _controller.clear();
-                        setState(() {});
-                      }
+                    ? () { _controller.clear(); setState(() {}); }
                     : null,
               ),
             ),
             enabledBorder: UnderlineInputBorder(
-              borderSide: BorderSide(
-                color: AppColors.neutralScale[100]!,
-                width: 1.5,
-              ),
+              borderSide: BorderSide(color: AppColors.neutralScale[100]!, width: 1.5),
             ),
             focusedBorder: UnderlineInputBorder(
-              borderSide: BorderSide(
-                color: AppColors.primaryScale[500]!,
-                width: 2,
-              ),
+              borderSide: BorderSide(color: AppColors.primaryScale[500]!, width: 2),
             ),
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         Text(
           '${_controller.text.length} / 20',
-          style: TextStyle(
-            fontSize: 12,
-            color: AppColors.neutralScale[300],
-          ),
+          style: TextStyle(fontSize: 12, color: AppColors.neutralScale[300]),
         ),
       ],
     );
   }
 
   Widget _buildSaveButton(BuildContext context) {
+    final bool canSave = _controller.text.isNotEmpty;
     return SizedBox(
       width: double.infinity,
       height: 58,
       child: DecoratedBox(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [
-              AppColors.gradientScale[200]!,
-              AppColors.gradientScale[600]!,
-            ],
+            colors: canSave
+                ? [AppColors.gradientScale[200]!, AppColors.gradientScale[600]!]
+                : [AppColors.neutralScale[100]!, AppColors.neutralScale[100]!],
             begin: Alignment.centerLeft,
             end: Alignment.centerRight,
           ),
           borderRadius: BorderRadius.circular(30),
         ),
         child: ElevatedButton(
-          onPressed: () {
-            if (_controller.text.isNotEmpty) {
-              widget.onSaved(_controller.text);
-              Navigator.pop(context);
-            }
-          },
+          onPressed: canSave
+              ? () { widget.onSaved(_controller.text); Navigator.pop(context); }
+              : null,
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.transparent,
             shadowColor: Colors.transparent,
+            disabledBackgroundColor: Colors.transparent,
             overlayColor: Colors.white.withValues(alpha: 0.15),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(30),
-            ),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
           ),
-          child: const Text(
+          child: Text(
             '일정 저장하기',
             style: TextStyle(
-              color: Colors.white,
+              color: canSave ? Colors.white : AppColors.neutralScale[300],
               fontSize: 17,
               fontWeight: FontWeight.w600,
             ),

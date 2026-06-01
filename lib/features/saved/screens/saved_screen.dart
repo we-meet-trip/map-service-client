@@ -87,35 +87,38 @@ class _SavedScreenState extends State<SavedScreen> {
     final isSelected = _tabIndex == index;
     return GestureDetector(
       onTap: () => setState(() => _tabIndex = index),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
-              color: isSelected
-                  ? AppColors.neutralScale[600]
-                  : AppColors.neutralScale[300],
-            ),
-          ),
-          const SizedBox(height: 4),
-          if (isSelected)
-            Container(
-              height: 2.5,
-              width: label.length * 12.0,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    AppColors.gradientScale[200]!,
-                    AppColors.gradientScale[600]!,
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(2),
+      child: IntrinsicWidth(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
+                color: isSelected
+                    ? AppColors.neutralScale[600]
+                    : AppColors.neutralScale[300],
               ),
             ),
-        ],
+            const SizedBox(height: 4),
+            if (isSelected)
+              Container(
+                height: 2.5,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      AppColors.gradientScale[200]!,
+                      AppColors.gradientScale[600]!,
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              )
+            else
+              const SizedBox(height: 2.5),
+          ],
+        ),
       ),
     );
   }
@@ -174,7 +177,7 @@ class _SavedScreenState extends State<SavedScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
+            color: AppColors.neutralScale[600]!.withAlpha(0x10),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),

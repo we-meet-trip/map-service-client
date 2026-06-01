@@ -54,7 +54,7 @@ class TripStep3Screen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(children: [
-                AppIcon(SvgIcons.sparkleSmall, size: 18, color: AppColors.primaryScale[600]),
+                AppIcon(SvgIcons.sparkleSmall, size: 18),
                 const SizedBox(width: 8),
                 Text('여행 테마',
                     style: TextStyle(

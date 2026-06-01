@@ -45,7 +45,7 @@ class _TripStep2ScreenState extends State<TripStep2Screen> {
   late double _max;
 
   bool get _maxError => _max > _kMaxBudget;
-  bool get _canProceed => !_maxError;
+  bool get _canProceed => !_maxError && (_min > 0 || _max > 0);
 
   @override
   void initState() {
