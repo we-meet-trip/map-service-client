@@ -54,6 +54,23 @@ class AppColors {
     600: Color(0xFF5000DA),
   };
 
+  static const Map<int, Color> redScale = {
+    400: Color(0xFFE53935), // 캘린더 일요일
+    500: Color(0xFFFF1751), // 에러/경고
+  };
 
+  static const Map<int, Color> blueScale = {
+    500: Color(0xFF2160FF), // 캘린더 토요일
+  };
+
+  static const Map<int, Color> yellowScale = {
+    300: Color(0xFFFFDE5D), // 밝은 노랑 (바/뱃지 배경)
+    400: Color(0xFFEFBE00), // 기본 노랑 (아이콘/텍스트)
+  };
+
+  static const Map<int, Color> tealScale = {
+    300: Color(0xFF90F3EA), // 밝은 청록 (바/뱃지 배경)
+    400: Color(0xFF42BDB3), // 기본 청록 (아이콘/텍스트)
+  };
 
 }
