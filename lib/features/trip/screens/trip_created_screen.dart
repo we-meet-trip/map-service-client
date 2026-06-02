@@ -463,7 +463,9 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
                           Navigator.of(ctx).pop();
                           TripRepository.instance.requestedTab.value = 0;
                           WidgetsBinding.instance.addPostFrameCallback((_) {
-                            context.go('/saved');
+                            if (context.mounted) {
+                              context.go('/saved');
+                            }
                           });
                         },
                         style: ElevatedButton.styleFrom(
@@ -662,7 +664,10 @@ class _SaveBottomSheetState extends State<_SaveBottomSheet> {
         ),
         child: ElevatedButton(
           onPressed: canSave
-              ? () { widget.onSaved(_controller.text); Navigator.pop(context); }
+              ? () {
+                  Navigator.pop(context);
+                  widget.onSaved(_controller.text);
+                }
               : null,
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.transparent,
