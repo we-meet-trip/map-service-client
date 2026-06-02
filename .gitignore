@@ -80,3 +80,8 @@ lib/generated_plugin_registrant.dart
 
 # === Coverage ===
 coverage/
+
+# === Misc ===
+*.bak
+*.tmp
+*.log
