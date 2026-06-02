@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../common/widgets/app_loading_screen.dart';
 import 'trip_start_screen.dart';
 import 'trip_step1_screen.dart';
 import 'trip_step2_screen.dart';
@@ -83,8 +84,15 @@ class _TripRegenerateScreenState extends State<TripRegenerateScreen> {
   String _selectedProvince = '선택';
   String _selectedCity = '선택';
 
+  bool _isLoading = false;
+
   void _next() {
-    if (_currentStep < _totalSteps) setState(() => _currentStep++);
+    if (_currentStep == 5) {
+      // step 5 → 로딩 화면 → step 6
+      setState(() => _isLoading = true);
+    } else if (_currentStep < _totalSteps) {
+      setState(() => _currentStep++);
+    }
   }
 
   void _prev() {
@@ -93,6 +101,17 @@ class _TripRegenerateScreenState extends State<TripRegenerateScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // step 5 완료 후 로딩 화면 (최소 2초, 나중에 AI future 연결 가능)
+    if (_isLoading) {
+      return AppLoadingScreen(
+        minDuration: const Duration(seconds: 2),
+        onComplete: () => setState(() {
+          _isLoading = false;
+          _currentStep = 6;
+        }),
+      );
+    }
+
     switch (_currentStep) {
       case 0:
         return TripStartScreen(onStart: _next);
