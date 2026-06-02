@@ -11,12 +11,14 @@ class AppLoadingScreen extends StatefulWidget {
   final Future<void>? future;
   final Duration minDuration;
   final VoidCallback? onComplete;
+  final void Function(Object error)? onError;
 
   const AppLoadingScreen({
     super.key,
     this.future,
     this.minDuration = const Duration(seconds: 2),
     this.onComplete,
+    this.onError,
   });
 
   @override
@@ -31,12 +33,15 @@ class _AppLoadingScreenState extends State<AppLoadingScreen> {
   }
 
   Future<void> _startLoading() async {
-    // future와 최소 대기시간을 동시에 실행, 둘 다 완료되면 진행
-    await Future.wait([
-      widget.future ?? Future<void>.value(),
-      Future<void>.delayed(widget.minDuration),
-    ]);
-    if (mounted) widget.onComplete?.call();
+    try {
+      await Future.wait([
+        widget.future ?? Future<void>.value(),
+        Future<void>.delayed(widget.minDuration),
+      ]);
+      if (mounted) widget.onComplete?.call();
+    } catch (e) {
+      if (mounted) widget.onError?.call(e);
+    }
   }
 
   @override
