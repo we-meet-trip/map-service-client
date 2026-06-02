@@ -25,8 +25,8 @@ class TripStep1Screen extends StatefulWidget {
     required this.onNext,
     this.startDate,
     this.endDate,
-    this.startHour = 9,
-    this.endHour = 20,
+    this.startHour = 0,
+    this.endHour = 0,
     required this.onDateChanged,
     required this.onTimeChanged,
   });
@@ -44,7 +44,10 @@ class _TripStep1ScreenState extends State<TripStep1Screen> {
     _displayedMonth = DateTime(DateTime.now().year, DateTime.now().month);
   }
 
-  bool get _canProceed => widget.startDate != null && widget.endDate != null;
+  bool get _canProceed =>
+      widget.startDate != null &&
+      widget.endDate != null &&
+      !(widget.startHour == 0.0 && widget.endHour == 0.0);
 
   void _onDayTapped(DateTime day) {
     final start = widget.startDate;
@@ -142,18 +145,24 @@ class _CalendarCard extends StatelessWidget {
         const Spacer(),
         GestureDetector(
           onTap: onPrevMonth,
-          child: AppIcon(SvgIcons.chevronLeft, size: 7, color: AppColors.neutralScale[300]),
+          behavior: HitTestBehavior.opaque,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: AppIcon(SvgIcons.chevronLeft, size: 7, color: AppColors.neutralScale[300]),
+          ),
         ),
-        const SizedBox(width: 6),
         Text('${displayedMonth.year}년 ${months[displayedMonth.month - 1]}',
             style: TextStyle(fontSize: 13, color: AppColors.neutralScale[400])),
-        const SizedBox(width: 6),
         GestureDetector(
           onTap: onNextMonth,
-          child: Transform(
-            alignment: Alignment.center,
-            transform: Matrix4.rotationY(3.1415926535897932),
-            child: AppIcon(SvgIcons.chevronLeft, size: 7, color: AppColors.neutralScale[300]),
+          behavior: HitTestBehavior.opaque,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Transform(
+              alignment: Alignment.center,
+              transform: Matrix4.rotationY(3.1415926535897932),
+              child: AppIcon(SvgIcons.chevronLeft, size: 7, color: AppColors.neutralScale[300]),
+            ),
           ),
         ),
       ],
@@ -183,6 +192,7 @@ class _CalendarCard extends StatelessWidget {
   }
 
   Widget _buildGrid() {
+    final today       = DateTime.now();
     final firstDay    = DateTime(displayedMonth.year, displayedMonth.month, 1);
     final daysInMonth = DateTime(displayedMonth.year, displayedMonth.month + 1, 0).day;
     final startOffset = firstDay.weekday % 7; // Sun=0
@@ -200,6 +210,7 @@ class _CalendarCard extends StatelessWidget {
               child: _dayCell(
                 DateTime(displayedMonth.year, displayedMonth.month, idx + 1),
                 col,
+                today,
               ),
             );
           }),
@@ -213,7 +224,7 @@ class _CalendarCard extends StatelessWidget {
         ? DateTime(displayedMonth.year, displayedMonth.month, 0).day + idx + 1
         : idx - daysInMonth + 1;
     return SizedBox(
-      height: 40,
+      height: 48,
       child: Center(
         child: Text('$num',
             style: TextStyle(fontSize: 13, color: AppColors.neutralScale[200])),
@@ -221,11 +232,11 @@ class _CalendarCard extends StatelessWidget {
     );
   }
 
-  Widget _dayCell(DateTime day, int col) {
+  Widget _dayCell(DateTime day, int col, DateTime today) {
     final isStart     = startDate != null && _same(day, startDate!);
     final isEnd       = endDate   != null && _same(day, endDate!);
     final inRange     = _inRange(day);
-    final isToday     = _same(day, DateTime.now());
+    final isToday     = _same(day, today);
     final isSingleSel = isStart && isEnd;
 
     final Color textColor;
@@ -245,14 +256,15 @@ class _CalendarCard extends StatelessWidget {
 
     return GestureDetector(
       onTap: () => onDayTapped(day),
+      behavior: HitTestBehavior.opaque,
       child: SizedBox(
-        height: 40,
+        height: 48,
         child: Stack(
           children: [
             if (inRange && !isSingleSel)
               Positioned.fill(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 5),
+                  padding: const EdgeInsets.symmetric(vertical: 9),
                   child: _rangeBar(isStart, isEnd),
                 ),
               ),
@@ -368,14 +380,18 @@ class _TimeSliderCard extends StatelessWidget {
               const Spacer(),
               GestureDetector(
                 onTap: () => _showPicker(context),
-                child: Row(
-                  children: [
-                    Text('${_fmt(startHour)} - ${_fmt(endHour)}',
-                        style: TextStyle(
-                            fontSize: 13, color: AppColors.neutralScale[400])),
-                    const SizedBox(width: 2),
-                    AppIcon(SvgIcons.chevronDownGray, size: 5, color: AppColors.neutralScale[400]),
-                  ],
+                behavior: HitTestBehavior.opaque,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                  child: Row(
+                    children: [
+                      Text('${_fmt(startHour)} - ${_fmt(endHour)}',
+                          style: TextStyle(
+                              fontSize: 13, color: AppColors.neutralScale[400])),
+                      const SizedBox(width: 4),
+                      AppIcon(SvgIcons.chevronDownGray, size: 5, color: AppColors.neutralScale[400]),
+                    ],
+                  ),
                 ),
               ),
             ],

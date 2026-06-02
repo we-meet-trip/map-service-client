@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../common/theme/app_colors.dart';
+import '../../../common/widgets/next_button.dart';
+import '../../../common/widgets/prev_button.dart';
+import 'trip_regenerate_screen.dart';
 
 class SearchStep1Screen extends StatefulWidget {
   const SearchStep1Screen({super.key});
@@ -12,27 +15,27 @@ class SearchStep1Screen extends StatefulWidget {
 class _SearchStep1ScreenState extends State<SearchStep1Screen> {
   int _selectedIndex = 0;
 
-  final List<_SearchOption> _options = const [
+  final List<_SearchOption> _options = [
     _SearchOption(
       title: '완전 재탐색하기',
       subtitle: '완전히 새로운 일정으로 추천해요',
       iconData: Icons.refresh_rounded,
-      iconBg: Color(0xFFEAD4FF),
-      iconColor: Color(0xFFAD51FB),
+      iconBg: AppColors.secondaryScale[200]!,
+      iconColor: AppColors.secondaryScale[500]!,
     ),
     _SearchOption(
       title: 'AI 추천 장소 선택하기',
       subtitle: 'AI 추천 장소를 골라볼까요?',
       iconData: Icons.place_outlined,
-      iconBg: Color(0xFFFFEDD5),
-      iconColor: Color(0xFFF97316),
+      iconBg: const Color(0xFFFFEDD5),
+      iconColor: const Color(0xFFF97316),
     ),
     _SearchOption(
       title: '직접 수정하기',
       subtitle: '장소를 직접 검색하고 수정해요',
       iconData: Icons.tune_rounded,
-      iconBg: Color(0xFFDBEAFE),
-      iconColor: Color(0xFF3B82F6),
+      iconBg: const Color(0xFFDBEAFE),
+      iconColor: const Color(0xFF3B82F6),
     ),
   ];
 
@@ -97,9 +100,18 @@ class _SearchStep1ScreenState extends State<SearchStep1Screen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildStartButton(context),
+              NextButton(
+                label: '재탐색 시작하기  →',
+                onPressed: () {
+                  tripRetrialNotifier.value++;
+                  context.go('/trip');
+                },
+              ),
               const SizedBox(height: 10),
-              _buildBackButton(context),
+              PrevButton(
+                onPressed: () => context.go('/trip'),
+                label: '← 경로로 돌아가기',
+              ),
             ],
           ),
         ),
@@ -116,26 +128,26 @@ class _SearchStep1ScreenState extends State<SearchStep1Screen> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: isSelected
-              ? const Color(0xFFFAF5FF)
+              ? AppColors.secondaryScale[0]
               : Colors.white,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: isSelected
-                ? const Color(0xFFAD51FB)
+                ? AppColors.secondaryScale[500]!
                 : AppColors.neutralScale[100]!,
             width: isSelected ? 1.5 : 1,
           ),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: const Color(0xFFAD51FB).withValues(alpha: 0.15),
+                    color: AppColors.secondaryScale[500]!.withValues(alpha: 0.15),
                     blurRadius: 16,
                     offset: const Offset(0, 4),
                   ),
                 ]
               : [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
+                    color: AppColors.neutralScale[600]!.withAlpha(0x0A),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -192,22 +204,29 @@ class _SearchStep1ScreenState extends State<SearchStep1Screen> {
 
             // ── 라디오 버튼 ──
             Container(
-              width: 22,
-              height: 22,
+              width: 24,
+              height: 24,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: isSelected
-                    ? const Color(0xFFAD51FB)
-                    : Colors.transparent,
+                color: Colors.white,
                 border: Border.all(
                   color: isSelected
-                      ? const Color(0xFFAD51FB)
+                      ? AppColors.secondaryScale[500]!
                       : AppColors.neutralScale[200]!,
                   width: 2,
                 ),
               ),
               child: isSelected
-                  ? const Icon(Icons.circle, size: 8, color: Colors.white)
+                  ? Center(
+                      child: Container(
+                        width: 12,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppColors.secondaryScale[500],
+                        ),
+                      ),
+                    )
                   : null,
             ),
           ],
@@ -216,74 +235,7 @@ class _SearchStep1ScreenState extends State<SearchStep1Screen> {
     );
   }
 
-  Widget _buildStartButton(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 58,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              AppColors.gradientScale[200]!,
-              AppColors.gradientScale[600]!,
-            ],
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
-          ),
-          borderRadius: BorderRadius.circular(30),
-        ),
-        child: ElevatedButton(
-          onPressed: () {
-            if (_selectedIndex == 0) {
-              // 완전 재탐색 → step5로
-              context.go('/trip');
-            }
-            // 다른 옵션은 추후 연결
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.transparent,
-            shadowColor: Colors.transparent,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(30),
-            ),
-          ),
-          child: const Text(
-            '재탐색 시작하기  →',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 17,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 
-  Widget _buildBackButton(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 52,
-      child: OutlinedButton(
-        onPressed: () => context.go('/trip/step6'),
-        style: OutlinedButton.styleFrom(
-          side: BorderSide(color: AppColors.neutralScale[100]!),
-          backgroundColor: const Color(0xFFFDFDFE),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(26),
-          ),
-        ),
-        child: Text(
-          '←  경로로 돌아가기',
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w500,
-            color: AppColors.neutralScale[400],
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 class _SearchOption {

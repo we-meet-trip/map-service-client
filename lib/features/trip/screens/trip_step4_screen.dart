@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../common/theme/app_icons.dart';
+import '../widgets/transport_theme.dart';
 import '../widgets/trip_step_header.dart';
 import '../widgets/trip_step_scaffold.dart';
 
@@ -20,45 +21,21 @@ class TripStep4Screen extends StatelessWidget {
 
   static final _items = [
     _TransportItem(
-      id: 'bicycle',   name: '자전거',
-      svgPath: SvgIcons.transportBicycle,
+      theme: TransportTheme.bicycle,
       radius: 'RADIUS 10KM', coverage: 70,
-      iconColor:  AppColors.gradientScale[300]!,
-      iconBg:     AppColors.gradientScale[300]!.withAlpha(0x1A),
-      barColor:   AppColors.gradientScale[300]!,
-      badgeBg:    AppColors.gradientScale[300]!.withAlpha(0x33),
-      badgeFg:    AppColors.gradientScale[300]!,
       popularText: '내 또래가 가장 많이 선택했어요!',
     ),
     _TransportItem(
-      id: 'scooter',   name: '전동 킥보드',
-      svgPath: SvgIcons.transportScooter,
+      theme: TransportTheme.scooter,
       radius: 'RADIUS 10KM', coverage: 45,
-      iconColor:  AppColors.secondaryScale[400]!,
-      iconBg:     AppColors.secondaryScale[400]!.withAlpha(0x1A),
-      barColor:   AppColors.secondaryScale[400]!,
-      badgeBg:    AppColors.secondaryScale[400]!.withAlpha(0x33),
-      badgeFg:    AppColors.secondaryScale[400]!,
     ),
     _TransportItem(
-      id: 'walk',      name: '도보',
-      svgPath: SvgIcons.transportWalk,
+      theme: TransportTheme.walk,
       radius: 'RADIUS 3KM', coverage: 20,
-      iconColor:  AppColors.yellowScale[400]!,
-      iconBg:     AppColors.yellowScale[300]!.withAlpha(0x33),
-      barColor:   AppColors.yellowScale[300]!,
-      badgeBg:    AppColors.yellowScale[300]!.withAlpha(0x66),
-      badgeFg:    AppColors.yellowScale[400]!,
     ),
     _TransportItem(
-      id: 'bus',       name: '버스',
-      svgPath: SvgIcons.transportBus,
+      theme: TransportTheme.bus,
       radius: 'RADIUS 10KM', coverage: 20,
-      iconColor:  AppColors.tealScale[400]!,
-      iconBg:     AppColors.tealScale[300]!.withAlpha(0x33),
-      barColor:   AppColors.tealScale[300]!,
-      badgeBg:    AppColors.tealScale[300]!.withAlpha(0x66),
-      badgeFg:    AppColors.tealScale[400]!,
     ),
   ];
 
@@ -76,7 +53,7 @@ class TripStep4Screen extends StatelessWidget {
         ),
         const SizedBox(height: 24),
         ..._items.map((item) {
-          final isSel = selectedTransport == item.id;
+          final isSel = selectedTransport == item.theme.id;
           final faded = selectedTransport != null && !isSel;
           return Padding(
             padding: const EdgeInsets.only(bottom: 12),
@@ -86,7 +63,7 @@ class TripStep4Screen extends StatelessWidget {
               child: _TransportCard(
                 item: item,
                 isSelected: isSel,
-                onTap: () => onTransportChanged(isSel ? null : item.id),
+                onTap: () => onTransportChanged(isSel ? null : item.theme.id),
               ),
             ),
           );
@@ -96,37 +73,23 @@ class TripStep4Screen extends StatelessWidget {
   }
 }
 
-// ─── Data model ───────────────────────────────────────────────────────────────
+// ─── 데이터 모델 ──────────────────────────────────────────────
 
 class _TransportItem {
-  final String id;
-  final String name;
-  final String svgPath;
+  final TransportTheme theme;
   final String radius;
   final int coverage;
-  final Color iconColor;
-  final Color iconBg;
-  final Color barColor;
-  final Color badgeBg;
-  final Color badgeFg;
   final String? popularText;
 
-  _TransportItem({
-    required this.id,
-    required this.name,
-    required this.svgPath,
+  const _TransportItem({
+    required this.theme,
     required this.radius,
     required this.coverage,
-    required this.iconColor,
-    required this.iconBg,
-    required this.barColor,
-    required this.badgeBg,
-    required this.badgeFg,
     this.popularText,
   });
 }
 
-// ─── Transport Card ───────────────────────────────────────────────────────────
+// ─── 카드 위젯 ────────────────────────────────────────────────
 
 class _TransportCard extends StatelessWidget {
   final _TransportItem item;
@@ -141,6 +104,7 @@ class _TransportCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = item.theme;
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
@@ -170,10 +134,10 @@ class _TransportCard extends StatelessWidget {
                 Container(
                   width: 44, height: 44,
                   decoration: BoxDecoration(
-                    color: item.iconBg,
+                    color: t.iconBg,
                     shape: BoxShape.circle,
                   ),
-                  child: Center(child: AppIcon(item.svgPath, size: 22)),
+                  child: Center(child: AppIcon(t.svgPath, size: 18)),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -184,7 +148,7 @@ class _TransportCard extends StatelessWidget {
                         Text(item.popularText!,
                             style: TextStyle(
                                 fontSize: 11,
-                                color: item.iconColor,
+                                color: t.iconColor,
                                 fontWeight: FontWeight.w600)),
                       Text('COVERAGE ${item.coverage}%',
                           style: TextStyle(
@@ -196,23 +160,22 @@ class _TransportCard extends StatelessWidget {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: item.badgeBg,
+                    color: t.badgeBg,
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(item.radius,
                       style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
-                          color: item.badgeFg,
+                          color: t.badgeFg,
                           letterSpacing: 0.5)),
                 ),
               ],
             ),
             const SizedBox(height: 12),
-            Text(item.name,
+            Text(t.name,
                 style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
@@ -226,7 +189,7 @@ class _TransportCard extends StatelessWidget {
                 value: item.coverage / 100,
                 minHeight: 6,
                 backgroundColor: AppColors.neutralScale[100],
-                valueColor: AlwaysStoppedAnimation<Color>(item.barColor),
+                valueColor: AlwaysStoppedAnimation<Color>(t.barColor),
               ),
             ),
           ],

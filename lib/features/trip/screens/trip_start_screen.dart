@@ -52,6 +52,32 @@ class TripStartScreen extends StatelessWidget {
   }
 }
 
+// 말풍선 경로를 ClipPath와 CustomPaint가 공유
+Path _buildBubblePath(Size size) {
+  final w = size.width;
+  final h = size.height;
+  final bubbleH = h - 12.0;
+  final r = bubbleH / 2;
+
+  final tailRight = w * 0.177;
+  final tailLeft  = w * 0.107;
+
+  return Path()
+    ..moveTo(r, 0)
+    ..lineTo(w - r, 0)
+    ..arcToPoint(Offset(w, r), radius: Radius.circular(r), clockwise: true)
+    ..lineTo(w, bubbleH - r)
+    ..arcToPoint(Offset(w - r, bubbleH), radius: Radius.circular(r), clockwise: true)
+    ..lineTo(tailRight, bubbleH)
+    ..cubicTo(w * 0.162, h * 0.885, w * 0.190, h * 0.987, w * 0.191, h)
+    ..cubicTo(w * 0.190, h * 0.987, w * 0.120, h * 0.963, tailLeft, bubbleH)
+    ..lineTo(r, bubbleH)
+    ..arcToPoint(Offset(0, bubbleH - r), radius: Radius.circular(r), clockwise: true)
+    ..lineTo(0, r)
+    ..arcToPoint(Offset(r, 0), radius: Radius.circular(r), clockwise: true)
+    ..close();
+}
+
 class _SpeechBubble extends StatelessWidget {
   const _SpeechBubble();
 
@@ -60,7 +86,7 @@ class _SpeechBubble extends StatelessWidget {
     return CustomPaint(
       painter: _BubblePainter(),
       child: const Padding(
-        padding: EdgeInsets.fromLTRB(28, 13, 28, 21),
+        padding: EdgeInsets.fromLTRB(28, 13, 28, 23),
         child: Text(
           '코스 추천 시작',
           style: TextStyle(
@@ -77,27 +103,14 @@ class _SpeechBubble extends StatelessWidget {
 class _BubblePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = AppColors.secondaryScale[200]!.withValues(alpha: 0.28)
-      ..style = PaintingStyle.fill;
-
-    final bubbleH = size.height - 10.0;
-    final radius = bubbleH / 2;
-
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(0, 0, size.width, bubbleH),
-        Radius.circular(radius),
-      ),
-      paint,
+    // SVG: fill="#EAD4FF" fill-opacity="0.25"
+    // 0x40 = 64 ≈ 25% alpha, EAD4FF = 연보라
+    canvas.drawPath(
+      _buildBubblePath(size),
+      Paint()
+        ..color = AppColors.secondaryScale[200]!.withAlpha(0x40)
+        ..style = PaintingStyle.fill,
     );
-
-    final tailPath = Path()
-      ..moveTo(size.width * 0.32, bubbleH)
-      ..lineTo(size.width * 0.38, size.height)
-      ..lineTo(size.width * 0.46, bubbleH)
-      ..close();
-    canvas.drawPath(tailPath, paint);
   }
 
   @override

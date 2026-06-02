@@ -1,17 +1,27 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import '../../../common/theme/app_colors.dart';
+import '../../../common/theme/app_icons.dart';
+import '../widgets/trip_step_header.dart';
+import '../widgets/trip_step_scaffold.dart';
 
-class TripStep5Screen extends StatefulWidget {
-  const TripStep5Screen({super.key});
+class TripStep5Screen extends StatelessWidget {
+  final VoidCallback onNext;
+  final VoidCallback onPrev;
+  final String selectedProvince;
+  final String selectedCity;
+  final void Function(String province, String city) onLocationChanged;
 
-  @override
-  State<TripStep5Screen> createState() => _TripStep5ScreenState();
-}
+  const TripStep5Screen({
+    super.key,
+    required this.onNext,
+    required this.onPrev,
+    required this.selectedProvince,
+    required this.selectedCity,
+    required this.onLocationChanged,
+  });
 
-class _TripStep5ScreenState extends State<TripStep5Screen> {
-  String _selectedProvince = '강원도';
-  String _selectedCity = '속초시';
+  static const _kPlaceholder = '선택';
 
   static const List<String> _provinces = [
     '서울특별시', '부산광역시', '대구광역시', '인천광역시', '광주광역시',
@@ -26,190 +36,82 @@ class _TripStep5ScreenState extends State<TripStep5Screen> {
     '경기도': ['수원시', '성남시', '고양시', '용인시', '부천시', '안산시', '안양시', '남양주시', '화성시', '평택시', '의정부시', '시흥시', '파주시', '광명시', '김포시', '군포시', '광주시', '이천시', '양주시', '오산시'],
   };
 
-  List<String> get _availableCities {
-    return _cities[_selectedProvince] ?? ['해당 시/군/구 없음'];
+  /// 시/도가 선택되지 않았으면 ['선택'], 선택됐으면 ['선택', ...실제 목록]
+  List<String> _availableCities(String province) {
+    if (province == _kPlaceholder) return [_kPlaceholder];
+    final list = _cities[province] ?? ['해당 시/군/구 없음'];
+    return [_kPlaceholder, ...list];
   }
+
+  bool get _canProceed =>
+      selectedProvince != _kPlaceholder && selectedCity != _kPlaceholder;
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Column(
+    final cities = _availableCities(selectedProvince);
+    final effectiveCity = cities.contains(selectedCity) ? selectedCity : _kPlaceholder;
+
+    return TripStepScaffold(
+      onNext: _canProceed ? onNext : null,
+      onPrev: onPrev,
+      children: [
+        TripStepHeader(
+          step: 5,
+          title: '어디로 떠나볼까요?',
+          subtitle: '당신의 여정이 시작될 출발지를 선택해주세요.',
+          isNextEnabled: _canProceed,
+        ),
+        const SizedBox(height: 28),
+        // ── 지역 드롭다운 ──
+        Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(height: 24),
-            _buildStepHeader(),
-            const SizedBox(height: 16),
-            _buildTitle(),
-            const SizedBox(height: 32),
-            _buildDropdowns(),
-            const SizedBox(height: 20),
-            _buildMapArea(),
-            const SizedBox(height: 24),
-            _buildNextButton(),
-            const SizedBox(height: 12),
-            _buildBackButton(),
-            const SizedBox(height: 24),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStepHeader() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        _buildStepBadge(),
-        _buildProgressDots(),
-      ],
-    );
-  }
-
-  Widget _buildStepBadge() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        border: Border.all(
-          color: AppColors.primaryScale[400]!,
-          width: 1.5,
-        ),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.diamond_outlined,
-            size: 13,
-            color: AppColors.primaryScale[400],
-          ),
-          const SizedBox(width: 5),
-          Text(
-            'STEP 05',
-            style: TextStyle(
-              color: AppColors.primaryScale[400],
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.5,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProgressDots() {
-    return Row(
-      children: List.generate(6, (index) {
-        final isActive = index < 5;
-        final isCurrent = index == 4;
-        return Padding(
-          padding: const EdgeInsets.only(left: 6),
-          child: Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: isActive
-                  ? (isCurrent
-                      ? AppColors.primaryScale[500]
-                      : AppColors.primaryScale[200])
-                  : Colors.transparent,
-              border: Border.all(
-                color: isActive
-                    ? Colors.transparent
-                    : AppColors.neutralScale[200]!,
-                width: 1.5,
+            Expanded(
+              child: _buildDropdown(
+                label: '시/도',
+                value: selectedProvince,
+                items: [_kPlaceholder, ..._provinces],
+                onChanged: (v) {
+                  if (v == null) return;
+                  // 시/도 변경 시 시/군/구를 '선택'으로 리셋
+                  onLocationChanged(v, _kPlaceholder);
+                },
               ),
             ),
-          ),
-        );
-      }),
-    );
-  }
-
-  Widget _buildTitle() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '어디로 떠나볼까요?',
-          style: TextStyle(
-            fontSize: 26,
-            fontWeight: FontWeight.w700,
-            color: AppColors.neutralScale[600],
-            height: 1.3,
-          ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildDropdown(
+                label: '시/군/구',
+                value: effectiveCity,
+                items: cities,
+                onChanged: (v) {
+                  if (v != null) onLocationChanged(selectedProvince, v);
+                },
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 8),
-        Text(
-          '당신의 여행이 시작될 출발지를 선택해주세요.',
-          style: TextStyle(
-            fontSize: 14,
-            color: AppColors.neutralScale[300],
-            fontWeight: FontWeight.w400,
-          ),
-        ),
+        const SizedBox(height: 16),
+        _buildMapArea(),
       ],
     );
   }
 
-  Widget _buildDropdowns() {
-    return Row(
-      children: [
-        Expanded(
-          child: _buildDropdownField(
-            label: '시/도',
-            value: _selectedProvince,
-            items: _provinces,
-            onChanged: (value) {
-              if (value != null) {
-                setState(() {
-                  _selectedProvince = value;
-                  final cities = _cities[value];
-                  _selectedCity = cities != null && cities.isNotEmpty
-                      ? cities.first
-                      : '';
-                });
-              }
-            },
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _buildDropdownField(
-            label: '시/군/구',
-            value: _availableCities.contains(_selectedCity)
-                ? _selectedCity
-                : _availableCities.first,
-            items: _availableCities,
-            onChanged: (value) {
-              if (value != null) {
-                setState(() => _selectedCity = value);
-              }
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDropdownField({
+  Widget _buildDropdown({
     required String label,
     required String value,
     required List<String> items,
     required ValueChanged<String?> onChanged,
   }) {
+    final isPlaceholder = value == _kPlaceholder;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
           style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
             color: AppColors.neutralScale[400],
           ),
         ),
@@ -217,32 +119,45 @@ class _TripStep5ScreenState extends State<TripStep5Screen> {
         Container(
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.neutralScale[100]!),
+            borderRadius: BorderRadius.circular(40),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.neutralScale[600]!.withAlpha(0x12),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: value,
               isExpanded: true,
-              icon: Icon(
-                Icons.keyboard_arrow_down_rounded,
-                color: AppColors.neutralScale[400],
-                size: 22,
-              ),
+              icon: AppIcon(SvgIcons.chevronDownGray, size: 10,
+                  color: AppColors.neutralScale[400]),
+              // '선택' 상태일 때 힌트처럼 회색으로 표시
               style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w500,
-                color: AppColors.neutralScale[600],
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: isPlaceholder
+                    ? AppColors.neutralScale[300]
+                    : AppColors.neutralScale[600],
               ),
               dropdownColor: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              items: items.map((item) {
-                return DropdownMenuItem<String>(
-                  value: item,
-                  child: Text(item),
-                );
-              }).toList(),
+              borderRadius: BorderRadius.circular(14),
+              items: items.map((item) => DropdownMenuItem<String>(
+                value: item,
+                child: Text(
+                  item,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: item == _kPlaceholder
+                        ? AppColors.neutralScale[300]
+                        : AppColors.neutralScale[600],
+                      ),
+                ),
+              )).toList(),
               onChanged: onChanged,
             ),
           ),
@@ -254,49 +169,23 @@ class _TripStep5ScreenState extends State<TripStep5Screen> {
   Widget _buildMapArea() {
     return Container(
       width: double.infinity,
-      height: 340,
+      height: 320,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        color: const Color(0xFFD8E8D0),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+            color: AppColors.neutralScale[600]!.withAlpha(0x18),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
       clipBehavior: Clip.hardEdge,
       child: Stack(
         children: [
-          // 카카오맵 SDK 영역 (추후 KakaoMap 위젯으로 교체)
-          Container(
-            width: double.infinity,
-            height: double.infinity,
-            color: const Color(0xFFD8E8D0),
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.map_outlined,
-                    size: 48,
-                    color: Colors.white.withValues(alpha: 0.7),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '카카오맵',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.7),
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          // 지도 위 +/- 줌 버튼
+          // ── 지도 영역 (KakaoMap SDK 연결 예정) ──
+          Container(color: const Color(0xFFDDE8DD)),
+          // ── 글라스 +/- 버튼 ──
           Positioned(
             right: 14,
             top: 0,
@@ -305,9 +194,9 @@ class _TripStep5ScreenState extends State<TripStep5Screen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _buildMapButton(Icons.add),
-                  const SizedBox(height: 2),
-                  _buildMapButton(Icons.remove),
+                  _buildGlassButton(Icons.add),
+                  const SizedBox(height: 8),
+                  _buildGlassButton(Icons.remove),
                 ],
               ),
             ),
@@ -317,78 +206,29 @@ class _TripStep5ScreenState extends State<TripStep5Screen> {
     );
   }
 
-  Widget _buildMapButton(IconData icon) {
-    return Container(
-      width: 36,
-      height: 36,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Icon(icon, size: 20, color: AppColors.neutralScale[500]),
-    );
-  }
-
-  Widget _buildNextButton() {
-    return SizedBox(
-      width: double.infinity,
-      height: 58,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              AppColors.gradientScale[200]!,
-              AppColors.gradientScale[600]!,
+  Widget _buildGlassButton(IconData icon) {
+    return ClipOval(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.75),
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.9),
+              width: 1.2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primaryScale[600]!.withAlpha(0x1A),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
             ],
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
           ),
-          borderRadius: BorderRadius.circular(30),
-        ),
-        child: ElevatedButton(
-          onPressed: () => context.go('/trip/step6'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.transparent,
-            shadowColor: Colors.transparent,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(30),
-            ),
-          ),
-          child: const Text(
-            '다음 단계로',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 17,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBackButton() {
-    return SizedBox(
-      width: double.infinity,
-      height: 50,
-      child: TextButton(
-        onPressed: () {
-          // 이전 단계로 이동
-        },
-        child: Text(
-          '← 이전 단계로 돌아가기',
-          style: TextStyle(
-            color: AppColors.neutralScale[400],
-            fontSize: 15,
-            fontWeight: FontWeight.w400,
-          ),
+          child: Icon(icon, size: 22, color: AppColors.primaryScale[500]),
         ),
       ),
     );

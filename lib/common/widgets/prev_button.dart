@@ -3,7 +3,8 @@ import '../theme/app_colors.dart';
 
 class PrevButton extends StatelessWidget {
   final VoidCallback onPressed;
-  const PrevButton({super.key, required this.onPressed});
+  final String label;
+  const PrevButton({super.key, required this.onPressed, this.label = '← 이전 단계로 돌아가기'});
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +29,7 @@ class PrevButton extends StatelessWidget {
             ],
           ),
           child: Text(
-            '← 이전 단계로 돌아가기',
+            label,
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w500,
