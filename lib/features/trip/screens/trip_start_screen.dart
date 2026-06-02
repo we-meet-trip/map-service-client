@@ -52,7 +52,6 @@ class TripStartScreen extends StatelessWidget {
   }
 }
 
-// 말풍선 경로를 ClipPath와 CustomPaint가 공유
 Path _buildBubblePath(Size size) {
   final w = size.width;
   final h = size.height;
@@ -103,8 +102,6 @@ class _SpeechBubble extends StatelessWidget {
 class _BubblePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    // SVG: fill="#EAD4FF" fill-opacity="0.25"
-    // 0x40 = 64 ≈ 25% alpha, EAD4FF = 연보라
     canvas.drawPath(
       _buildBubblePath(size),
       Paint()
