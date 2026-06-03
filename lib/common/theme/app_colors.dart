@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 class AppColors {
   AppColors._();
 
+  // common
   static const background = Color(0xFFF9F8FA); //배경색
   static const tabBarBackground = Color(0xFF201F21);
   static const tabBarSelected = Color(0xFF201F21);
@@ -54,6 +55,10 @@ class AppColors {
     500: Color(0xFF6012DF),
     600: Color(0xFF5000DA),
   };
+
+  // auth
+  static const kakaoContainer = Color(0xFFFEE500);
+  static const kakaoText = Color(0xFF000000);
 
 
 

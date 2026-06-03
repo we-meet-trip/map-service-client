@@ -3,6 +3,8 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../common/widgets/starry_background.dart';
+import '../widgets/kakao_login_button.dart';
+import '../widgets/email_login_button.dart';
 
 class AuthScreen extends StatelessWidget {
   const AuthScreen({super.key});
@@ -67,15 +69,9 @@ class AuthScreen extends StatelessWidget {
                 padding: EdgeInsets.symmetric(horizontal: width * 40 / 402),
                 child: Column(
                   children: [
-                    ElevatedButton(
-                      onPressed: () {},
-                      child: const Text('카카오로 계속하기'),
-                    ),
+                    const KakaoLoginButton(),
                     const SizedBox(height: 12),
-                    ElevatedButton(
-                      onPressed: () {},
-                      child: const Text('이메일로 계속하기'),
-                    ),
+                    const EmailLoginButton(),
                     const SizedBox(height: 16),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
