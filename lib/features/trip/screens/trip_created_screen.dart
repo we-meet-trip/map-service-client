@@ -1,5 +1,7 @@
+import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:go_router/go_router.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../common/theme/app_icons.dart';
@@ -24,12 +26,14 @@ class TripCreatedScreen extends StatefulWidget {
 
 class _TripCreatedScreenState extends State<TripCreatedScreen> {
   late bool _isSaved = widget.showBackButton;
+  NaverMapController? _mapController;
 
   final List<_ScheduleStop> _stops = [
     _ScheduleStop(
       name: '속초 버스 터미널',
       address: '강원특별자치도 속초시 중앙로 96',
       time: '09:00 AM',
+      latLng: const NLatLng(38.2052, 128.5917),
       transport: _TransportInfo(
         label: '이동: 전동 킥보드',
         duration: '12분',
@@ -40,6 +44,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
       name: '속초해변',
       address: '강원특별자치도 속초시 청호동',
       time: '09:12 AM',
+      latLng: const NLatLng(38.2014, 128.6008),
       transport: _TransportInfo(
         label: '이동: 바이크',
         duration: '13분',
@@ -50,6 +55,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
       name: '속초 중앙시장',
       address: '강원특별자치도 속초시 중앙로 147',
       time: '09:25 AM',
+      latLng: const NLatLng(38.2089, 128.5875),
       transport: null,
     ),
   ];
@@ -113,39 +119,77 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
     );
   }
 
-  // ── 지도 플레이스홀더 ────────────────────────────────────────
+  // ── 지도 영역 ────────────────────────────────────────────────
 
   Widget _buildMapArea() {
-    return Container(
+    return SizedBox(
       width: double.infinity,
       height: 280,
-      color: const Color(0xFFD0E8F0),
-      child: Stack(
-        children: [
-          // KakaoMap SDK 연결 예정
-          Center(
-            child: Icon(
-              Icons.map_outlined,
-              size: 48,
-              color: Colors.white.withValues(alpha: 0.5),
-            ),
+      child: NaverMap(
+        options: NaverMapViewOptions(
+          initialCameraPosition: NCameraPosition(
+            target: _stops.first.latLng,
+            zoom: 14,
           ),
-          // 경로 번호 마커
-          Positioned(left: 80, top: 80,   child: _buildNumberMarker('3')),
-          Positioned(right: 100, bottom: 80, child: _buildNumberMarker('1')),
-          Positioned(right: 60,  bottom: 80, child: _buildNumberMarker('2')),
-        ],
+          scrollGesturesEnable: true,
+          zoomGesturesEnable: true,
+          rotationGesturesEnable: false,
+          mapType: NMapType.basic,
+        ),
+        onMapReady: _onMapReady,
       ),
+    );
+  }
+
+  Future<void> _onMapReady(NaverMapController controller) async {
+    _mapController = controller;
+
+    // 번호 마커 추가
+    for (int i = 0; i < _stops.length; i++) {
+      final icon = await NOverlayImage.fromWidget(
+        widget: _buildNumberMarker('${i + 1}'),
+        size: const Size(36, 36),
+        context: context,
+      );
+      await controller.addOverlay(NMarker(
+        id: 'stop_$i',
+        position: _stops[i].latLng,
+        icon: icon,
+      ));
+    }
+
+    // 경로 폴리라인 추가
+    await controller.addOverlay(NPolylineOverlay(
+      id: 'route',
+      coords: _stops.map((s) => s.latLng).toList(),
+      color: AppColors.primaryScale[400]!,
+      width: 4,
+    ));
+
+    // 모든 정류장이 보이도록 fitBounds
+    final lats = _stops.map((s) => s.latLng.latitude);
+    final lngs = _stops.map((s) => s.latLng.longitude);
+    final bounds = NLatLngBounds(
+      southWest: NLatLng(lats.reduce(min), lngs.reduce(min)),
+      northEast: NLatLng(lats.reduce(max), lngs.reduce(max)),
+    );
+    controller.updateCamera(
+      NCameraUpdate.fitBounds(bounds, padding: const EdgeInsets.all(56))
+        ..setAnimation(
+          animation: NCameraAnimation.fly,
+          duration: const Duration(milliseconds: 800),
+        ),
     );
   }
 
   Widget _buildNumberMarker(String number) {
     return Container(
-      width: 28,
-      height: 28,
+      width: 36,
+      height: 36,
       decoration: BoxDecoration(
         color: Colors.white,
         shape: BoxShape.circle,
+        border: Border.all(color: AppColors.primaryScale[400]!, width: 2),
         boxShadow: [
           BoxShadow(
             color: AppColors.neutralScale[600]!.withAlpha(0x26),
@@ -158,9 +202,9 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
         child: Text(
           number,
           style: TextStyle(
-            fontSize: 13,
+            fontSize: 14,
             fontWeight: FontWeight.w700,
-            color: AppColors.neutralScale[600],
+            color: AppColors.primaryScale[500],
           ),
         ),
       ),
@@ -696,12 +740,14 @@ class _ScheduleStop {
   final String name;
   final String address;
   final String time;
+  final NLatLng latLng;
   final _TransportInfo? transport;
 
   const _ScheduleStop({
     required this.name,
     required this.address,
     required this.time,
+    required this.latLng,
     required this.transport,
   });
 }

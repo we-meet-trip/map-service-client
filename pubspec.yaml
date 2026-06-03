@@ -63,6 +63,7 @@ flutter:
     - assets/svg/
     - assets/svg/icons/
     - assets/fonts/
+    - assets/geo/
 
   fonts:
     - family: Pretendard
