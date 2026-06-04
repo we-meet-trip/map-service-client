@@ -66,31 +66,51 @@ class AuthScreen extends StatelessWidget {
               ),
               const Spacer(flex: 462),
               Padding(
-                padding: EdgeInsets.symmetric(horizontal: width * 40 / 402),
+                padding: EdgeInsets.symmetric(horizontal: width * 55 / 402),
                 child: Column(
                   children: [
-                    const KakaoLoginButton(),
+                    KakaoLoginButton(onPressed: () {}),
                     const SizedBox(height: 12),
-                    const EmailLoginButton(),
+                    EmailLoginButton(onPressed: () {}),
                     const SizedBox(height: 16),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         TextButton(
                           onPressed: () => context.push('/signup/step1'),
-                          child: const Text('간편 회원가입'),
+                          child: Text(
+                              '간편 회원가입',
+                              style: TextStyle(
+                                color: AppColors.background,
+                                fontWeight: FontWeight.w400,
+                                fontSize: 12,
+                              ),
+                          ),
                         ),
-                        const Text('|'),
+                        const Text('|',
+                          style: TextStyle(
+                            color: AppColors.background,
+                            fontWeight: FontWeight.w100,
+                            fontSize: 12,
+                          ),
+                        ),
                         TextButton(
                           onPressed: () {},
-                          child: const Text('문의하기'),
+                          child: Text(
+                              '문의하기',
+                              style: TextStyle(
+                                color: AppColors.background,
+                                fontWeight: FontWeight.w400,
+                                fontSize: 12,
+                              )
+                          ),
                         ),
                       ],
                     ),
                   ],
                 ),
               ),
-              const Spacer(flex: 20),
+              const Spacer(flex: 100),
             ],
           ),
         ),

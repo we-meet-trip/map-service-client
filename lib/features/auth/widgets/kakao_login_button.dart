@@ -15,11 +15,12 @@ class KakaoLoginButton extends StatelessWidget {
       child: ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.kakaoContainer,
+          backgroundColor: const Color(0xFFFEE500),
           foregroundColor: AppColors.kakaoText,
           elevation: 0,
+          shadowColor: Colors.transparent,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(50),
           ),
         ),
         child: Row(
