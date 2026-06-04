@@ -64,12 +64,12 @@ class _InterestChip extends StatelessWidget {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xFFEAD4FF).withValues(alpha: 0.6) : Colors.transparent,
+          color: selected ? const Color(0xFFEAD4FF).withValues(alpha: 0.6) : const Color(0xFFEAD4FF).withValues(alpha: 0.3),
           borderRadius: BorderRadius.circular(100),
           border: Border.all(
             color: selected
                 ? AppColors.gradientScale[500]!
-                : AppColors.neutralScale[200]!,
+                : Colors.transparent,
             width: 1.5,
           ),
         ),
