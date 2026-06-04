@@ -16,7 +16,7 @@ class EmailLoginButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(227.27),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF222124).withOpacity(0.06),
+            color: const Color(0xFF222124).withValues(alpha: 0.06),
             offset: const Offset(0, 2.27),
             blurRadius: 9.09,
             spreadRadius: 0,
@@ -30,7 +30,7 @@ class EmailLoginButton extends StatelessWidget {
           child: ElevatedButton(
             onPressed: onPressed,
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.neutralScale[0]!.withOpacity(0.20),
+              backgroundColor: AppColors.neutralScale[0]!.withValues(alpha: 0.20),
               foregroundColor: AppColors.neutralScale[0],
               elevation: 0,
               shadowColor: Colors.transparent,
