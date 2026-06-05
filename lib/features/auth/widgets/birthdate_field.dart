@@ -30,7 +30,7 @@ class _BirthdateFieldState extends State<BirthdateField> {
 
     await showModalBottomSheet<void>(
       context: context,
-      isDismissible: false,
+      isDismissible: true,
       enableDrag: false,
       builder: (ctx) => SafeArea(
         child: Column(
@@ -46,23 +46,12 @@ class _BirthdateFieldState extends State<BirthdateField> {
                 onDateTimeChanged: (date) => tempDate = date,
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(ctx);
-                    widget.onChanged(tempDate);
-                  },
-                  child: const Text('확인'),
-                ),
-              ),
-            ),
+            const SizedBox(height: 16),
           ],
         ),
       ),
     );
+    widget.onChanged(tempDate);
 
     setState(() => _isOpen = false);
   }
@@ -94,7 +83,7 @@ class _BirthdateFieldState extends State<BirthdateField> {
                       child: Text(
                         hasValue ? _format(widget.value!) : 'yyyy.mm.dd.',
                         style: TextStyle(
-                          fontSize: 18,
+                          fontSize: 15,
                           fontWeight: FontWeight.w500,
                           color: hasValue
                               ? AppColors.neutralScale[600]
