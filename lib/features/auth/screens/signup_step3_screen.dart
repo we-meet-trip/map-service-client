@@ -34,9 +34,12 @@ class SignupStep3Screen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 18),
-          InterestChipSelector(
-            items: _kInterests,
-            onChanged: (_) {},
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 5),
+            child: InterestChipSelector(
+              items: _kInterests,
+              onChanged: (_) {},
+            ),
           ),
         ],
       ),
