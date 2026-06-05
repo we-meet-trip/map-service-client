@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../common/theme/app_icons.dart';
@@ -12,7 +13,7 @@ class BirthdateField extends StatefulWidget {
   final DateTime? value;
   final ValueChanged<DateTime> onChanged;
 
-  static final int _startYear = 1950;
+  static const int _startYear = 1950;
   static final int _endYear = DateTime.now().year;
 
   @override
@@ -23,16 +24,47 @@ class _BirthdateFieldState extends State<BirthdateField> {
   bool _isOpen = false;
 
   Future<void> _pick(BuildContext context) async {
+    DateTime tempDate = widget.value ?? DateTime(BirthdateField._endYear - 20);
+
     setState(() => _isOpen = true);
-    final picked = await showDatePicker(
+
+    await showModalBottomSheet<void>(
       context: context,
-      initialDate: widget.value ?? DateTime(BirthdateField._endYear - 20),
-      firstDate: DateTime(BirthdateField._startYear),
-      lastDate: DateTime(BirthdateField._endYear, 12, 31),
-      locale: const Locale('ko'),
+      isDismissible: false,
+      enableDrag: false,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              height: 200,
+              child: CupertinoDatePicker(
+                mode: CupertinoDatePickerMode.date,
+                initialDateTime: tempDate,
+                minimumYear: BirthdateField._startYear,
+                maximumYear: BirthdateField._endYear,
+                onDateTimeChanged: (date) => tempDate = date,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    widget.onChanged(tempDate);
+                  },
+                  child: const Text('확인'),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
+
     setState(() => _isOpen = false);
-    if (picked != null) widget.onChanged(picked);
   }
 
   String _format(DateTime date) {

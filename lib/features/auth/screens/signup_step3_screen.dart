@@ -10,16 +10,8 @@ const _kInterests = [
   '서점', '오락',
 ];
 
-class SignupStep3Screen extends StatefulWidget {
+class SignupStep3Screen extends StatelessWidget {
   const SignupStep3Screen({super.key});
-  @override
-  State<SignupStep3Screen> createState() => _SignupStep3ScreenState();
-}
-
-class _SignupStep3ScreenState extends State<SignupStep3Screen> {
-  List<String> _selected = [];
-
-  bool get _canProceed => _selected.isNotEmpty;
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +19,7 @@ class _SignupStep3ScreenState extends State<SignupStep3Screen> {
       title: '관심사를 선택해주세요',
       subtitle: '관심분야를 선택하시면 맞춤 여행 콘텐츠를 추천해드려요.',
       onBack: () => context.pop(),
-      onNext: _canProceed ? () => context.go('/signup/complete') : null,
+      onNext: () => context.go('/signup/complete'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -43,7 +35,7 @@ class _SignupStep3ScreenState extends State<SignupStep3Screen> {
           const SizedBox(height: 18),
           InterestChipSelector(
             items: _kInterests,
-            onChanged: (selected) => setState(() => _selected = selected),
+            onChanged: (_) {},
           ),
         ],
       ),

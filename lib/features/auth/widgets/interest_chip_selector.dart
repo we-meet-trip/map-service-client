@@ -96,9 +96,7 @@ class _InterestChip extends StatelessWidget {
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
-                color: selected
-                    ? AppColors.gradientScale[500]
-                    : AppColors.neutralScale[400],
+                color: AppColors.gradientScale[500],
               ),
             ),
           ],
