@@ -3,6 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import '../../../common/widgets/next_button.dart';
 import '../../../core/router/app_router.dart';
+import '../../../common/theme/app_colors.dart';
 
 class SignupCompleteScreen extends StatelessWidget {
   const SignupCompleteScreen({super.key});
@@ -20,28 +21,29 @@ class SignupCompleteScreen extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   SvgPicture.asset(
-                    'assets/svg/character.svg',
-                    height: 180,
+                    'assets/svg/character_shadow.svg',
+                    height: 136,
                   ),
-                  const SizedBox(height: 32),
-                  const Text(
+                  const SizedBox(height: 40),
+                  Text(
                     '가입을 축하합니다!',
                     style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                      fontSize: 26,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.neutralScale[600],
                     ),
                   ),
                   const SizedBox(height: 12),
-                  const Text(
+                  Text(
                     '나만의 여행 콘텐츠들을 추천받고\n빛나는 여정을 시작해보세요.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 14,
-                      color: Colors.grey,
+                      color: AppColors.neutralScale[400],
                       height: 1.6,
                     ),
                   ),
+                  const SizedBox(height: 60),
                 ],
               ),
             ),

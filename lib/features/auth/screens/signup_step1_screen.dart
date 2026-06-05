@@ -41,6 +41,7 @@ class _SignupStep1ScreenState extends State<SignupStep1Screen> {
   Widget build(BuildContext context) {
     return SignupStepScaffold(
       title: '닉네임을 입력해주세요',
+      currentStep: 1,
       onBack: () => context.pop(),
       onNext: _canProceed ? () => context.push('/signup/step2') : null,
       child: AppTextField(

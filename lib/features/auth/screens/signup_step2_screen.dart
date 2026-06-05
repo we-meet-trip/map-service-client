@@ -22,6 +22,7 @@ class _SignupStep2ScreenState extends State<SignupStep2Screen> {
     return SignupStepScaffold(
       title: '생년월일과 성별을 알려주세요',
       subtitle: '나랑 비슷한 사람들이 좋아하는 여행 콘텐츠를 추천드려요.',
+      currentStep: 2,
       onBack: () => context.pop(),
       onNext: _canProceed ? () => context.push('/signup/step3') : null,
       child: Column(

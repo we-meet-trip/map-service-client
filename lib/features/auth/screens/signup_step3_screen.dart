@@ -19,6 +19,7 @@ class SignupStep3Screen extends StatelessWidget {
     return SignupStepScaffold(
       title: '관심사를 선택해주세요',
       subtitle: '관심분야를 선택하시면 맞춤 여행 콘텐츠를 추천해드려요.',
+      currentStep: 3,
       onBack: () => context.pop(),
       onNext: () => context.go('/signup/complete'),
       child: Column(

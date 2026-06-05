@@ -8,10 +8,13 @@ class SignupBackButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
-      icon: const Icon(Icons.arrow_back_ios_new, size: 18),
-      color: AppColors.neutralScale[500],
-      onPressed: onPressed,
+    return Padding(
+      padding: const EdgeInsets.only(top: 24),
+      child: IconButton(
+        icon: const Icon(Icons.arrow_back_ios_new, size: 18),
+        color: AppColors.neutralScale[500],
+        onPressed: onPressed,
+      ),
     );
   }
 }

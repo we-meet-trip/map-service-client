@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../common/theme/app_colors.dart';
 import 'signup_back_button.dart';
+import 'step_dots.dart';
 import '../../../common/widgets/next_button.dart';
 
 class SignupStepScaffold extends StatelessWidget {
@@ -9,6 +10,8 @@ class SignupStepScaffold extends StatelessWidget {
   final Widget child;
   final VoidCallback onBack;
   final VoidCallback? onNext;
+  final int currentStep;
+  final int totalSteps;
 
   const SignupStepScaffold({
     super.key,
@@ -17,6 +20,8 @@ class SignupStepScaffold extends StatelessWidget {
     required this.child,
     required this.onBack,
     this.onNext,
+    required this.currentStep,
+    this.totalSteps = 3,
   });
 
   @override
@@ -27,6 +32,18 @@ class SignupStepScaffold extends StatelessWidget {
         backgroundColor: AppColors.background,
         elevation: 0,
         leading: SignupBackButton(onPressed: onBack),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(top: 24, right: 24),
+            child: StepDots(
+              currentStep: currentStep,
+              totalSteps: totalSteps,
+              dotDone: AppColors.secondaryScale[900]!,
+              dotCurrent: AppColors.secondaryScale[200]!,
+              dotFuture: AppColors.secondaryScale[0]!,
+            ),
+          ),
+        ],
       ),
       body: SafeArea(
         child: Padding(
