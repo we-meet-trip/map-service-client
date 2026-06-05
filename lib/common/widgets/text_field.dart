@@ -113,13 +113,15 @@ class _AppTextFieldState extends State<AppTextField> {
                       ? _kErrorColor
                       : AppColors.neutralScale[200],
                 ),
-                // 포커스 시 확장되는 보라색 선
+                // 포커스 시 또는 유효한 값 입력 시 확장되는 보라색 선
                 if (!hasError)
                   AnimatedContainer(
                     duration: const Duration(milliseconds: 250),
                     curve: Curves.easeOut,
                     height: 1.5,
-                    width: _isFocused ? constraints.maxWidth : 0,
+                    width: (_isFocused || widget.controller.text.isNotEmpty)
+                        ? constraints.maxWidth
+                        : 0,
                     color: AppColors.secondaryScale[900],
                   ),
               ],
