@@ -25,20 +25,34 @@ class AuthScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      '나만의 별빛 여정✨',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w400,
-                        fontSize: 24,
-                        color: AppColors.neutralScale[0],
-                        shadows: const [
-                          Shadow(
-                            color: Color(0xFFC98CFF),
-                            blurRadius: 5,
-                            offset: Offset(0, 0),
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Text(
+                          '나만의 별빛 여정',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w400,
+                            fontSize: 24,
+                            color: AppColors.neutralScale[0],
+                            shadows: const [
+                              Shadow(
+                                color: Color(0xFFC98CFF),
+                                blurRadius: 5,
+                                offset: Offset(0, 0),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
+                        ),
+                        Positioned(
+                          right: -16,
+                          top: -10,
+                          child: SvgPicture.asset(
+                            'assets/svg/glitter.svg',
+                            width: 24,
+                            height: 24,
+                          ),
+                        ),
+                      ],
                     ),
                     Row(
                       children: [
