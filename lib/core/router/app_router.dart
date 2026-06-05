@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import '../../common/layout/main_layout.dart';
 import '../../features/home/screens/home_screen.dart';
@@ -14,8 +15,21 @@ import '../../features/auth/screens/signup_step3_screen.dart';
 import '../../features/auth/screens/signup_complete_screen.dart';
 import '../../features/splash/screens/splash_screen.dart';
 
+final isAuthenticated = ValueNotifier<bool>(false);
+
+const _publicPrefixes = ['/splash', '/auth', '/signup'];
+
 final appRouter = GoRouter(
   initialLocation: '/splash',
+  refreshListenable: isAuthenticated,
+  redirect: (context, state) {
+    final authed = isAuthenticated.value;
+    final loc = state.matchedLocation;
+    final isPublic = _publicPrefixes.any((p) => loc.startsWith(p));
+
+    if (!authed && !isPublic) return '/auth';
+    return null;
+  },
   routes: [
     GoRoute(
       path: '/splash',
