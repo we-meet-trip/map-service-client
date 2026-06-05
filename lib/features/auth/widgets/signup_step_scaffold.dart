@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../common/theme/app_colors.dart';
 import 'signup_back_button.dart';
-import 'signup_next_button.dart';
+import '../../../common/widgets/next_button.dart';
 
 class SignupStepScaffold extends StatelessWidget {
   final String title;
@@ -57,8 +57,8 @@ class SignupStepScaffold extends StatelessWidget {
               const SizedBox(height: 40),
               child,
               const Spacer(),
-              SignupNextButton(onPressed: onNext),
-              const SizedBox(height: 20),
+              NextButton(onPressed: onNext),
+              const SizedBox(height: 42),
             ],
 
           ),
