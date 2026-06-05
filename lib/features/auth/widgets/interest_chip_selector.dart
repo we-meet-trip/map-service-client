@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../../common/theme/app_colors.dart';
 
 class InterestChipSelector extends StatefulWidget {
@@ -64,7 +65,7 @@ class _InterestChip extends StatelessWidget {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xFFEAD4FF).withValues(alpha: 0.6) : const Color(0xFFEAD4FF).withValues(alpha: 0.3),
+          color: selected ? const Color(0xFFEAD4FF).withValues(alpha: 0.6) : const Color(0xFFEAD4FF).withValues(alpha: 0.2),
           borderRadius: BorderRadius.circular(100),
           border: Border.all(
             color: selected
@@ -76,21 +77,14 @@ class _InterestChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            SizedBox(
-              width: 14,
-              child: Text(
-                selected ? '✓' : '+',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: selected
-                      ? AppColors.gradientScale[500]
-                      : AppColors.neutralScale[400],
-                ),
-              ),
+            Icon(
+              selected
+                  ? PhosphorIcons.check(PhosphorIconsStyle.bold)
+                  : PhosphorIcons.plus(PhosphorIconsStyle.bold),
+              size: 16,
+              color: AppColors.gradientScale[500],
             ),
-            const SizedBox(width: 4),
+            const SizedBox(width: 8),
             Text(
               label,
               style: TextStyle(
