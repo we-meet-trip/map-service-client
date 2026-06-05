@@ -17,6 +17,11 @@ class App extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         fontFamily: 'Pretendard',
         scaffoldBackgroundColor: AppColors.background,
+        textTheme: TextTheme(
+          bodyMedium: TextStyle(color: AppColors.neutralScale[600]),
+          bodySmall:  TextStyle(color: AppColors.neutralScale[600]),
+          bodyLarge:  TextStyle(color: AppColors.neutralScale[600]),
+        ),
         navigationBarTheme: const NavigationBarThemeData(
           backgroundColor: AppColors.tabBarBackground,
           indicatorColor: Colors.transparent,
