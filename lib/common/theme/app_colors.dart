@@ -4,7 +4,9 @@ class AppColors {
   AppColors._();
 
   // common
-  static const background = Color(0xFFF9F8FA); //배경색
+  static const background = Color(0xFFF9F8FA);
+  static const headerGradientStart = Color(0xFFFDFBFF);
+  static const headerGradientEnd   = Color(0xFFF2EDF5);
   static const tabBarBackground = Color(0xFF201F21);
   static const tabBarSelected = Color(0xFF201F21);
   static const tabBarUnselected = Color(0xFF6E6C70);
