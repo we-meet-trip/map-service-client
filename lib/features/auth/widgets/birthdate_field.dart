@@ -14,7 +14,7 @@ class BirthdateField extends StatefulWidget {
   final ValueChanged<DateTime> onChanged;
 
   static const int _startYear = 1950;
-  static final int _endYear = DateTime.now().year;
+  static int get _endYear => DateTime.now().year;
 
   @override
   State<BirthdateField> createState() => _BirthdateFieldState();
