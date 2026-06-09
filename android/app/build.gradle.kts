@@ -12,7 +12,16 @@ val localPropertiesFile = rootProject.file("local.properties")
 if (localPropertiesFile.exists()) {
     localPropertiesFile.inputStream().use { localProperties.load(it) }
 }
-val naverMapClientId = localProperties.getProperty("naver.map.client.id") ?: ""
+
+val envProperties = Properties()
+val envFile = rootProject.file("../../.env")
+if (envFile.exists()) {
+    envFile.inputStream().use { envProperties.load(it) }
+}
+
+val naverMapClientId = envProperties.getProperty("NAVER_MAP_CLIENT_ID")
+    ?: localProperties.getProperty("naver.map.client.id")
+    ?: ""
 
 android {
     namespace = "com.example.map_service_client"
