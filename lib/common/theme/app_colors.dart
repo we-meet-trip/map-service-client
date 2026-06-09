@@ -3,10 +3,14 @@ import 'package:flutter/material.dart';
 class AppColors {
   AppColors._();
 
-  static const background = Color(0xFFF9F8FA); //배경색
+  // common
+  static const background = Color(0xFFF9F8FA);
+  static const headerGradientStart = Color(0xFFFDFBFF);
+  static const headerGradientEnd   = Color(0xFFF2EDF5);
   static const tabBarBackground = Color(0xFF201F21);
   static const tabBarSelected = Color(0xFF201F21);
   static const tabBarUnselected = Color(0xFF6E6C70);
+  static const error = Color(0xFFFF1751);
 
   static const Map<int, Color> neutralScale = {
     0:   Color(0xFFFDFDFE),
@@ -53,6 +57,10 @@ class AppColors {
     500: Color(0xFF6012DF),
     600: Color(0xFF5000DA),
   };
+
+  // auth
+  static const kakaoContainer = Color(0xFFFEE500);
+  static const kakaoText = Color(0xFF000000);
 
   static const Map<int, Color> redScale = {
     400: Color(0xFFE53935), // 캘린더 일요일

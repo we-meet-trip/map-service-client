@@ -9,6 +9,7 @@ import '../widgets/transport_theme.dart';
 import '../../../common/widgets/next_button.dart';
 import '../../../common/widgets/prev_button.dart';
 import '../../../core/state/trip_repository.dart';
+import '../../../common/widgets/text_field.dart';
 
 class TripCreatedScreen extends StatefulWidget {
   const TripCreatedScreen({
@@ -573,18 +574,28 @@ class _SaveBottomSheet extends StatefulWidget {
 
 class _SaveBottomSheetState extends State<_SaveBottomSheet> {
   final _controller = TextEditingController();
-  final _focusNode = FocusNode();
+  String? _errorText;
 
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _focusNode.requestFocus());
+  void _onChanged(String value) {
+    setState(() {
+      if (value.isEmpty) {
+        _errorText = null;
+      } else if (value.length > 20) {
+        _errorText = '20자 이하로 입력해주세요.';
+      } else {
+        _errorText = null;
+      }
+    });
   }
+
+  bool get _canSave =>
+      _controller.text.isNotEmpty &&
+      _controller.text.length <= 20 &&
+      _errorText == null;
 
   @override
   void dispose() {
     _controller.dispose();
-    _focusNode.dispose();
     super.dispose();
   }
 
@@ -647,51 +658,40 @@ class _SaveBottomSheetState extends State<_SaveBottomSheet> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        TextField(
+        AppTextField(
           controller: _controller,
-          focusNode: _focusNode,
-          maxLength: 20,
-          onChanged: (_) => setState(() {}),
-          style: TextStyle(fontSize: 16, color: AppColors.neutralScale[600]),
-          decoration: InputDecoration(
-            hintText: '일정 이름',
-            hintStyle: TextStyle(color: AppColors.neutralScale[200], fontSize: 16),
-            counterText: '',
-            contentPadding: const EdgeInsets.only(bottom: 12),
-            suffixIcon: Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: IconButton(
-                icon: Icon(
-                  Icons.cancel,
-                  size: 20,
-                  color: _controller.text.isNotEmpty
-                      ? AppColors.neutralScale[300]
-                      : AppColors.neutralScale[100],
-                ),
-                onPressed: _controller.text.isNotEmpty
-                    ? () { _controller.clear(); setState(() {}); }
-                    : null,
-              ),
-            ),
-            enabledBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: AppColors.neutralScale[100]!, width: 1.5),
-            ),
-            focusedBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: AppColors.primaryScale[500]!, width: 2),
-            ),
-          ),
+          hintText: '일정 이름',
+          onChanged: _onChanged,
         ),
         const SizedBox(height: 6),
-        Text(
-          '${_controller.text.length} / 20',
-          style: TextStyle(fontSize: 12, color: AppColors.neutralScale[300]),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            SizedBox(
+              height: 16,
+              child: _errorText != null
+                  ? Text(
+                      _errorText!,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.error,
+                      ),
+                    )
+                  : null,
+            ),
+            Text(
+              '${_controller.text.length} / 20',
+              style: TextStyle(fontSize: 12, color: AppColors.neutralScale[300]),
+            ),
+          ],
         ),
       ],
     );
   }
 
   Widget _buildSaveButton(BuildContext context) {
-    final bool canSave = _controller.text.isNotEmpty;
+    final bool canSave = _canSave;
     return SizedBox(
       width: double.infinity,
       height: 58,
@@ -699,7 +699,7 @@ class _SaveBottomSheetState extends State<_SaveBottomSheet> {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: canSave
-                ? [AppColors.gradientScale[200]!, AppColors.gradientScale[600]!]
+                ? [AppColors.secondaryScale[900]!, AppColors.secondaryScale[500]!]
                 : [AppColors.neutralScale[100]!, AppColors.neutralScale[100]!],
             begin: Alignment.centerLeft,
             end: Alignment.centerRight,
