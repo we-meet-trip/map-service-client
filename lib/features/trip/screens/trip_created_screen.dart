@@ -1,5 +1,7 @@
+import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:go_router/go_router.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../common/theme/app_icons.dart';
@@ -7,6 +9,7 @@ import '../widgets/transport_theme.dart';
 import '../../../common/widgets/next_button.dart';
 import '../../../common/widgets/prev_button.dart';
 import '../../../core/state/trip_repository.dart';
+import '../../../common/widgets/text_field.dart';
 
 class TripCreatedScreen extends StatefulWidget {
   const TripCreatedScreen({
@@ -24,12 +27,14 @@ class TripCreatedScreen extends StatefulWidget {
 
 class _TripCreatedScreenState extends State<TripCreatedScreen> {
   late bool _isSaved = widget.showBackButton;
+  NaverMapController? _mapController;
 
   final List<_ScheduleStop> _stops = [
     _ScheduleStop(
       name: '속초 버스 터미널',
       address: '강원특별자치도 속초시 중앙로 96',
       time: '09:00 AM',
+      latLng: const NLatLng(38.2052, 128.5917),
       transport: _TransportInfo(
         label: '이동: 전동 킥보드',
         duration: '12분',
@@ -40,6 +45,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
       name: '속초해변',
       address: '강원특별자치도 속초시 청호동',
       time: '09:12 AM',
+      latLng: const NLatLng(38.2014, 128.6008),
       transport: _TransportInfo(
         label: '이동: 바이크',
         duration: '13분',
@@ -50,6 +56,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
       name: '속초 중앙시장',
       address: '강원특별자치도 속초시 중앙로 147',
       time: '09:25 AM',
+      latLng: const NLatLng(38.2089, 128.5875),
       transport: null,
     ),
   ];
@@ -113,39 +120,77 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
     );
   }
 
-  // ── 지도 플레이스홀더 ────────────────────────────────────────
+  // ── 지도 영역 ────────────────────────────────────────────────
 
   Widget _buildMapArea() {
-    return Container(
+    return SizedBox(
       width: double.infinity,
       height: 280,
-      color: const Color(0xFFD0E8F0),
-      child: Stack(
-        children: [
-          // KakaoMap SDK 연결 예정
-          Center(
-            child: Icon(
-              Icons.map_outlined,
-              size: 48,
-              color: Colors.white.withValues(alpha: 0.5),
-            ),
+      child: NaverMap(
+        options: NaverMapViewOptions(
+          initialCameraPosition: NCameraPosition(
+            target: _stops.first.latLng,
+            zoom: 14,
           ),
-          // 경로 번호 마커
-          Positioned(left: 80, top: 80,   child: _buildNumberMarker('3')),
-          Positioned(right: 100, bottom: 80, child: _buildNumberMarker('1')),
-          Positioned(right: 60,  bottom: 80, child: _buildNumberMarker('2')),
-        ],
+          scrollGesturesEnable: true,
+          zoomGesturesEnable: true,
+          rotationGesturesEnable: false,
+          mapType: NMapType.basic,
+        ),
+        onMapReady: _onMapReady,
       ),
+    );
+  }
+
+  Future<void> _onMapReady(NaverMapController controller) async {
+    _mapController = controller;
+
+    // 번호 마커 추가
+    for (int i = 0; i < _stops.length; i++) {
+      final icon = await NOverlayImage.fromWidget(
+        widget: _buildNumberMarker('${i + 1}'),
+        size: const Size(36, 36),
+        context: context,
+      );
+      await controller.addOverlay(NMarker(
+        id: 'stop_$i',
+        position: _stops[i].latLng,
+        icon: icon,
+      ));
+    }
+
+    // 경로 폴리라인 추가
+    await controller.addOverlay(NPolylineOverlay(
+      id: 'route',
+      coords: _stops.map((s) => s.latLng).toList(),
+      color: AppColors.primaryScale[400]!,
+      width: 4,
+    ));
+
+    // 모든 정류장이 보이도록 fitBounds
+    final lats = _stops.map((s) => s.latLng.latitude);
+    final lngs = _stops.map((s) => s.latLng.longitude);
+    final bounds = NLatLngBounds(
+      southWest: NLatLng(lats.reduce(min), lngs.reduce(min)),
+      northEast: NLatLng(lats.reduce(max), lngs.reduce(max)),
+    );
+    controller.updateCamera(
+      NCameraUpdate.fitBounds(bounds, padding: const EdgeInsets.all(56))
+        ..setAnimation(
+          animation: NCameraAnimation.fly,
+          duration: const Duration(milliseconds: 800),
+        ),
     );
   }
 
   Widget _buildNumberMarker(String number) {
     return Container(
-      width: 28,
-      height: 28,
+      width: 36,
+      height: 36,
       decoration: BoxDecoration(
         color: Colors.white,
         shape: BoxShape.circle,
+        border: Border.all(color: AppColors.primaryScale[400]!, width: 2),
         boxShadow: [
           BoxShadow(
             color: AppColors.neutralScale[600]!.withAlpha(0x26),
@@ -158,9 +203,9 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
         child: Text(
           number,
           style: TextStyle(
-            fontSize: 13,
+            fontSize: 14,
             fontWeight: FontWeight.w700,
-            color: AppColors.neutralScale[600],
+            color: AppColors.primaryScale[500],
           ),
         ),
       ),
@@ -529,18 +574,28 @@ class _SaveBottomSheet extends StatefulWidget {
 
 class _SaveBottomSheetState extends State<_SaveBottomSheet> {
   final _controller = TextEditingController();
-  final _focusNode = FocusNode();
+  String? _errorText;
 
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _focusNode.requestFocus());
+  void _onChanged(String value) {
+    setState(() {
+      if (value.isEmpty) {
+        _errorText = null;
+      } else if (value.length > 20) {
+        _errorText = '20자 이하로 입력해주세요.';
+      } else {
+        _errorText = null;
+      }
+    });
   }
+
+  bool get _canSave =>
+      _controller.text.isNotEmpty &&
+      _controller.text.length <= 20 &&
+      _errorText == null;
 
   @override
   void dispose() {
     _controller.dispose();
-    _focusNode.dispose();
     super.dispose();
   }
 
@@ -603,51 +658,40 @@ class _SaveBottomSheetState extends State<_SaveBottomSheet> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        TextField(
+        AppTextField(
           controller: _controller,
-          focusNode: _focusNode,
-          maxLength: 20,
-          onChanged: (_) => setState(() {}),
-          style: TextStyle(fontSize: 16, color: AppColors.neutralScale[600]),
-          decoration: InputDecoration(
-            hintText: '일정 이름',
-            hintStyle: TextStyle(color: AppColors.neutralScale[200], fontSize: 16),
-            counterText: '',
-            contentPadding: const EdgeInsets.only(bottom: 12),
-            suffixIcon: Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: IconButton(
-                icon: Icon(
-                  Icons.cancel,
-                  size: 20,
-                  color: _controller.text.isNotEmpty
-                      ? AppColors.neutralScale[300]
-                      : AppColors.neutralScale[100],
-                ),
-                onPressed: _controller.text.isNotEmpty
-                    ? () { _controller.clear(); setState(() {}); }
-                    : null,
-              ),
-            ),
-            enabledBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: AppColors.neutralScale[100]!, width: 1.5),
-            ),
-            focusedBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: AppColors.primaryScale[500]!, width: 2),
-            ),
-          ),
+          hintText: '일정 이름',
+          onChanged: _onChanged,
         ),
         const SizedBox(height: 6),
-        Text(
-          '${_controller.text.length} / 20',
-          style: TextStyle(fontSize: 12, color: AppColors.neutralScale[300]),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            SizedBox(
+              height: 16,
+              child: _errorText != null
+                  ? Text(
+                      _errorText!,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.error,
+                      ),
+                    )
+                  : null,
+            ),
+            Text(
+              '${_controller.text.length} / 20',
+              style: TextStyle(fontSize: 12, color: AppColors.neutralScale[300]),
+            ),
+          ],
         ),
       ],
     );
   }
 
   Widget _buildSaveButton(BuildContext context) {
-    final bool canSave = _controller.text.isNotEmpty;
+    final bool canSave = _canSave;
     return SizedBox(
       width: double.infinity,
       height: 58,
@@ -655,7 +699,7 @@ class _SaveBottomSheetState extends State<_SaveBottomSheet> {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: canSave
-                ? [AppColors.gradientScale[200]!, AppColors.gradientScale[600]!]
+                ? [AppColors.secondaryScale[900]!, AppColors.secondaryScale[500]!]
                 : [AppColors.neutralScale[100]!, AppColors.neutralScale[100]!],
             begin: Alignment.centerLeft,
             end: Alignment.centerRight,
@@ -696,12 +740,14 @@ class _ScheduleStop {
   final String name;
   final String address;
   final String time;
+  final NLatLng latLng;
   final _TransportInfo? transport;
 
   const _ScheduleStop({
     required this.name,
     required this.address,
     required this.time,
+    required this.latLng,
     required this.transport,
   });
 }

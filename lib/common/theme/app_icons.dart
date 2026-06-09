@@ -17,6 +17,10 @@ class AppIcons {
   static final navChatFill   = PhosphorIcons.chatCircleDots(PhosphorIconsStyle.fill);
   static final navMypage     = PhosphorIcons.user();
   static final navMypageFill = PhosphorIcons.user(PhosphorIconsStyle.fill);
+
+  // Extra
+  static final cancel = PhosphorIcons.xCircle(PhosphorIconsStyle.fill);
+  static final chevronDown = PhosphorIcons.caretDown();
 }
 
 // ─── SVG 커스텀 아이콘 경로 상수 ──────────────────────────────────────────────

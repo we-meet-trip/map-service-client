@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import '../../common/layout/main_layout.dart';
 import '../../features/home/screens/home_screen.dart';
@@ -7,14 +8,52 @@ import '../../features/trip/screens/search_step1_screen.dart';
 import '../../features/saved/screens/saved_screen.dart';
 import '../../features/chat/screens/chat_screen.dart';
 import '../../features/mypage/screens/mypage_screen.dart';
+import '../../features/auth/screens/auth_screen.dart';
+import '../../features/auth/screens/signup_step1_screen.dart';
+import '../../features/auth/screens/signup_step2_screen.dart';
+import '../../features/auth/screens/signup_step3_screen.dart';
+import '../../features/auth/screens/signup_complete_screen.dart';
 import '../../features/splash/screens/splash_screen.dart';
+
+final isAuthenticated = ValueNotifier<bool>(false);
+
+const _publicPrefixes = ['/splash', '/auth', '/signup'];
 
 final appRouter = GoRouter(
   initialLocation: '/splash',
+  refreshListenable: isAuthenticated,
+  redirect: (context, state) {
+    final authed = isAuthenticated.value;
+    final loc = state.matchedLocation;
+    final isPublic = _publicPrefixes.any((p) => loc.startsWith(p));
+
+    if (!authed && !isPublic) return '/auth';
+    return null;
+  },
   routes: [
     GoRoute(
       path: '/splash',
       builder: (context, state) => const SplashScreen(),
+    ),
+    GoRoute(
+      path: '/auth',
+      builder: (context, state) => const AuthScreen(),
+    ),
+    GoRoute(
+      path: '/signup/step1',
+      builder: (context, state) => const SignupStep1Screen(),
+    ),
+    GoRoute(
+      path: '/signup/step2',
+      builder: (context, state) => const SignupStep2Screen(),
+    ),
+    GoRoute(
+      path: '/signup/step3',
+      builder: (context, state) => const SignupStep3Screen(),
+    ),
+    GoRoute(
+      path: '/signup/complete',
+      builder: (context, state) => const SignupCompleteScreen(),
     ),
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) =>
