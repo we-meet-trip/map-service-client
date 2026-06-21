@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_naver_map/flutter_naver_map.dart';
+import 'core/naver_map/naver_map_adapter.dart';
 import 'app.dart';
 
 void main()  async{

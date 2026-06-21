@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../common/widgets/app_loading_screen.dart';
+import '../../../core/api/trip_api_service.dart';
 import 'trip_start_screen.dart';
 import 'trip_step1_screen.dart';
 import 'trip_step2_screen.dart';
@@ -59,6 +60,8 @@ class _TripRegenerateScreenState extends State<TripRegenerateScreen> {
       _selectedTransport = null;
       _selectedProvince = '선택';
       _selectedCity = '선택';
+      _tripResponse = null;
+      _generateFuture = null;
     });
   }
 
@@ -85,11 +88,30 @@ class _TripRegenerateScreenState extends State<TripRegenerateScreen> {
   String _selectedCity = '선택';
 
   bool _isLoading = false;
+  Future<void>? _generateFuture;
+  TripGenerateResponse? _tripResponse;
 
   void _next() {
     if (_currentStep == 5) {
-      // step 5 → 로딩 화면 → step 6
-      setState(() => _isLoading = true);
+      // step 5 → 로딩 + API 호출
+      final request = TripGenerateRequest(
+        startDate: _startDate!,
+        endDate: _endDate!,
+        activeStartHour: _startHour.toInt(),
+        activeEndHour: _endHour.toInt(),
+        minBudget: _minBudget.toInt(),
+        maxBudget: _maxBudget.toInt(),
+        themes: _selectedThemes.toList(),
+        transport: _selectedTransport!,
+        province: _selectedProvince,
+        city: _selectedCity,
+      );
+      setState(() {
+        _isLoading = true;
+        _generateFuture = TripApiService.instance
+            .generateTrip(request)
+            .then((res) => _tripResponse = res);
+      });
     } else if (_currentStep < _totalSteps) {
       setState(() => _currentStep++);
     }
@@ -99,16 +121,40 @@ class _TripRegenerateScreenState extends State<TripRegenerateScreen> {
     if (_currentStep > 1) setState(() => _currentStep--);
   }
 
+  void _onLoadComplete() {
+    setState(() {
+      _isLoading = false;
+      _generateFuture = null;
+      _currentStep = 6;
+    });
+  }
+
+  void _onLoadError(Object error) {
+    final msg = error is TripApiException
+        ? error.message
+        : '일정 생성에 실패했습니다. 다시 시도해 주세요.';
+    setState(() {
+      _isLoading = false;
+      _generateFuture = null;
+      _currentStep = 5;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(msg)),
+        );
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    // step 5 완료 후 로딩 화면 (최소 2초, 나중에 AI future 연결 가능)
     if (_isLoading) {
       return AppLoadingScreen(
+        future: _generateFuture,
         minDuration: const Duration(seconds: 2),
-        onComplete: () => setState(() {
-          _isLoading = false;
-          _currentStep = 6;
-        }),
+        onComplete: _onLoadComplete,
+        onError: _onLoadError,
       );
     }
 
@@ -170,7 +216,7 @@ class _TripRegenerateScreenState extends State<TripRegenerateScreen> {
           }),
         );
       case 6:
-        return const TripCreatedScreen();
+        return TripCreatedScreen(response: _tripResponse);
       default:
         return const SizedBox.shrink();
     }
