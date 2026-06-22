@@ -56,7 +56,7 @@ class _TripStep2ScreenState extends State<TripStep2Screen> {
     final snappedMax = _snap(v.end);
     setState(() {
       _min = _snap(v.start);
-      _max = snappedMax >= _kMaxBudget ? _kOverBudget : snappedMax;
+      _max = snappedMax > _kMaxBudget ? _kOverBudget : snappedMax;
     });
     widget.onBudgetChanged(_min, _max);
   }
@@ -72,7 +72,7 @@ class _TripStep2ScreenState extends State<TripStep2Screen> {
   void _onMaxChanged(double v) {
     final snapped = _snap(v);
     setState(() {
-      _max = (snapped >= _kMaxBudget ? _kOverBudget : snapped).clamp(_min, _kOverBudget);
+      _max = (snapped > _kMaxBudget ? _kOverBudget : snapped).clamp(_min, _kOverBudget);
     });
     widget.onBudgetChanged(_min, _max);
   }
@@ -224,10 +224,11 @@ class _EditableBudgetChipState extends State<_EditableBudgetChip> {
   }
 
   void _commit() {
+    if (!_editing) return;
+    setState(() => _editing = false);
     final raw = double.tryParse(_ctrl.text) ?? widget.value;
     final v = _snap(raw).clamp(0.0, _kOverBudget);
     _focus.unfocus();
-    setState(() => _editing = false);
     widget.onChanged(v);
   }
 
