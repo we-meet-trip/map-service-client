@@ -29,7 +29,7 @@ class TripStepScaffold extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: 72),
+                SizedBox(height: MediaQuery.paddingOf(context).top + 24),
                 ...children,
                 // 버튼 그림자(Y=24)가 콘텐츠와 겹치지 않도록 여유 공간 확보
                 const SizedBox(height: 48),
