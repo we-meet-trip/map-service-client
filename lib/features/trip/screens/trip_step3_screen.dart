@@ -39,14 +39,14 @@ class TripStep3Screen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return TripStepScaffold(
-      onNext: selectedThemes.isNotEmpty ? onNext : null,
+      onNext: onNext,
       onPrev: onPrev,
       children: [
         TripStepHeader(
           step: 3,
           title: '어떤 여행을 원하나요?',
           subtitle: '당신만의 특별한 여정을 위해 여행 테마를 선택해주세요.',
-          isNextEnabled: selectedThemes.isNotEmpty,
+          isNextEnabled: true,
         ),
         const SizedBox(height: 28),
         TripCard(

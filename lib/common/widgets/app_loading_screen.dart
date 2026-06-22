@@ -52,7 +52,7 @@ class _AppLoadingScreenState extends State<AppLoadingScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            const Spacer(flex: 3),
+            const Spacer(flex: 4),
 
             // 말풍선
             _buildSpeechBubble(),

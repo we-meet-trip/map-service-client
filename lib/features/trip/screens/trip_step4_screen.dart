@@ -42,14 +42,14 @@ class TripStep4Screen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return TripStepScaffold(
-      onNext: selectedTransport != null ? onNext : null,
+      onNext: onNext,
       onPrev: onPrev,
       children: [
         TripStepHeader(
           step: 4,
           title: '이동 수단을 선택해 주세요',
           subtitle: '당신의 여정에 가장 적합한 방식을 제안합니다.',
-          isNextEnabled: selectedTransport != null,
+          isNextEnabled: true,
         ),
         const SizedBox(height: 24),
         ..._items.map((item) {
