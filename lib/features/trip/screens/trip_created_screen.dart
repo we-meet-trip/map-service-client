@@ -1,7 +1,7 @@
 import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:flutter_naver_map/flutter_naver_map.dart';
+import '../../../core/naver_map/naver_map_adapter.dart';
 import 'package:go_router/go_router.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../common/theme/app_icons.dart';
@@ -10,16 +10,19 @@ import '../../../common/widgets/next_button.dart';
 import '../../../common/widgets/prev_button.dart';
 import '../../../core/state/trip_repository.dart';
 import '../../../common/widgets/text_field.dart';
+import '../../../core/api/trip_api_service.dart';
 
 class TripCreatedScreen extends StatefulWidget {
   const TripCreatedScreen({
     super.key,
     this.showBackButton = false,
     this.onPrev,
+    this.response,
   });
 
   final bool showBackButton;
   final VoidCallback? onPrev;
+  final TripGenerateResponse? response;
 
   @override
   State<TripCreatedScreen> createState() => _TripCreatedScreenState();
@@ -27,13 +30,43 @@ class TripCreatedScreen extends StatefulWidget {
 
 class _TripCreatedScreenState extends State<TripCreatedScreen> {
   late bool _isSaved = widget.showBackButton;
-  NaverMapController? _mapController;
 
-  final List<_ScheduleStop> _stops = [
+  late final List<_ScheduleStop> _stops;
+  late final int _totalDurationMinutes;
+
+  @override
+  void initState() {
+    super.initState();
+    final res = widget.response;
+    if (res != null) {
+      _stops = res.stops.map(_fromApiStop).toList();
+      _totalDurationMinutes = res.totalDurationMinutes;
+    } else {
+      // 저장된 일정 보기 등 response 없을 때 placeholder
+      _stops = _placeholder;
+      _totalDurationMinutes = 25;
+    }
+  }
+
+  static _ScheduleStop _fromApiStop(TripStop s) => _ScheduleStop(
+        name: s.name,
+        address: s.address,
+        time: s.time,
+        latLng: NLatLng(s.latitude, s.longitude),
+        transport: s.transportToNext != null
+            ? _TransportInfo(
+                label: s.transportToNext!.label,
+                duration: '${s.transportToNext!.durationMinutes}분',
+                distance: '${s.transportToNext!.distanceKm}km',
+              )
+            : null,
+      );
+
+  static final List<_ScheduleStop> _placeholder = [
     _ScheduleStop(
       name: '속초 버스 터미널',
       address: '강원특별자치도 속초시 중앙로 96',
-      time: '09:00 AM',
+      time: '09:00',
       latLng: const NLatLng(38.2052, 128.5917),
       transport: _TransportInfo(
         label: '이동: 전동 킥보드',
@@ -44,10 +77,10 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
     _ScheduleStop(
       name: '속초해변',
       address: '강원특별자치도 속초시 청호동',
-      time: '09:12 AM',
+      time: '09:12',
       latLng: const NLatLng(38.2014, 128.6008),
       transport: _TransportInfo(
-        label: '이동: 바이크',
+        label: '이동: 자전거',
         duration: '13분',
         distance: '3.8km',
       ),
@@ -55,11 +88,18 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
     _ScheduleStop(
       name: '속초 중앙시장',
       address: '강원특별자치도 속초시 중앙로 147',
-      time: '09:25 AM',
+      time: '09:25',
       latLng: const NLatLng(38.2089, 128.5875),
       transport: null,
     ),
   ];
+
+  String get _totalTimeLabel {
+    if (_totalDurationMinutes < 60) return '약 $_totalDurationMinutes분';
+    final h = _totalDurationMinutes ~/ 60;
+    final m = _totalDurationMinutes % 60;
+    return m == 0 ? '약 $h시간' : '약 $h시간 $m분';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -93,9 +133,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ── 지도 영역 (KakaoMap SDK 연결 예정) ──
                 _buildMapArea(),
-                // ── 일정 내용 ──
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
                   child: Column(
@@ -143,10 +181,9 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
   }
 
   Future<void> _onMapReady(NaverMapController controller) async {
-    _mapController = controller;
-
     // 번호 마커 추가
     for (int i = 0; i < _stops.length; i++) {
+      if (!mounted) return;
       final icon = await NOverlayImage.fromWidget(
         widget: _buildNumberMarker('${i + 1}'),
         size: const Size(36, 36),
@@ -241,9 +278,9 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
       text: TextSpan(
         style: TextStyle(fontSize: 14, color: AppColors.neutralScale[400]),
         children: [
-          const TextSpan(text: '총 소요시간 : 약 '),
+          const TextSpan(text: '총 소요시간 : '),
           TextSpan(
-            text: '25분',
+            text: _totalTimeLabel,
             style: TextStyle(
               fontWeight: FontWeight.w700,
               color: AppColors.primaryScale[500],
@@ -338,14 +375,11 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
     return ClipRRect(
       borderRadius: BorderRadius.circular(30),
       child: BackdropFilter(
-        // Refraction: 35 → 강한 배경 블러
         filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
         child: Container(
           height: 60,
           padding: const EdgeInsets.symmetric(horizontal: 10),
           decoration: BoxDecoration(
-            // Frost: 0 → 투명한 맑은 유리
-            // Light: -33°, 80% → 좌상단(밝음) → 우하단(어두움) 그라디언트
             gradient: LinearGradient(
               begin: const Alignment(-0.54, -0.84),
               end:   const Alignment( 0.54,  0.84),
@@ -360,7 +394,6 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
               width: 1.0,
             ),
             boxShadow: [
-              // Depth: 7.24 → 외부 그림자
               BoxShadow(
                 color: theme.iconColor.withValues(alpha: 0.10),
                 blurRadius: 14,
@@ -370,7 +403,6 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
           ),
           child: Row(
             children: [
-              // 아이콘 원형
               Container(
                 width: 40,
                 height: 40,
@@ -383,7 +415,6 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
                 ),
               ),
               const SizedBox(width: 12),
-              // 라벨
               Text(
                 transport.label,
                 style: TextStyle(
@@ -393,7 +424,6 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
                 ),
               ),
               const Spacer(),
-              // 시간 · 거리
               Text(
                 '${transport.duration} · ${transport.distance}',
                 style: TextStyle(
@@ -542,6 +572,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
   // ── 저장 바텀시트 ─────────────────────────────────────────────
 
   void _showSaveBottomSheet(BuildContext context) {
+    final route = _stops.map((s) => s.name).join(' → ');
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -551,7 +582,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
         onSaved: (name) {
           TripRepository.instance.addTrip(SavedTrip(
             name: name,
-            route: '속초 버스 터미널 → 속초해변 → 속초 중앙시장',
+            route: route,
             savedAt: DateTime.now(),
           ));
           setState(() => _isSaved = true);
@@ -628,7 +659,6 @@ class _SaveBottomSheetState extends State<_SaveBottomSheet> {
             ),
           ),
           const SizedBox(height: 28),
-          // 제목
           Text(
             '✏️ 일정 이름을 정해주세요.',
             style: TextStyle(
@@ -644,10 +674,8 @@ class _SaveBottomSheetState extends State<_SaveBottomSheet> {
             style: TextStyle(fontSize: 14, color: AppColors.neutralScale[300]),
           ),
           const SizedBox(height: 32),
-          // 입력 필드
           _buildNameField(),
           const SizedBox(height: 32),
-          // 저장 버튼
           _buildSaveButton(context),
         ],
       ),

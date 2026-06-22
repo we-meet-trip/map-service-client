@@ -38,6 +38,7 @@ dependencies:
   phosphor_flutter: ^2.1.0
   flutter_svg: ^2.0.0
   flutter_naver_map: ^1.2.0
+  http: ^1.2.0
 
 dev_dependencies:
   flutter_test:
