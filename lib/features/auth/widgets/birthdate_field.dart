@@ -24,7 +24,10 @@ class _BirthdateFieldState extends State<BirthdateField> {
   bool _isOpen = false;
 
   Future<void> _pick(BuildContext context) async {
-    DateTime tempDate = widget.value ?? DateTime.now();
+    final now = DateTime.now();
+    DateTime tempDate = widget.value != null
+        ? DateTime(widget.value!.year, widget.value!.month, widget.value!.day)
+        : DateTime(now.year, now.month, now.day);
 
     setState(() => _isOpen = true);
 
