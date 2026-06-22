@@ -7,17 +7,16 @@ import '../widgets/trip_card.dart';
 import '../widgets/trip_step_scaffold.dart';
 import '../widgets/trip_slider_theme.dart';
 
-const _kMaxBudget  = 9999999.0;
-final _kErrorColor = AppColors.redScale[500]!;
+const _kMaxBudget  = 9000000.0;  // 슬라이더 최대(900만)
+const _kOverBudget = 10000000.0;
+const _kStep       = 10000.0;
+
+double _snap(double v) => (v / _kStep).round() * _kStep;
 
 String _fmt(double v) {
-  final s = v.round().toString();
-  final buf = StringBuffer();
-  for (int i = 0; i < s.length; i++) {
-    if (i > 0 && (s.length - i) % 3 == 0) buf.write(',');
-    buf.write(s[i]);
-  }
-  return '${buf.toString()} 원';
+  if (v >= _kOverBudget) return '1,000만 원+';
+  if (v <= 0) return '0 원';
+  return '${(v / 10000).round()}만 원';
 }
 
 class TripStep2Screen extends StatefulWidget {
@@ -44,8 +43,7 @@ class _TripStep2ScreenState extends State<TripStep2Screen> {
   late double _min;
   late double _max;
 
-  bool get _maxError => _max > _kMaxBudget;
-  bool get _canProceed => !_maxError && (_min > 0 || _max > 0);
+  bool get _canProceed => _min > 0 || _max > 0;
 
   @override
   void initState() {
@@ -55,27 +53,28 @@ class _TripStep2ScreenState extends State<TripStep2Screen> {
   }
 
   void _onSliderChanged(RangeValues v) {
+    final snappedMax = _snap(v.end);
     setState(() {
-      _min = v.start;
-      _max = v.end;
+      _min = _snap(v.start);
+      _max = snappedMax >= _kMaxBudget ? _kOverBudget : snappedMax;
     });
     widget.onBudgetChanged(_min, _max);
   }
 
   void _onMinChanged(double v) {
     setState(() {
-      _min = v.clamp(0, _kMaxBudget);
+      _min = _snap(v).clamp(0.0, _kOverBudget);
       if (_min > _max) _max = _min;
     });
-    widget.onBudgetChanged(_min, _max.clamp(0, _kMaxBudget));
+    widget.onBudgetChanged(_min, _max);
   }
 
   void _onMaxChanged(double v) {
+    final snapped = _snap(v);
     setState(() {
-      _max = v;
-      if (_max < _min) _min = _max;
+      _max = (snapped >= _kMaxBudget ? _kOverBudget : snapped).clamp(_min, _kOverBudget);
     });
-    widget.onBudgetChanged(_min.clamp(0, _kMaxBudget), _max.clamp(0, _kMaxBudget));
+    widget.onBudgetChanged(_min, _max);
   }
 
   @override
@@ -122,25 +121,11 @@ class _TripStep2ScreenState extends State<TripStep2Screen> {
                   ),
                   _EditableBudgetChip(
                     value: _max,
-                    hasError: _maxError,
+                    hasError: false,
                     onChanged: _onMaxChanged,
                   ),
                 ],
               ),
-              if (_maxError)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Center(
-                    child: Text(
-                      '최대 예산은 9,999,999 원을 초과할 수 없습니다.',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: _kErrorColor,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ),
               const SizedBox(height: 16),
               SliderTheme(
                 data: tripSliderTheme(context),
@@ -151,6 +136,7 @@ class _TripStep2ScreenState extends State<TripStep2Screen> {
                   ),
                   min: 0,
                   max: _kMaxBudget,
+                  divisions: (_kMaxBudget / _kStep).round(),
                   onChanged: _onSliderChanged,
                 ),
               ),
@@ -163,7 +149,7 @@ class _TripStep2ScreenState extends State<TripStep2Screen> {
                         style: TextStyle(
                             fontSize: 11,
                             color: AppColors.neutralScale[300])),
-                    Text('9,999,999 원',
+                    Text('1,000만 원+',
                         style: TextStyle(
                             fontSize: 11,
                             color: AppColors.neutralScale[300])),
@@ -238,14 +224,16 @@ class _EditableBudgetChipState extends State<_EditableBudgetChip> {
   }
 
   void _commit() {
-    final v = double.tryParse(_ctrl.text) ?? widget.value;
+    final raw = double.tryParse(_ctrl.text) ?? widget.value;
+    final v = _snap(raw).clamp(0.0, _kOverBudget);
+    _focus.unfocus();
     setState(() => _editing = false);
     widget.onChanged(v);
   }
 
   @override
   Widget build(BuildContext context) {
-    final textColor   = widget.hasError ? _kErrorColor : AppColors.neutralScale[600]!;
+    final textColor   = widget.hasError ? AppColors.redScale[500]! : AppColors.neutralScale[600]!;
     final borderColor = widget.hasError
         ? AppColors.redScale[500]!.withAlpha(0x66)
         : AppColors.neutralScale[100]!;
@@ -257,6 +245,7 @@ class _EditableBudgetChipState extends State<_EditableBudgetChip> {
       onTap: _editing ? null : _startEdit,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
+        width: 120,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
           color: bgColor,
@@ -283,11 +272,8 @@ class _EditableBudgetChipState extends State<_EditableBudgetChip> {
                     border: InputBorder.none,
                     suffixText: ' 원',
                   ),
-                  onChanged: (text) {
-                    final v = double.tryParse(text);
-                    if (v != null) widget.onChanged(v);
-                  },
                   onSubmitted: (_) => _commit(),
+                  onTapOutside: (_) => _commit(),
                 ),
               )
             : Text(
