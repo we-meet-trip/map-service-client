@@ -20,9 +20,12 @@ class SignupCompleteScreen extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  SvgPicture.asset(
-                    'assets/svg/character_shadow.svg',
-                    height: 136,
+                  Transform.translate(
+                    offset: const Offset(15, 0),
+                    child: SvgPicture.asset(
+                      'assets/svg/character_shadow.svg',
+                      height: 136,
+                    ),
                   ),
                   const SizedBox(height: 40),
                   Text(
