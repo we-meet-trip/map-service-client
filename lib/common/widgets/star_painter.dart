@@ -5,8 +5,8 @@ class StarPainter extends CustomPainter {
 
   static const _stars = [
     (Offset(0.78, 0.17), 1.0),
-    (Offset(0.35, 0.25), 1.2),
-    (Offset(0.17, 0.35), 2.0),
+    (Offset(0.35, 0.15), 1.2),
+    (Offset(0.17, 0.18), 2.0),
     (Offset(0.77, 0.45), 1.0),
     (Offset(0.62, 0.52), 0.8),
     (Offset(0.24, 0.55), 2.2),
