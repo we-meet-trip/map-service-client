@@ -296,7 +296,7 @@ class _SpeechBubblePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _SpeechBubblePainter oldDelegate) => oldDelegate.color != color;
 }
 
 // ─── 여행 카드 ────────────────────────────────────────────────────────────────
@@ -388,6 +388,7 @@ class _WeekCalendar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final week = _weekDays();
+    final today = DateTime.now();
     final y = focusedDate.year;
     final m = focusedDate.month;
     final d = focusedDate.day;
@@ -442,7 +443,6 @@ class _WeekCalendar extends StatelessWidget {
           Row(
             children: List.generate(7, (i) {
               final date = week[i];
-              final today = DateTime.now();
               final isSelected = date.year == focusedDate.year &&
                   date.month == focusedDate.month &&
                   date.day == focusedDate.day;

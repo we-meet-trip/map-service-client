@@ -12,9 +12,10 @@ class WeatherService {
   static DateTime? _cacheTime;
 
   Future<WeatherData> fetchWeather() async {
+    final now = DateTime.now();
     if (_cache != null &&
         _cacheTime != null &&
-        DateTime.now().difference(_cacheTime!) < _cacheDuration) {
+        now.difference(_cacheTime!) < _cacheDuration) {
       return _cache!;
     }
 
@@ -30,8 +31,8 @@ class WeatherService {
     }
     final sido = _sidoFromLatLon(pos.latitude, pos.longitude);
 
-    final nowDt = _ultraNowBaseDateTime();
-    final fcstDt = _forecastBaseDateTime();
+    final nowDt = _ultraNowBaseDateTime(now);
+    final fcstDt = _forecastBaseDateTime(now);
 
     final results = await Future.wait([
       // 1. 초단기실황: 현재 기온(T1H), 강수형태(PTY)
@@ -52,8 +53,8 @@ class WeatherService {
         'numOfRows': '500',
         'pageNo': '1',
       }, key)),
-      // 3. 에어코리아: 미세먼지(PM10/PM25)
-      http.get(_airUri(sido, key)),
+      // 3. 에어코리아: 미세먼지(PM10/PM25) — 실패 시 기본값으로 대체
+      http.get(_airUri(sido, key)).catchError((_) => http.Response('', 0)),
     ]);
 
     debugPrint('[WeatherAPI 0 URL] ${_kmaUri('getUltraSrtNcst', {
@@ -73,44 +74,46 @@ class WeatherService {
     if (results[1].statusCode != 200) {
       throw Exception('단기예보 API 오류 (${results[1].statusCode})');
     }
-    if (results[2].statusCode != 200) {
-      throw Exception('에어코리아 API 오류 (${results[2].statusCode})');
-    }
-
     // ── 초단기실황 파싱 ──────────────────────────────────────────────────────
-    final nowJson = jsonDecode(results[0].body) as Map<String, dynamic>;
+    final nowJson = jsonDecode(results[0].body);
+    if (nowJson is! Map<String, dynamic>) throw Exception('초단기실황 응답 형식 오류');
     _checkKmaResult(nowJson, '초단기실황');
-    final nowItems = (nowJson['response']['body']['items']['item'] as List)
-        .cast<Map<String, dynamic>>();
+    final rawNowItems = (nowJson['response'] as Map?)?['body']?['items']?['item'];
+    final nowItems = rawNowItems is List
+        ? rawNowItems.whereType<Map<String, dynamic>>().toList()
+        : <Map<String, dynamic>>[];
     final nowMap = {
-      for (final i in nowItems) i['category'] as String: i['obsrValue'] as String
+      for (final i in nowItems)
+        if (i['category'] != null) i['category'].toString(): i['obsrValue']?.toString() ?? ''
     };
 
     final t1h = double.tryParse(nowMap['T1H'] ?? '') ?? 0.0;
     final pty = int.tryParse(nowMap['PTY'] ?? '') ?? 0;
 
     // ── 단기예보 파싱 ────────────────────────────────────────────────────────
-    final fcstJson = jsonDecode(results[1].body) as Map<String, dynamic>;
+    final fcstJson = jsonDecode(results[1].body);
+    if (fcstJson is! Map<String, dynamic>) throw Exception('단기예보 응답 형식 오류');
     _checkKmaResult(fcstJson, '단기예보');
-    final fcstItems = (fcstJson['response']['body']['items']['item'] as List)
-        .cast<Map<String, dynamic>>();
+    final rawFcstItems = (fcstJson['response'] as Map?)?['body']?['items']?['item'];
+    final fcstItems = rawFcstItems is List
+        ? rawFcstItems.whereType<Map<String, dynamic>>().toList()
+        : <Map<String, dynamic>>[];
 
-    final todayStr = _fmtDate(DateTime.now());
+    final todayStr = _fmtDate(now);
     final todayItems = fcstItems
-        .where((item) => item['fcstDate'] as String == todayStr)
+        .where((item) => item['fcstDate']?.toString() == todayStr)
         .toList();
 
     double? tmx, tmn;
     int? sky, pop;
 
     // 현재 시각 기준 가장 가까운 3시간 단위 슬롯
-    final now = DateTime.now();
     final targetTimeInt = (now.hour ~/ 3) * 3 * 100;
 
     for (final item in todayItems) {
-      final cat = item['category'] as String;
-      final val = item['fcstValue'] as String;
-      final fcstTimeInt = int.tryParse(item['fcstTime'] as String) ?? 0;
+      final cat = item['category']?.toString() ?? '';
+      final val = item['fcstValue']?.toString() ?? '';
+      final fcstTimeInt = int.tryParse(item['fcstTime']?.toString() ?? '') ?? 0;
 
       if (cat == 'TMX') tmx ??= double.tryParse(val);
       if (cat == 'TMN') tmn ??= double.tryParse(val);
@@ -125,30 +128,44 @@ class WeatherService {
     // 당일 데이터가 없을 때 폴백 (늦은 밤 등)
     if (sky == null) {
       final anysky = todayItems.where((i) => i['category'] == 'SKY');
-      sky = anysky.isNotEmpty ? int.tryParse(anysky.first['fcstValue'] as String) ?? 1 : 1;
+      sky = anysky.isNotEmpty ? int.tryParse(anysky.first['fcstValue']?.toString() ?? '') ?? 1 : 1;
     }
 
     // ── 에어코리아 파싱 ──────────────────────────────────────────────────────
-    final airJson = jsonDecode(results[2].body) as Map<String, dynamic>;
-    final rawItems = airJson['response']['body']['items'];
-    final List<Map<String, dynamic>> airList;
-    if (rawItems is List) {
-      airList = rawItems.cast<Map<String, dynamic>>();
-    } else if (rawItems is Map && rawItems['item'] is List) {
-      airList = (rawItems['item'] as List).cast<Map<String, dynamic>>();
-    } else {
-      airList = [];
-    }
-
     double pm10 = 0, pm25 = 0;
-    for (final item in airList) {
-      final v10 = double.tryParse(item['pm10Value'] as String? ?? '');
-      final v25 = double.tryParse(item['pm25Value'] as String? ?? '');
-      if (v10 != null && v25 != null) {
-        pm10 = v10;
-        pm25 = v25;
-        break;
+    if (results[2].statusCode == 200) {
+      try {
+        final airJson = jsonDecode(results[2].body) as Map<String, dynamic>;
+        final rawItems = airJson['response']['body']['items'];
+        final List<Map<String, dynamic>> airList;
+        if (rawItems is List) {
+          airList = rawItems.cast<Map<String, dynamic>>();
+        } else if (rawItems is Map) {
+          final itemData = rawItems['item'];
+          if (itemData is List) {
+            airList = itemData.cast<Map<String, dynamic>>();
+          } else if (itemData is Map) {
+            airList = [itemData.cast<String, dynamic>()];
+          } else {
+            airList = [];
+          }
+        } else {
+          airList = [];
+        }
+        for (final item in airList) {
+          final v10 = double.tryParse(item['pm10Value'] as String? ?? '');
+          final v25 = double.tryParse(item['pm25Value'] as String? ?? '');
+          if (v10 != null && v25 != null) {
+            pm10 = v10;
+            pm25 = v25;
+            break;
+          }
+        }
+      } catch (_) {
+        debugPrint('[WeatherAPI] 에어코리아 파싱 실패 — 미세먼지 기본값 사용');
       }
+    } else {
+      debugPrint('[WeatherAPI] 에어코리아 API 실패 (${results[2].statusCode}) — 미세먼지 기본값 사용');
     }
 
     final data = WeatherData(
@@ -252,8 +269,7 @@ class WeatherService {
   }
 
   // 초단기실황 기준시각 (매시 40분 발표, 45분 후 제공)
-  ({String date, String time}) _ultraNowBaseDateTime() {
-    final now = DateTime.now();
+  ({String date, String time}) _ultraNowBaseDateTime(DateTime now) {
     if (now.minute >= 45) {
       return (date: _fmtDate(now), time: '${now.hour.toString().padLeft(2, '0')}40');
     }
@@ -262,8 +278,7 @@ class WeatherService {
   }
 
   // 단기예보 기준시각 (0200/0500/0800/1100/1400/1700/2000/2300, 10분 후 제공)
-  ({String date, String time}) _forecastBaseDateTime() {
-    final now = DateTime.now();
+  ({String date, String time}) _forecastBaseDateTime(DateTime now) {
     const issueTimes = [2, 5, 8, 11, 14, 17, 20, 23];
     int? foundHour;
     for (final h in issueTimes) {
