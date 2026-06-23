@@ -39,6 +39,7 @@ class _TripStep5ScreenState extends State<TripStep5Screen> {
   static const _kOverlayOutline = Color(0xFF7C3AED);
 
   static const _kPlaceholder = '선택';
+  static const _kAllCities  = '전체';
 
   static const _kKoreaOverview = NCameraPosition(
     target: NLatLng(36.0, 128.5),
@@ -272,7 +273,7 @@ class _TripStep5ScreenState extends State<TripStep5Screen> {
       return;
     }
 
-    if (city == _kPlaceholder) {
+    if (city == _kPlaceholder || city == _kAllCities) {
       // 시/도 오버레이 + 해당 시도 전체가 보이도록 fitBounds
       final sidoFeatures = _sidoGeo!['features'] as List<dynamic>;
       final overlays = _buildOverlays(_kOverlayProvince, sidoFeatures, 'CTP_KOR_NM', province);
@@ -309,7 +310,7 @@ class _TripStep5ScreenState extends State<TripStep5Screen> {
   List<String> _availableCities(String province) {
     if (province == _kPlaceholder) return [_kPlaceholder];
     final list = _cities[province] ?? ['해당 시/군/구 없음'];
-    return [_kPlaceholder, ...list];
+    return [_kPlaceholder, _kAllCities, ...list];
   }
 
   bool get _canProceed =>
