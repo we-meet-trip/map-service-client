@@ -21,15 +21,15 @@ const _publicPrefixes = ['/splash', '/auth', '/signup'];
 
 final appRouter = GoRouter(
   initialLocation: '/splash',
-  refreshListenable: isAuthenticated,
-  redirect: (context, state) {
-    final authed = isAuthenticated.value;
-    final loc = state.matchedLocation;
-    final isPublic = _publicPrefixes.any((p) => loc.startsWith(p));
-
-    if (!authed && !isPublic) return '/auth';
-    return null;
-  },
+  // refreshListenable: isAuthenticated,
+  // redirect: (context, state) {
+  //   final authed = isAuthenticated.value;
+  //   final loc = state.matchedLocation;
+  //   final isPublic = _publicPrefixes.any((p) => loc.startsWith(p));
+  //
+  //   if (!authed && !isPublic) return '/auth';
+  //   return null;
+  // },
   routes: [
     GoRoute(
       path: '/splash',
