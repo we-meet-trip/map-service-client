@@ -398,7 +398,10 @@ class _TimeSliderCard extends StatelessWidget {
             child: RangeSlider(
               values: RangeValues(startHour, endHour),
               min: 0, max: 24, divisions: 24,
-              onChanged: (v) => onChanged(v.start, v.end),
+              onChanged: (v) {
+                if (v.end - v.start < 1) return;
+                onChanged(v.start, v.end);
+              },
             ),
           ),
           Padding(
@@ -498,7 +501,7 @@ class _TimePickerSheetState extends State<_TimePickerSheet> {
               child: GestureDetector(
                 onTap: () {
                   final s = _start.toDouble();
-                  final e = _end > _start
+                  final e = _end >= _start + 1
                       ? _end.toDouble()
                       : (_start + 1.0).clamp(0.0, 24.0);
                   widget.onConfirm(s, e);
