@@ -7,9 +7,10 @@ import '../widgets/trip_card.dart';
 import '../widgets/trip_step_scaffold.dart';
 import '../widgets/trip_slider_theme.dart';
 
-const _kMaxBudget  = 9000000.0;  // 슬라이더 최대(900만)
+const _kMaxBudget  = 9000000.0;  // 선택 가능한 최대(900만)
 const _kOverBudget = 10000000.0;
 const _kStep       = 10000.0;
+const _kSliderMax  = _kMaxBudget + _kStep; // 슬라이더 물리적 끝(900만+1단계 = 1,000만원+)
 
 double _snap(double v) => (v / _kStep).round() * _kStep;
 
@@ -55,7 +56,7 @@ class _TripStep2ScreenState extends State<TripStep2Screen> {
   void _onSliderChanged(RangeValues v) {
     final snappedMax = _snap(v.end);
     setState(() {
-      _min = _snap(v.start);
+      _min = _snap(v.start).clamp(0.0, _kMaxBudget);
       _max = snappedMax > _kMaxBudget ? _kOverBudget : snappedMax;
     });
     widget.onBudgetChanged(_min, _max);
@@ -63,7 +64,7 @@ class _TripStep2ScreenState extends State<TripStep2Screen> {
 
   void _onMinChanged(double v) {
     setState(() {
-      _min = _snap(v).clamp(0.0, _kOverBudget);
+      _min = _snap(v).clamp(0.0, _kMaxBudget);
       if (_min > _max) _max = _min;
     });
     widget.onBudgetChanged(_min, _max);
@@ -131,12 +132,12 @@ class _TripStep2ScreenState extends State<TripStep2Screen> {
                 data: tripSliderTheme(context),
                 child: RangeSlider(
                   values: RangeValues(
-                    _min.clamp(0, _kMaxBudget),
-                    _max.clamp(0, _kMaxBudget),
+                    _min.clamp(0, _kSliderMax),
+                    (_max >= _kOverBudget ? _kSliderMax : _max).clamp(0, _kSliderMax),
                   ),
                   min: 0,
-                  max: _kMaxBudget,
-                  divisions: (_kMaxBudget / _kStep).round(),
+                  max: _kSliderMax,
+                  divisions: (_kSliderMax / _kStep).round(),
                   onChanged: _onSliderChanged,
                 ),
               ),
@@ -226,6 +227,7 @@ class _EditableBudgetChipState extends State<_EditableBudgetChip> {
   void _commit() {
     if (!_editing) return;
     setState(() => _editing = false);
+    // 원 단위 입력 → 가장 가까운 1만원 단위로 스냅
     final raw = double.tryParse(_ctrl.text) ?? widget.value;
     final v = _snap(raw).clamp(0.0, _kOverBudget);
     _focus.unfocus();
