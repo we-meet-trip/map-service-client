@@ -137,7 +137,7 @@ class _CalendarCard extends StatelessWidget {
       children: [
         AppIcon(SvgIcons.calendar, size: 19),
         const SizedBox(width: 8),
-        Text('날짜 선택',
+        Text('여행 날짜',
             style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
@@ -233,15 +233,23 @@ class _CalendarCard extends StatelessWidget {
   }
 
   Widget _dayCell(DateTime day, int col, DateTime today) {
+    final confirmed   = startDate != null && endDate != null;
     final isStart     = startDate != null && _same(day, startDate!);
     final isEnd       = endDate   != null && _same(day, endDate!);
     final inRange     = _inRange(day);
     final isToday     = _same(day, today);
     final isSingleSel = isStart && isEnd;
 
+    final circleColor = confirmed
+        ? _kSelColor
+        : AppColors.neutralScale[100]!;
+    final barColor = confirmed ? _kBarColor : _kBarColor.withAlpha(0x26);
+
     final Color textColor;
     if (isStart || isEnd) {
-      textColor = AppColors.primaryScale[900]!;
+      textColor = confirmed
+          ? AppColors.primaryScale[900]!
+          : AppColors.neutralScale[400]!;
     } else if (inRange) {
       textColor = AppColors.primaryScale[800]!;
     } else if (isToday) {
@@ -265,18 +273,7 @@ class _CalendarCard extends StatelessWidget {
               Positioned.fill(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 9),
-                  child: _rangeBar(isStart, isEnd),
-                ),
-              ),
-            if (isToday && !inRange)
-              Center(
-                child: Container(
-                  width: 30, height: 30,
-                  decoration: BoxDecoration(
-                    border: Border.all(
-                        color: AppColors.secondaryScale[300]!, width: 1.5),
-                    shape: BoxShape.circle,
-                  ),
+                  child: _rangeBar(isStart, isEnd, barColor),
                 ),
               ),
             if (isStart || isEnd)
@@ -284,7 +281,7 @@ class _CalendarCard extends StatelessWidget {
                 child: Container(
                   width: 30, height: 30,
                   decoration: BoxDecoration(
-                      color: _kSelColor, shape: BoxShape.circle),
+                      color: circleColor, shape: BoxShape.circle),
                 ),
               ),
             Center(
@@ -304,20 +301,20 @@ class _CalendarCard extends StatelessWidget {
     );
   }
 
-  Widget _rangeBar(bool isStart, bool isEnd) {
+  Widget _rangeBar(bool isStart, bool isEnd, Color color) {
     if (isStart && !isEnd) {
       return Row(children: [
         const Expanded(child: SizedBox()),
-        Expanded(child: Container(color: _kBarColor)),
+        Expanded(child: Container(color: color)),
       ]);
     }
     if (isEnd && !isStart) {
       return Row(children: [
-        Expanded(child: Container(color: _kBarColor)),
+        Expanded(child: Container(color: color)),
         const Expanded(child: SizedBox()),
       ]);
     }
-    return Container(color: _kBarColor);
+    return Container(color: color);
   }
 
   bool _same(DateTime a, DateTime b) =>
@@ -401,7 +398,10 @@ class _TimeSliderCard extends StatelessWidget {
             child: RangeSlider(
               values: RangeValues(startHour, endHour),
               min: 0, max: 24, divisions: 24,
-              onChanged: (v) => onChanged(v.start, v.end),
+              onChanged: (v) {
+                if (v.end - v.start < 1) return;
+                onChanged(v.start, v.end);
+              },
             ),
           ),
           Padding(
@@ -501,7 +501,7 @@ class _TimePickerSheetState extends State<_TimePickerSheet> {
               child: GestureDetector(
                 onTap: () {
                   final s = _start.toDouble();
-                  final e = _end > _start
+                  final e = _end >= _start + 1
                       ? _end.toDouble()
                       : (_start + 1.0).clamp(0.0, 24.0);
                   widget.onConfirm(s, e);

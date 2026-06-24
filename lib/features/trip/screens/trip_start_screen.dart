@@ -15,7 +15,7 @@ class TripStartScreen extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            const Spacer(flex: 3),
+            const Spacer(flex: 4),
 
             const _SpeechBubble(),
             const SizedBox(height: 4),

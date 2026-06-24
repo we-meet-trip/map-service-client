@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../common/widgets/next_button.dart';
 import '../../../core/router/app_router.dart';
 import '../../../common/theme/app_colors.dart';
+import '../../../common/theme/app_text_styles.dart';
 
 class SignupCompleteScreen extends StatelessWidget {
   const SignupCompleteScreen({super.key});
@@ -11,7 +12,7 @@ class SignupCompleteScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F0FA),
+      backgroundColor: AppColors.signupCompleteBackground,
       body: SafeArea(
         child: Stack(
           children: [
@@ -20,28 +21,23 @@ class SignupCompleteScreen extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  SvgPicture.asset(
-                    'assets/svg/character_shadow.svg',
-                    height: 136,
+                  Padding(
+                    padding: const EdgeInsets.only(left: 15),
+                    child: SvgPicture.asset(
+                      'assets/svg/character_shadow.svg',
+                      height: 136,
+                    ),
                   ),
                   const SizedBox(height: 40),
                   Text(
                     '가입을 축하합니다!',
-                    style: TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.neutralScale[600],
-                    ),
+                    style: AppTextStyles.title2,
                   ),
                   const SizedBox(height: 12),
                   Text(
                     '나만의 여행 콘텐츠들을 추천받고\n빛나는 여정을 시작해보세요.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: AppColors.neutralScale[400],
-                      height: 1.6,
-                    ),
+                    style: AppTextStyles.body7Gray.copyWith(height: 1.6),
                   ),
                   const SizedBox(height: 60),
                 ],

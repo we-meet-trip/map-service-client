@@ -59,6 +59,7 @@ class AppColors {
   };
 
   // auth
+  static const signupCompleteBackground = Color(0xFFF3F0FA);
   static const kakaoContainer = Color(0xFFFEE500);
   static const kakaoText = Color(0xFF000000);
 

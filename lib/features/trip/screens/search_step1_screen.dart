@@ -36,6 +36,7 @@ class _SearchStep1ScreenState extends State<SearchStep1Screen> {
       iconData: Icons.tune_rounded,
       iconBg: const Color(0xFFDBEAFE),
       iconColor: const Color(0xFF3B82F6),
+      disabled: true,
     ),
   ];
 
@@ -121,115 +122,143 @@ class _SearchStep1ScreenState extends State<SearchStep1Screen> {
 
   Widget _buildOptionCard(int index, _SearchOption opt) {
     final isSelected = _selectedIndex == index;
+    final disabled = opt.disabled;
+
     return GestureDetector(
-      onTap: () => setState(() => _selectedIndex = index),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? AppColors.secondaryScale[0]
-              : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected
-                ? AppColors.secondaryScale[500]!
-                : AppColors.neutralScale[100]!,
-            width: isSelected ? 1.5 : 1,
+      onTap: disabled ? null : () => setState(() => _selectedIndex = index),
+      child: Opacity(
+        opacity: disabled ? 0.45 : 1.0,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: isSelected ? AppColors.secondaryScale[0] : Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isSelected
+                  ? AppColors.secondaryScale[500]!
+                  : AppColors.neutralScale[100]!,
+              width: isSelected ? 1.5 : 1,
+            ),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: AppColors.secondaryScale[500]!.withValues(alpha: 0.15),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                    ),
+                  ]
+                : [
+                    BoxShadow(
+                      color: AppColors.neutralScale[600]!.withAlpha(0x0A),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
           ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: AppColors.secondaryScale[500]!.withValues(alpha: 0.15),
-                    blurRadius: 16,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : [
-                  BoxShadow(
-                    color: AppColors.neutralScale[600]!.withAlpha(0x0A),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-        ),
-        child: Row(
-          children: [
-            // ── 아이콘 ──
-            Container(
-              width: 50,
-              height: 50,
-              decoration: BoxDecoration(
-                color: isSelected ? opt.iconBg : opt.iconBg.withValues(alpha: 0.5),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                opt.iconData,
-                size: 24,
-                color: isSelected
-                    ? opt.iconColor
-                    : opt.iconColor.withValues(alpha: 0.4),
-              ),
-            ),
-            const SizedBox(width: 14),
-
-            // ── 텍스트 ──
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    opt.title,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: isSelected
-                          ? AppColors.neutralScale[600]
-                          : AppColors.neutralScale[300],
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    opt.subtitle,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: isSelected
-                          ? AppColors.neutralScale[300]
-                          : AppColors.neutralScale[200],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // ── 라디오 버튼 ──
-            Container(
-              width: 24,
-              height: 24,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white,
-                border: Border.all(
+          child: Row(
+            children: [
+              // ── 아이콘 ──
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
                   color: isSelected
-                      ? AppColors.secondaryScale[500]!
-                      : AppColors.neutralScale[200]!,
-                  width: 2,
+                      ? opt.iconBg
+                      : opt.iconBg.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  opt.iconData,
+                  size: 24,
+                  color: isSelected
+                      ? opt.iconColor
+                      : opt.iconColor.withValues(alpha: 0.4),
                 ),
               ),
-              child: isSelected
-                  ? Center(
-                      child: Container(
-                        width: 12,
-                        height: 12,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: AppColors.secondaryScale[500],
+              const SizedBox(width: 14),
+
+              // ── 텍스트 ──
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          opt.title,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: isSelected
+                                ? AppColors.neutralScale[600]
+                                : AppColors.neutralScale[300],
+                          ),
                         ),
+                        if (disabled) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.neutralScale[100],
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              '준비 중',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.neutralScale[300],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      opt.subtitle,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isSelected
+                            ? AppColors.neutralScale[300]
+                            : AppColors.neutralScale[200],
                       ),
-                    )
-                  : null,
-            ),
-          ],
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── 라디오 버튼 ──
+              Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white,
+                  border: Border.all(
+                    color: isSelected
+                        ? AppColors.secondaryScale[500]!
+                        : AppColors.neutralScale[200]!,
+                    width: 2,
+                  ),
+                ),
+                child: isSelected
+                    ? Center(
+                        child: Container(
+                          width: 12,
+                          height: 12,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: AppColors.secondaryScale[500],
+                          ),
+                        ),
+                      )
+                    : null,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -244,6 +273,7 @@ class _SearchOption {
   final IconData iconData;
   final Color iconBg;
   final Color iconColor;
+  final bool disabled;
 
   const _SearchOption({
     required this.title,
@@ -251,5 +281,6 @@ class _SearchOption {
     required this.iconData,
     required this.iconBg,
     required this.iconColor,
+    this.disabled = false,
   });
 }
