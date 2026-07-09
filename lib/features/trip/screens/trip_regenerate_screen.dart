@@ -22,6 +22,56 @@ class TripRegenerateScreen extends StatefulWidget {
   State<TripRegenerateScreen> createState() => _TripRegenerateScreenState();
 }
 
+// TODO: Gemini API 복구 후 false로 변경
+const bool _useMock = true;
+
+Future<TripGenerateResponse> _mockGenerateTrip() async {
+  await Future.delayed(const Duration(seconds: 2));
+  return const TripGenerateResponse(
+    tripId: 'mock-trip-001',
+    totalDurationMinutes: 180,
+    stops: [
+      TripStop(
+        order: 1,
+        name: '속초 버스 터미널',
+        address: '강원특별자치도 속초시 중앙로 96',
+        time: '09:00',
+        latitude: 38.2052,
+        longitude: 128.5917,
+        transportToNext: TripTransportToNext(
+          type: 'kick_board',
+          label: '이동: 전동 킥보드',
+          durationMinutes: 12,
+          distanceKm: 1.8,
+        ),
+      ),
+      TripStop(
+        order: 2,
+        name: '속초해변',
+        address: '강원특별자치도 속초시 청호동',
+        time: '09:12',
+        latitude: 38.2014,
+        longitude: 128.6008,
+        transportToNext: TripTransportToNext(
+          type: 'bicycle',
+          label: '이동: 자전거',
+          durationMinutes: 13,
+          distanceKm: 3.8,
+        ),
+      ),
+      TripStop(
+        order: 3,
+        name: '속초 중앙시장',
+        address: '강원특별자치도 속초시 중앙로 147',
+        time: '09:25',
+        latitude: 38.2089,
+        longitude: 128.5875,
+      ),
+    ],
+    weatherForecast: [],
+  );
+}
+
 class _TripRegenerateScreenState extends State<TripRegenerateScreen> {
   int _currentStep = 0;
 
@@ -108,8 +158,9 @@ class _TripRegenerateScreenState extends State<TripRegenerateScreen> {
       );
       setState(() {
         _isLoading = true;
-        _generateFuture = TripApiService.instance
-            .generateTrip(request)
+        _generateFuture = (_useMock
+                ? _mockGenerateTrip()
+                : TripApiService.instance.generateTrip(request))
             .then((res) => _tripResponse = res);
       });
     } else if (_currentStep < _totalSteps) {
