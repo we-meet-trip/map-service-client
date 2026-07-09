@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../common/widgets/app_loading_screen.dart';
 import '../../../core/api/trip_api_service.dart';
+import '../../../core/state/trip_repository.dart';
 import 'trip_start_screen.dart';
 import 'trip_step1_screen.dart';
 import 'trip_step2_screen.dart';
@@ -22,7 +23,7 @@ class TripRegenerateScreen extends StatefulWidget {
   State<TripRegenerateScreen> createState() => _TripRegenerateScreenState();
 }
 
-// TODO: Gemini API 복구 후 false로 변경
+//API 사용시 false로 변경하면 됩니다.
 const bool _useMock = true;
 
 Future<TripGenerateResponse> _mockGenerateTrip() async {
@@ -80,6 +81,13 @@ class _TripRegenerateScreenState extends State<TripRegenerateScreen> {
     super.initState();
     tripScreenResetNotifier.addListener(_onTabReset);
     tripRetrialNotifier.addListener(_onRetrial);
+    // 로그인/회원가입 후 복귀 시 임시 저장된 일정 복원
+    final pending = TripRepository.instance.pendingTrip;
+    if (pending != null) {
+      _tripResponse = pending;
+      _currentStep = 6;
+      TripRepository.instance.pendingTrip = null;
+    }
   }
 
   @override
