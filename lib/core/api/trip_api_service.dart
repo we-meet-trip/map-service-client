@@ -60,11 +60,16 @@ class TripTransportToNext {
   final int durationMinutes;
   final double distanceKm;
 
+  /// 다음 stop 까지의 도로 추종 폴리라인 [[lat, lng], ...].
+  /// 경로 조회가 성공한 구간에만 채워지며(없으면 null), 없을 때 지도는 직선 폴백.
+  final List<List<double>>? path;
+
   const TripTransportToNext({
     required this.type,
     required this.label,
     required this.durationMinutes,
     required this.distanceKm,
+    this.path,
   });
 
   factory TripTransportToNext.fromJson(Map<String, dynamic> json) =>
@@ -73,6 +78,11 @@ class TripTransportToNext {
         label: json['label'] as String,
         durationMinutes: json['duration_minutes'] as int,
         distanceKm: (json['distance_km'] as num).toDouble(),
+        path: (json['path'] as List<dynamic>?)
+            ?.map((p) => (p as List<dynamic>)
+                .map((v) => (v as num).toDouble())
+                .toList())
+            .toList(),
       );
 }
 

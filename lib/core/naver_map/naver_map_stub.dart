@@ -245,6 +245,17 @@ class NPolylineOverlay {
   void setIsVisible(bool value) {}
 }
 
+class NPathOverlay {
+  const NPathOverlay({
+    required String id,
+    required List<NLatLng> coords,
+    Color? color,
+    double? width,
+    Color? outlineColor,
+    double? outlineWidth,
+  });
+}
+
 class NPolygonOverlay {
   final NOverlayInfo info;
   NPolygonOverlay({

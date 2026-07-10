@@ -89,6 +89,9 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
                 label: s.transportToNext!.label,
                 duration: '${s.transportToNext!.durationMinutes}분',
                 distance: '${s.transportToNext!.distanceKm}km',
+                path: s.transportToNext!.path
+                    ?.map((p) => NLatLng(p[0], p[1]))
+                    .toList(),
               )
             : null,
       );
@@ -356,17 +359,47 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
       ));
     }
 
-    // 경로 폴리라인 추가
-    await controller.addOverlay(NPolylineOverlay(
-      id: 'route',
-      coords: stops.map((s) => s.latLng).toList(),
-      color: AppColors.primaryScale[400]!,
-      width: 4,
-    ));
+    // 경로 폴리라인 추가 — 구간마다 도로 추종 path 가 있으면 그 좌표를,
+    // 없으면 두 stop 을 잇는 직선을 이어 붙여 하나의 경로로 그린다.
+    // 선택된 일차 안에서만 잇는다. 마지막 stop 의 이동 정보는 다음 날 첫
+    // 장소로 이어지므로 여기서 쓰지 않는다(서버도 그 자리를 비워 보낸다).
+    final routeCoords = <NLatLng>[];
+    void addPoint(NLatLng p) {
+      // 구간 접점의 중복 좌표는 값 비교로 걸러 낸다(NLatLng == 에 의존하지 않음).
+      if (routeCoords.isEmpty ||
+          routeCoords.last.latitude != p.latitude ||
+          routeCoords.last.longitude != p.longitude) {
+        routeCoords.add(p);
+      }
+    }
 
-    // 해당 일차 정류장이 모두 보이도록 fitBounds
-    final lats = stops.map((s) => s.latLng.latitude);
-    final lngs = stops.map((s) => s.latLng.longitude);
+    for (int i = 0; i < stops.length - 1; i++) {
+      final legPath = stops[i].transport?.path;
+      final seg = (legPath != null && legPath.length >= 2)
+          ? legPath
+          : [stops[i].latLng, stops[i + 1].latLng];
+      for (final p in seg) {
+        addPoint(p);
+      }
+    }
+
+    if (routeCoords.length >= 2) {
+      await controller.addOverlay(NPathOverlay(
+        id: 'route',
+        coords: routeCoords,
+        color: AppColors.primaryScale[400]!,
+        width: 6,
+        outlineColor: Colors.white,
+        outlineWidth: 2,
+      ));
+    }
+
+    // 경로 전체(마커+도로 굴곡 포함)가 보이도록 fitBounds. 경로가 없으면 stop 기준.
+    final boundsPoints = routeCoords.isNotEmpty
+        ? routeCoords
+        : stops.map((s) => s.latLng).toList();
+    final lats = boundsPoints.map((p) => p.latitude);
+    final lngs = boundsPoints.map((p) => p.longitude);
     final bounds = NLatLngBounds(
       southWest: NLatLng(lats.reduce(min), lngs.reduce(min)),
       northEast: NLatLng(lats.reduce(max), lngs.reduce(max)),
@@ -1223,9 +1256,13 @@ class _TransportInfo {
   final String duration;
   final String distance;
 
+  /// 이 stop 에서 다음 stop 까지의 도로 추종 경로. 없으면 지도는 직선으로 잇는다.
+  final List<NLatLng>? path;
+
   const _TransportInfo({
     required this.label,
     required this.duration,
     required this.distance,
+    this.path,
   });
 }
