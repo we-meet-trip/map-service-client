@@ -121,6 +121,17 @@ class NPolylineOverlay {
   });
 }
 
+class NPathOverlay {
+  const NPathOverlay({
+    required String id,
+    required List<NLatLng> coords,
+    Color? color,
+    double? width,
+    Color? outlineColor,
+    double? outlineWidth,
+  });
+}
+
 class NPolygonOverlay {
   const NPolygonOverlay({
     required String id,
