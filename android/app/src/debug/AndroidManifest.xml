@@ -4,4 +4,9 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- targetSdk 28+ blocks cleartext HTTP by default. The debug app must reach the
+         local backend over http://10.0.2.2:8080 during on-emulator E2E, so cleartext is
+         permitted here. Debug-only (this file is under src/debug); release/profile builds
+         are unaffected. -->
+    <application android:usesCleartextTraffic="true"/>
 </manifest>
