@@ -12,7 +12,7 @@ SliderThemeData tripSliderTheme(BuildContext context) =>
     SliderTheme.of(context).copyWith(
       activeTrackColor: kSliderActive,
       inactiveTrackColor: kSliderInactive,
-      trackHeight: 6,
+      trackHeight: 5,
       rangeThumbShape: const _TripThumbShape(),
       rangeTickMarkShape: const RoundRangeSliderTickMarkShape(tickMarkRadius: 0),
       overlayColor: Colors.transparent,

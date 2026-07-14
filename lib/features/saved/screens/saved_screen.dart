@@ -56,11 +56,32 @@ class _SavedScreenState extends State<SavedScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // ── 탭 버튼 ──
+        // ── 헤더 ──
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
-          child: _buildTabs(),
+          padding: EdgeInsets.fromLTRB(
+            20,
+            MediaQuery.paddingOf(context).top + 24,
+            20,
+            0,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '저장된 일정',
+                style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.neutralScale[600],
+                  height: 1.2,
+                ),
+              ),
+              const SizedBox(height: 20),
+              _buildTabs(),
+            ],
+          ),
         ),
+        const SizedBox(height: 16),
         // ── 카드 목록 ──
         Expanded(
           child: _tabIndex == 0

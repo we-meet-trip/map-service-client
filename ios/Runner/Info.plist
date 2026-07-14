@@ -4,6 +4,8 @@
 <dict>
 	<key>NMFClientId</key>
 	<string>$(NAVER_MAP_CLIENT_ID)</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>현재 위치 날씨 정보를 제공하기 위해 위치 권한이 필요합니다.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
