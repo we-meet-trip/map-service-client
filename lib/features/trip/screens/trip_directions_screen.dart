@@ -159,6 +159,7 @@ class _TripDirectionsScreenState extends State<TripDirectionsScreen> {
       ),
     );
 
+    nameController.dispose();
     if (name != null && name.isNotEmpty && mounted) {
       setState(() {
         _registeredOrigins.add(_RegisteredOrigin(name: name, address: address));
@@ -172,6 +173,9 @@ class _TripDirectionsScreenState extends State<TripDirectionsScreen> {
     try {
       final pos = await _determinePosition();
       final placemarks = await placemarkFromCoordinates(pos.latitude, pos.longitude);
+      if (placemarks.isEmpty) {
+        throw Exception('No placemarks found');
+      }
       final p = placemarks.first;
       final address = [p.administrativeArea, p.locality, p.subLocality, p.thoroughfare]
           .where((s) => s != null && s.isNotEmpty)
