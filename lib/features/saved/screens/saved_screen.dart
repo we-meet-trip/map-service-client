@@ -120,13 +120,15 @@ class _SavedScreenState extends State<SavedScreen> {
             ],
           ),
           if (_sortMenuOpen)
-            CompositedTransformFollower(
-              link: _sortButtonLink,
-              showWhenUnlinked: false,
-              targetAnchor: Alignment.bottomRight,
-              followerAnchor: Alignment.topRight,
-              offset: const Offset(0, 8),
-              child: _buildSortMenu(),
+            Positioned(
+              child: CompositedTransformFollower(
+                link: _sortButtonLink,
+                showWhenUnlinked: false,
+                targetAnchor: Alignment.bottomRight,
+                followerAnchor: Alignment.topRight,
+                offset: const Offset(0, 8),
+                child: _buildSortMenu(),
+              ),
             ),
         ],
       ),

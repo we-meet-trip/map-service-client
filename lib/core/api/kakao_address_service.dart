@@ -45,7 +45,7 @@ class KakaoAddressService {
     }
 
     final body = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
-    final documents = body['documents'] as List<dynamic>;
+    final documents = body['documents'] as List<dynamic>? ?? const [];
     return documents
         .map((d) => KakaoAddressResult.fromJson(d as Map<String, dynamic>))
         .toList();
