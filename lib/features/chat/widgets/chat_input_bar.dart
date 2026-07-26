@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../../common/theme/app_colors.dart';
@@ -85,13 +84,10 @@ class _ChatInputBarState extends State<ChatInputBar> {
                       shape: BoxShape.circle,
                     ),
                     child: Center(
-                      child: Transform.rotate(
-                        angle: -25 * pi / 180,
-                        child: const PhosphorIcon(
-                          PhosphorIconsRegular.paperPlaneTilt,
-                          size: 22,
-                          color: Colors.white,
-                        ),
+                      child: PhosphorIcon(
+                        PhosphorIconsFill.paperPlaneTilt,
+                        size: 22,
+                        color: Colors.white,
                       ),
                     ),
                   ),
