@@ -9,7 +9,6 @@ class ChatRoom {
     required this.lastMessage,
     required this.timeLabel,
     required this.type,
-    this.hasUnread = false,
     this.participantCount = 1,
   });
 
@@ -18,6 +17,5 @@ class ChatRoom {
   final String lastMessage;
   final String timeLabel;
   final ChatRoomType type;
-  final bool hasUnread;
   final int participantCount;
 }

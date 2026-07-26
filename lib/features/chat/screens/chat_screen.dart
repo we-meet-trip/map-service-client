@@ -29,13 +29,12 @@ class _ChatRoomListScreenState extends State<ChatRoomListScreen> {
       lastMessage: '숙소 예약 완료했어요 🎉',
       timeLabel: '오늘',
       type: ChatRoomType.upcoming,
-      hasUnread: true,
       participantCount: 1,
     ),
     ChatRoom(
       id: '3',
       title: '춘천 닭갈비 투어',
-      lastMessage: '진짜 맛있었다ㅠㅠ 또 가고 싶어',
+      lastMessage: '진짜 맛있었다ㅠㅠ 또 가고 싶어요!!',
       timeLabel: '7월 11일',
       type: ChatRoomType.past,
       participantCount: 5,
@@ -101,7 +100,6 @@ class _ChatRoomListScreenState extends State<ChatRoomListScreen> {
                     lastMessage: room.lastMessage,
                     timeLabel: room.timeLabel,
                     type: room.type,
-                    hasUnread: room.hasUnread,
                     participantCount: room.participantCount,
                     onTap: () {
                       // TODO: context.push('/chat/${room.id}')

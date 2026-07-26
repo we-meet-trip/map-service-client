@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/chat_room.dart';
 
-class ChatRoomFilterTabs extends StatelessWidget {
+class ChatRoomFilterTabs extends StatefulWidget {
   const ChatRoomFilterTabs({
     super.key,
     required this.selected,
@@ -11,44 +11,106 @@ class ChatRoomFilterTabs extends StatelessWidget {
   final ChatRoomFilter selected;
   final ValueChanged<ChatRoomFilter> onChanged;
 
-  static const _tabs = [
-    (label: '전체', filter: ChatRoomFilter.all),
-    (label: '예정된 여행', filter: ChatRoomFilter.upcoming),
-    (label: '지난 여행', filter: ChatRoomFilter.past),
-  ];
+  @override
+  State<ChatRoomFilterTabs> createState() => _ChatRoomFilterTabsState();
+}
+
+class _ChatRoomFilterTabsState extends State<ChatRoomFilterTabs> {
+  static const _labels = ['전체', '예정된 여행', '지난 여행'];
+  static const _filters = [ChatRoomFilter.all, ChatRoomFilter.upcoming, ChatRoomFilter.past];
+
+  final _stackKey = GlobalKey();
+  final List<GlobalKey> _tabKeys = List.generate(3, (_) => GlobalKey());
+
+  double _pillLeft = 0;
+  double _pillWidth = 0;
+  bool _measured = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _movePill());
+  }
+
+  @override
+  void didUpdateWidget(ChatRoomFilterTabs old) {
+    super.didUpdateWidget(old);
+    if (old.selected != widget.selected) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _movePill());
+    }
+  }
+
+  void _movePill() {
+    final idx = _filters.indexOf(widget.selected);
+    final tabCtx = _tabKeys[idx].currentContext;
+    final stackCtx = _stackKey.currentContext;
+    if (tabCtx == null || stackCtx == null) return;
+
+    final tabBox = tabCtx.findRenderObject() as RenderBox;
+    final stackBox = stackCtx.findRenderObject() as RenderBox;
+    final offset = tabBox.localToGlobal(Offset.zero, ancestor: stackBox);
+
+    setState(() {
+      _pillLeft = offset.dx;
+      _pillWidth = tabBox.size.width;
+      _measured = true;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 38,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        itemCount: _tabs.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 2),
-        itemBuilder: (context, index) {
-          final tab = _tabs[index];
-          final isSelected = selected == tab.filter;
-          return GestureDetector(
-            onTap: () => onChanged(tab.filter),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: isSelected ? const Color(0xFFEDE4FB) : Colors.transparent,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                tab.label,
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: isSelected ? const Color(0xFF6012DF) : const Color(0xFF9989B2),
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Stack(
+          key: _stackKey,
+          children: [
+            if (_measured)
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeInOut,
+                left: _pillLeft,
+                top: 0,
+                bottom: 0,
+                width: _pillWidth,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEDE4FB),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
                 ),
               ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (int i = 0; i < _labels.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 2),
+                  GestureDetector(
+                    key: _tabKeys[i],
+                    onTap: () => widget.onChanged(_filters[i]),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      color: Colors.transparent,
+                      child: AnimatedDefaultTextStyle(
+                        duration: const Duration(milliseconds: 250),
+                        curve: Curves.easeInOut,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontFamily: 'Pretendard',
+                          fontWeight: FontWeight.w700,
+                          color: widget.selected == _filters[i]
+                              ? const Color(0xFF6012DF)
+                              : const Color(0xFF9989B2),
+                        ),
+                        child: Text(_labels[i]),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
-          );
-        },
-      ),
+          ],
+        ),
     );
   }
 }
