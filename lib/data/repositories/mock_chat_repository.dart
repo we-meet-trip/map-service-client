@@ -15,6 +15,7 @@ class MockChatRepository implements ChatRepository {
       hasUnread: false,
       lastMessage: '식당 예약했습니다~',
       lastMessageAt: DateTime(_yesterday.year, _yesterday.month, _yesterday.day, 14, 32),
+      linkedTripId: 'trip_001',
     ),
     ChatRoom(
       id: '2',

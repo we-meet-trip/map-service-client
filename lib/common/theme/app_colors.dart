@@ -82,4 +82,12 @@ class AppColors {
     400: Color(0xFF42BDB3), // 기본 청록 (아이콘/텍스트)
   };
 
+  // chat
+  static const shareIcon       = Color(0xFF8D46ED);
+  static const myBubbleBg      = Color(0xFF5000DA);
+  static const myBubbleText    = Color(0xFFFFFFFF);
+  static const otherBubbleBg   = Color(0xFFFFFFFF);
+  static const otherBubbleText = Color(0xFF000000);
+  static const senderName      = Color(0xFF8164B4);
+
 }

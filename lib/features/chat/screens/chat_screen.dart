@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../common/theme/app_colors.dart';
 import '../providers/chat_room_list_provider.dart';
@@ -83,9 +84,7 @@ class _ChatRoomListScreenState extends State<ChatRoomListScreen> {
                         timeLabel: _formatTime(room.lastMessageAt),
                         type: room.type,
                         participantCount: room.participantCount,
-                        onTap: () {
-                          // TODO: context.push('/chat/${room.id}')
-                        },
+                        onTap: () => context.push('/chat/${room.id}', extra: room),
                       );
                     },
                   );
