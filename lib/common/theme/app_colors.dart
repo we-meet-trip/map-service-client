@@ -83,6 +83,7 @@ class AppColors {
   };
 
   // chat
+  static const inputBarBg      = Color(0xFFFFFFFF);
   static const shareIcon       = Color(0xFF8D46ED);
   static const myBubbleBg      = Color(0xFF5000DA);
   static const myBubbleText    = Color(0xFFFFFFFF);

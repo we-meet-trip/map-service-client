@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../../common/theme/app_colors.dart';
@@ -12,6 +13,10 @@ class ChatInputBar extends StatefulWidget {
 
 class _ChatInputBarState extends State<ChatInputBar> {
   final _controller = TextEditingController();
+
+  static const _capsuleHeight = 56.0;
+  static const _buttonDiameter = 40.0;
+  static const _buttonMargin = 8.0;
 
   void _send() {
     final text = _controller.text.trim();
@@ -30,27 +35,31 @@ class _ChatInputBarState extends State<ChatInputBar> {
   Widget build(BuildContext context) {
     return SafeArea(
       top: false,
-      child: Container(
+      child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 8,
-              offset: const Offset(0, -2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF5F5F7),
-                  borderRadius: BorderRadius.circular(24),
+        child: SizedBox(
+          height: _capsuleHeight,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Container(
+                height: _capsuleHeight,
+                padding: const EdgeInsets.only(
+                  left: 24,
+                  right: _buttonDiameter + _buttonMargin * 2 + 4,
                 ),
+                decoration: BoxDecoration(
+                  color: AppColors.inputBarBg,
+                  borderRadius: BorderRadius.circular(_capsuleHeight / 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 12,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                alignment: Alignment.centerLeft,
                 child: TextField(
                   controller: _controller,
                   style: const TextStyle(fontSize: 14),
@@ -64,27 +73,32 @@ class _ChatInputBarState extends State<ChatInputBar> {
                   onSubmitted: (_) => _send(),
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
-            GestureDetector(
-              onTap: _send,
-              child: Container(
-                width: 42,
-                height: 42,
-                decoration: const BoxDecoration(
-                  color: AppColors.myBubbleBg,
-                  shape: BoxShape.circle,
-                ),
-                child: Center(
-                  child: PhosphorIcon(
-                    PhosphorIconsRegular.paperPlaneTilt,
-                    size: 20,
-                    color: Colors.white,
+              Positioned(
+                right: _buttonMargin,
+                child: GestureDetector(
+                  onTap: _send,
+                  child: Container(
+                    width: _buttonDiameter,
+                    height: _buttonDiameter,
+                    decoration: const BoxDecoration(
+                      color: AppColors.myBubbleBg,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Transform.rotate(
+                        angle: -25 * pi / 180,
+                        child: const PhosphorIcon(
+                          PhosphorIconsRegular.paperPlaneTilt,
+                          size: 22,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
