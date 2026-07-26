@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../api/trip_api_service.dart';
 
 class TripRepository {
   TripRepository._();
@@ -17,10 +18,12 @@ class SavedTrip {
   final String name;
   final String route;
   final DateTime savedAt;
+  final TripGenerateResponse? response;
 
   SavedTrip({
     required this.name,
     required this.route,
     required this.savedAt,
+    this.response,
   });
 }

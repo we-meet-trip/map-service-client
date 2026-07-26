@@ -29,27 +29,7 @@ class _SavedScreenState extends State<SavedScreen> {
     setState(() => _tabIndex = TripRepository.instance.requestedTab.value);
   }
 
-  // 완료된 일정 목 데이터
-  final List<_TripCard> _completedTrips = [
-    _TripCard(
-      name: '속초 당일치기 코스',
-      route: '속초 버스 터미널 → 속초해변 → 중앙시장',
-      savedAt: DateTime(2026, 4, 20, 10, 30),
-      isCompleted: true,
-    ),
-    _TripCard(
-      name: '강릉 바다 여행',
-      route: '강릉역 → 경포대 → 주문진 수산시장',
-      savedAt: DateTime(2026, 3, 15, 14, 0),
-      isCompleted: true,
-    ),
-    _TripCard(
-      name: '춘천 닭갈비 투어',
-      route: '춘천역 → 닭갈비 골목 → 남이섬',
-      savedAt: DateTime(2026, 2, 8, 9, 0),
-      isCompleted: true,
-    ),
-  ];
+  final List<_TripCard> _completedTrips = [];
 
   @override
   Widget build(BuildContext context) {
@@ -174,7 +154,7 @@ class _SavedScreenState extends State<SavedScreen> {
           itemBuilder: (_, i) {
             final t = trips[trips.length - 1 - i]; // 최신순
             return GestureDetector(
-              onTap: () => context.go('/saved/trip'),
+              onTap: () => context.go('/saved/trip', extra: trips[trips.length - 1 - i]),
               child: _buildTripCard(_TripCard(
                 name: t.name,
                 route: t.route,

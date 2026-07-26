@@ -11,6 +11,7 @@ import '../../../common/widgets/prev_button.dart';
 import '../../../core/state/trip_repository.dart';
 import '../../../common/widgets/text_field.dart';
 import '../../../core/api/trip_api_service.dart';
+import '../../../common/widgets/draggable_vision_button.dart';
 
 class TripCreatedScreen extends StatefulWidget {
   const TripCreatedScreen({
@@ -103,6 +104,15 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        _buildBody(context),
+        const DraggableVisionButton(),
+      ],
+    );
+  }
+
+  Widget _buildBody(BuildContext context) {
     return Column(
       children: [
         // ── 저장 탭에서 열렸을 때 뒤로가기 헤더 ──
@@ -159,6 +169,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
   }
 
   // ── 지도 영역 ────────────────────────────────────────────────
+  // (Stack의 두 번째 자식 DraggableVisionButton은 build()에서 추가됨)
 
   Widget _buildMapArea() {
     return SizedBox(
@@ -584,6 +595,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
             name: name,
             route: route,
             savedAt: DateTime.now(),
+            response: widget.response,
           ));
           setState(() => _isSaved = true);
           _showSavedDialog(context, name);
