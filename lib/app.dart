@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'common/theme/app_colors.dart';
 import 'core/router/app_router.dart';
 import 'data/repositories/chat_repository.dart';
+import 'data/repositories/invite_link_repository.dart';
 import 'data/repositories/mock_chat_repository.dart';
 import 'features/chat/providers/chat_room_list_provider.dart';
 
@@ -15,6 +16,8 @@ class App extends StatelessWidget {
     return MultiProvider(
       providers: [
         Provider<ChatRepository>(create: (_) => MockChatRepository()),
+        Provider<InviteLinkRepository>(
+            create: (_) => MockInviteLinkRepository()),
         ChangeNotifierProvider(
           create: (ctx) => ChatRoomListProvider(ctx.read<ChatRepository>()),
         ),

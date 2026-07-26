@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../common/layout/main_layout.dart';
 import '../../data/models/chat_room.dart';
 import '../../data/repositories/chat_repository.dart';
+import '../../data/repositories/invite_link_repository.dart';
 import '../../features/home/screens/home_screen.dart';
 import '../../features/trip/screens/trip_regenerate_screen.dart';
 import '../../features/trip/screens/trip_created_screen.dart';
@@ -114,6 +115,7 @@ final appRouter = GoRouter(
                     return ChangeNotifierProvider(
                       create: (ctx) => ChatRoomDetailProvider(
                         ctx.read<ChatRepository>(),
+                        ctx.read<InviteLinkRepository>(),
                         room.id,
                       ),
                       child: ChatRoomDetailScreen(room: room),
