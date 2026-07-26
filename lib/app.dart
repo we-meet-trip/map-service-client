@@ -1,14 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:provider/provider.dart';
 import 'common/theme/app_colors.dart';
 import 'core/router/app_router.dart';
+import 'data/repositories/mock_chat_repository.dart';
+import 'features/chat/providers/chat_room_list_provider.dart';
 
 class App extends StatelessWidget {
   const App({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(
+          create: (_) => ChatRoomListProvider(MockChatRepository()),
+        ),
+      ],
+      child: MaterialApp.router(
       title: 'Map Service',
       locale: const Locale('ko', 'KR'),
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
@@ -29,6 +38,7 @@ class App extends StatelessWidget {
         ),
       ),
       routerConfig: appRouter,
+      ),
     );
   }
 }

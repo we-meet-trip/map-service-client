@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../../common/theme/app_colors.dart';
-import '../models/chat_room.dart';
+import '../providers/chat_room_list_provider.dart';
 import '../widgets/chat_room_card.dart';
 import '../widgets/chat_room_filter_tabs.dart';
 
@@ -12,49 +13,22 @@ class ChatRoomListScreen extends StatefulWidget {
 }
 
 class _ChatRoomListScreenState extends State<ChatRoomListScreen> {
-  ChatRoomFilter _filter = ChatRoomFilter.all;
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<ChatRoomListProvider>().loadRooms();
+    });
+  }
 
-  static const _rooms = [
-    ChatRoom(
-      id: '1',
-      title: '속초 당일치기',
-      lastMessage: '다들 몇 시에 출발해요?',
-      timeLabel: '어제',
-      type: ChatRoomType.upcoming,
-      participantCount: 2,
-    ),
-    ChatRoom(
-      id: '2',
-      title: '강릉 바다 여행',
-      lastMessage: '숙소 예약 완료했어요 🎉',
-      timeLabel: '오늘',
-      type: ChatRoomType.upcoming,
-      participantCount: 1,
-    ),
-    ChatRoom(
-      id: '3',
-      title: '춘천 닭갈비 투어',
-      lastMessage: '진짜 맛있었다ㅠㅠ 또 가고 싶어요!!',
-      timeLabel: '7월 11일',
-      type: ChatRoomType.past,
-      participantCount: 5,
-    ),
-    ChatRoom(
-      id: '4',
-      title: '춘천 1박2일',
-      lastMessage: '사진 공유 링크 올려둘게요',
-      timeLabel: '6월 28일',
-      type: ChatRoomType.past,
-      participantCount: 1,
-    ),
-  ];
-
-  List<ChatRoom> get _filtered {
-    if (_filter == ChatRoomFilter.all) return _rooms;
-    final targetType = _filter == ChatRoomFilter.upcoming
-        ? ChatRoomType.upcoming
-        : ChatRoomType.past;
-    return _rooms.where((r) => r.type == targetType).toList();
+  static String _formatTime(DateTime dt) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final date = DateTime(dt.year, dt.month, dt.day);
+    if (date == today) return '오늘';
+    if (date == yesterday) return '어제';
+    return '${dt.month}월 ${dt.day}일';
   }
 
   @override
@@ -83,26 +57,36 @@ class _ChatRoomListScreenState extends State<ChatRoomListScreen> {
                 style: TextStyle(fontSize: 13, color: AppColors.neutralScale[300]),
               ),
             ),
-            ChatRoomFilterTabs(
-              selected: _filter,
-              onChanged: (f) => setState(() => _filter = f),
+            Consumer<ChatRoomListProvider>(
+              builder: (context, provider, _) => ChatRoomFilterTabs(
+                selected: provider.filter,
+                onChanged: provider.setFilter,
+              ),
             ),
             const SizedBox(height: 16),
             Expanded(
-              child: ListView.separated(
-                padding: EdgeInsets.zero,
-                itemCount: _filtered.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 12),
-                itemBuilder: (context, index) {
-                  final room = _filtered[index];
-                  return ChatRoomCard(
-                    title: room.title,
-                    lastMessage: room.lastMessage,
-                    timeLabel: room.timeLabel,
-                    type: room.type,
-                    participantCount: room.participantCount,
-                    onTap: () {
-                      // TODO: context.push('/chat/${room.id}')
+              child: Consumer<ChatRoomListProvider>(
+                builder: (context, provider, _) {
+                  if (provider.isLoading) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  final rooms = provider.filteredRooms;
+                  return ListView.separated(
+                    padding: EdgeInsets.zero,
+                    itemCount: rooms.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 12),
+                    itemBuilder: (context, index) {
+                      final room = rooms[index];
+                      return ChatRoomCard(
+                        title: room.title,
+                        lastMessage: room.lastMessage,
+                        timeLabel: _formatTime(room.lastMessageAt),
+                        type: room.type,
+                        participantCount: room.participantCount,
+                        onTap: () {
+                          // TODO: context.push('/chat/${room.id}')
+                        },
+                      );
                     },
                   );
                 },

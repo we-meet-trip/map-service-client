@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../models/chat_room.dart';
+import '../../../data/models/chat_room.dart';
 
 class ChatRoomCard extends StatelessWidget {
   const ChatRoomCard({
