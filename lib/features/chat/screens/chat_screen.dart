@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../common/theme/app_colors.dart';
 import '../models/chat_room.dart';
 import '../widgets/chat_room_card.dart';
 import '../widgets/chat_room_filter_tabs.dart';
@@ -66,14 +67,21 @@ class _ChatRoomListScreenState extends State<ChatRoomListScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Padding(
-              padding: EdgeInsets.fromLTRB(20, 20, 20, 16),
+              padding: EdgeInsets.fromLTRB(20, 20, 20, 4),
               child: Text(
                 '대화방',
                 style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
                   color: Color(0xFF1C1C28),
                 ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+              child: Text(
+                '여행 멤버들과 실시간으로 소통하세요.',
+                style: TextStyle(fontSize: 13, color: AppColors.neutralScale[300]),
               ),
             ),
             ChatRoomFilterTabs(

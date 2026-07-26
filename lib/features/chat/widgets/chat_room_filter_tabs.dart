@@ -25,7 +25,7 @@ class ChatRoomFilterTabs extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 20),
         itemCount: _tabs.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        separatorBuilder: (_, _) => const SizedBox(width: 2),
         itemBuilder: (context, index) {
           final tab = _tabs[index];
           final isSelected = selected == tab.filter;
@@ -40,9 +40,9 @@ class ChatRoomFilterTabs extends StatelessWidget {
               child: Text(
                 tab.label,
                 style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                  color: isSelected ? const Color(0xFF7C4DFF) : const Color(0xFFB0B0BC),
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: isSelected ? const Color(0xFF6012DF) : const Color(0xFF9989B2),
                 ),
               ),
             ),
