@@ -100,7 +100,7 @@ final appRouter = GoRouter(
           routes: [
             GoRoute(
               path: '/chat',
-              builder: (context, state) => const ChatScreen(),
+              builder: (context, state) => const ChatRoomListScreen(),
             ),
           ],
         ),
