@@ -8,6 +8,7 @@ import '../../../common/theme/app_icons.dart';
 import '../widgets/transport_theme.dart';
 import '../../../common/widgets/next_button.dart';
 import '../../../common/widgets/prev_button.dart';
+import '../../../common/widgets/app_confirm_dialog.dart';
 import '../../../core/state/trip_repository.dart';
 import '../../../common/widgets/text_field.dart';
 import '../../../core/api/trip_api_service.dart';
@@ -18,11 +19,17 @@ class TripCreatedScreen extends StatefulWidget {
     this.showBackButton = false,
     this.onPrev,
     this.response,
+    this.startDate,
+    this.endDate,
+    this.savedTrip,
   });
 
   final bool showBackButton;
   final VoidCallback? onPrev;
   final TripGenerateResponse? response;
+  final DateTime? startDate;
+  final DateTime? endDate;
+  final SavedTrip? savedTrip;
 
   @override
   State<TripCreatedScreen> createState() => _TripCreatedScreenState();
@@ -37,8 +44,12 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
   @override
   void initState() {
     super.initState();
+    final saved = widget.savedTrip;
     final res = widget.response;
-    if (res != null) {
+    if (saved != null) {
+      _stops = saved.stops.map(_fromApiStop).toList();
+      _totalDurationMinutes = saved.totalDurationMinutes;
+    } else if (res != null) {
       _stops = res.stops.map(_fromApiStop).toList();
       _totalDurationMinutes = res.totalDurationMinutes;
     } else {
@@ -103,28 +114,32 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final saved = widget.savedTrip;
     return Column(
       children: [
-        // ── 저장 탭에서 열렸을 때 뒤로가기 헤더 ──
-        if (widget.showBackButton)
-          Container(
-            padding: const EdgeInsets.fromLTRB(8, 12, 16, 4),
-            child: Row(
-              children: [
-                IconButton(
-                  icon: Icon(Icons.arrow_back_ios_new_rounded,
-                      size: 20, color: AppColors.neutralScale[500]),
-                  onPressed: () => context.go('/saved'),
-                ),
-                Text(
-                  '저장된 일정',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.neutralScale[500],
+        // ── 저장 탭에서 열렸을 때 뒤로가기 헤더 (저장된 일정 데이터 없이 열린 경우) ──
+        if (widget.showBackButton && saved == null)
+          SafeArea(
+            bottom: false,
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(8, 12, 16, 4),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: Icon(Icons.arrow_back_ios_new_rounded,
+                        size: 20, color: AppColors.neutralScale[500]),
+                    onPressed: () => context.go('/saved'),
                   ),
-                ),
-              ],
+                  Text(
+                    '저장된 일정',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.neutralScale[500],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         // ── 스크롤 영역 ──
@@ -133,13 +148,13 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildMapArea(),
+                saved != null ? _buildMapAreaWithBackButton() : _buildMapArea(),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildTitle(),
+                      saved != null ? _buildSavedTripHeader(saved) : _buildTitle(),
                       const SizedBox(height: 16),
                       _buildTotalTime(),
                       const SizedBox(height: 28),
@@ -153,7 +168,10 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
           ),
         ),
         // ── 하단 고정 버튼 ──
-        if (!widget.showBackButton) _buildBottomButtons(context),
+        if (saved != null)
+          _buildSavedTripBottomButton(context)
+        else if (!widget.showBackButton)
+          _buildBottomButtons(context),
       ],
     );
   }
@@ -177,6 +195,41 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
         ),
         onMapReady: _onMapReady,
       ),
+    );
+  }
+
+  Widget _buildMapAreaWithBackButton() {
+    return Stack(
+      children: [
+        _buildMapArea(),
+        Positioned(
+          top: 12,
+          left: 12,
+          child: SafeArea(
+            bottom: false,
+            child: GestureDetector(
+              onTap: () => context.go('/saved'),
+              child: Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.9),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.neutralScale[600]!.withAlpha(0x1A),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Icon(Icons.arrow_back_ios_new_rounded,
+                    size: 16, color: AppColors.neutralScale[600]),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -272,6 +325,66 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
       ],
     );
   }
+
+  Widget _buildSavedTripHeader(SavedTrip saved) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                saved.name,
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.neutralScale[600],
+                  height: 1.2,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                _fmtDate(saved.tripStartDate),
+                style: TextStyle(fontSize: 14, color: AppColors.savedBadgeFar),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        GestureDetector(
+          onTap: () => context.push('/saved/trip/directions', extra: saved),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [AppColors.savedBadgeUrgent, AppColors.tripDirectionsPinkEnd],
+              ),
+              borderRadius: BorderRadius.circular(100),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.neutralScale[600]!.withAlpha(0x0F),
+                  blurRadius: 5,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: const Text(
+              '가는 방법 알아보기',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _fmtDate(DateTime dt) =>
+      '${dt.year}.${dt.month.toString().padLeft(2, '0')}.${dt.day.toString().padLeft(2, '0')}';
 
   Widget _buildTotalTime() {
     return RichText(
@@ -464,107 +577,90 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
     );
   }
 
+  Widget _buildSavedTripBottomButton(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+      child: SizedBox(
+        width: double.infinity,
+        height: 60,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [AppColors.tripAccentPurple, AppColors.tripAccentPurpleEnd],
+            ),
+            borderRadius: BorderRadius.circular(40),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.tripAccentPurpleEnd.withValues(alpha: 0.25),
+                blurRadius: 28.8,
+                offset: const Offset(0, 24),
+              ),
+            ],
+          ),
+          child: ElevatedButton(
+            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('즐거운 여행 되세요!')),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.transparent,
+              shadowColor: Colors.transparent,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(40)),
+            ),
+            child: const Text(
+              '일정 시작하기',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   // ── 저장 완료 다이얼로그 ─────────────────────────────────────
 
   void _showSavedDialog(BuildContext context, String name) {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        backgroundColor: Colors.white,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(28, 36, 28, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+      builder: (ctx) => AppConfirmDialog(
+        content: RichText(
+          textAlign: TextAlign.center,
+          text: TextSpan(
+            style: TextStyle(
+              fontSize: 18,
+              color: AppColors.neutralScale[600],
+              height: 1.5,
+            ),
             children: [
-              RichText(
-                textAlign: TextAlign.center,
-                text: TextSpan(
-                  style: TextStyle(
-                    fontSize: 18,
-                    color: AppColors.neutralScale[600],
-                    height: 1.5,
-                  ),
-                  children: [
-                    TextSpan(
-                      text: '"$name"',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.primaryScale[500],
-                      ),
-                    ),
-                    const TextSpan(
-                      text: '\n일정이 저장되었어요!',
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                  ],
+              TextSpan(
+                text: '"$name"',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primaryScale[500],
                 ),
               ),
-              const SizedBox(height: 28),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.of(ctx).pop(),
-                      style: OutlinedButton.styleFrom(
-                        side: BorderSide(color: AppColors.neutralScale[200]!),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      child: Text(
-                        '닫기',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.neutralScale[400],
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(colors: [
-                          AppColors.gradientScale[200]!,
-                          AppColors.gradientScale[600]!,
-                        ]),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.of(ctx).pop();
-                          TripRepository.instance.requestedTab.value = 0;
-                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                            if (context.mounted) {
-                              context.go('/saved');
-                            }
-                          });
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.transparent,
-                          shadowColor: Colors.transparent,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                        child: const Text(
-                          '보러가기',
-                          style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+              const TextSpan(
+                text: '\n일정이 저장되었어요!',
+                style: TextStyle(fontWeight: FontWeight.w600),
               ),
             ],
           ),
         ),
+        cancelLabel: '닫기',
+        confirmLabel: '보러가기',
+        onConfirm: () {
+          Navigator.of(ctx).pop();
+          TripRepository.instance.requestedTab.value = 0;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (context.mounted) {
+              context.go('/saved');
+            }
+          });
+        },
       ),
     );
   }
@@ -584,6 +680,10 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
             name: name,
             route: route,
             savedAt: DateTime.now(),
+            tripStartDate: widget.startDate ?? DateTime.now(),
+            tripEndDate: widget.endDate ?? DateTime.now(),
+            stops: widget.response?.stops ?? const [],
+            totalDurationMinutes: widget.response?.totalDurationMinutes ?? _totalDurationMinutes,
           ));
           setState(() => _isSaved = true);
           _showSavedDialog(context, name);
@@ -690,6 +790,7 @@ class _SaveBottomSheetState extends State<_SaveBottomSheet> {
           controller: _controller,
           hintText: '일정 이름',
           onChanged: _onChanged,
+          maxLength: 20,
         ),
         const SizedBox(height: 6),
         Row(
