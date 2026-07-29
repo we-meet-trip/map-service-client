@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../common/widgets/app_loading_screen.dart';
 import '../../../core/api/trip_api_service.dart';
+import '../widgets/transport_theme.dart';
 import 'trip_start_screen.dart';
 import 'trip_step1_screen.dart';
 import 'trip_step2_screen.dart';
@@ -8,6 +9,9 @@ import 'trip_step3_screen.dart';
 import 'trip_step4_screen.dart';
 import 'trip_step5_screen.dart';
 import 'trip_created_screen.dart';
+
+// trip_step3_screen.dart 테마 목록의 첫 항목(맛집 탐방) id와 동일해야 한다.
+const _kDefaultThemeId = 'food';
 
 /// 바텀 탭 재탭 시 시작 화면(step 0)으로 이동
 final tripScreenResetNotifier = ValueNotifier<int>(0);
@@ -101,8 +105,8 @@ class _TripRegenerateScreenState extends State<TripRegenerateScreen> {
         activeEndHour: _endHour.toInt(),
         minBudget: _minBudget.toInt(),
         maxBudget: _maxBudget.toInt(),
-        themes: _selectedThemes.toList(),
-        transport: _selectedTransport!,
+        themes: _selectedThemes.isEmpty ? [_kDefaultThemeId] : _selectedThemes.toList(),
+        transport: _selectedTransport ?? TransportTheme.scooter.id,
         province: _selectedProvince,
         city: _selectedCity,
       );
@@ -216,7 +220,11 @@ class _TripRegenerateScreenState extends State<TripRegenerateScreen> {
           }),
         );
       case 6:
-        return TripCreatedScreen(response: _tripResponse);
+        return TripCreatedScreen(
+          response: _tripResponse,
+          startDate: _startDate,
+          endDate: _endDate,
+        );
       default:
         return const SizedBox.shrink();
     }

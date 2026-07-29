@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_icons.dart';
 
@@ -10,6 +11,10 @@ class AppTextField extends StatefulWidget {
   final String? labelText;
   final String? errorText;
   final ValueChanged<String>? onChanged;
+  final int? maxLength;
+  final TextInputType? keyboardType;
+  final ValueChanged<String>? onSubmitted;
+  final TextInputAction? textInputAction;
 
   const AppTextField({
     super.key,
@@ -18,6 +23,10 @@ class AppTextField extends StatefulWidget {
     this.labelText,
     this.errorText,
     this.onChanged,
+    this.maxLength,
+    this.keyboardType,
+    this.onSubmitted,
+    this.textInputAction,
   });
 
   @override
@@ -68,6 +77,12 @@ class _AppTextFieldState extends State<AppTextField> {
               controller: widget.controller,
               focusNode: _focusNode,
               onChanged: widget.onChanged,
+              onSubmitted: widget.onSubmitted,
+              keyboardType: widget.keyboardType,
+              textInputAction: widget.textInputAction,
+              inputFormatters: widget.maxLength != null
+                  ? [LengthLimitingTextInputFormatter(widget.maxLength)]
+                  : null,
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w500,
