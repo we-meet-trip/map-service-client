@@ -7,7 +7,6 @@ import '../../../common/widgets/address_search_screen.dart';
 import '../../../common/widgets/app_confirm_dialog.dart';
 import '../../../common/widgets/text_field.dart';
 import '../../../core/state/trip_repository.dart';
-import '../../../core/state/user_repository.dart';
 
 class _RegisteredOrigin {
   final String name;
@@ -34,7 +33,7 @@ class _TripDirectionsScreenState extends State<TripDirectionsScreen> {
   @override
   void initState() {
     super.initState();
-    _homeAddress = UserRepository.instance.profile.value.homeAddress;
+    _homeAddress = null;
     _loadCurrentLocationAddress();
   }
 
@@ -108,7 +107,6 @@ class _TripDirectionsScreenState extends State<TripDirectionsScreen> {
       ),
     );
     if (confirmed == true && mounted) {
-      UserRepository.instance.updateHomeAddress(address);
       setState(() => _homeAddress = address);
     } else if (mounted) {
       setState(() => _originIndex = 1);

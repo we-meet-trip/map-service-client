@@ -208,7 +208,6 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
           mapType: NMapType.basic,
         ),
         onMapReady: _onMapReady,
-        onMapTapped: (point, latLng) => _onMapTapped(latLng),
       ),
     );
   }
@@ -233,7 +232,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
         desiredAccuracy: LocationAccuracy.high,
       );
 
-      final locationOverlay = await controller.getLocationOverlay();
+      final locationOverlay = controller.getLocationOverlay();
       locationOverlay.setIsVisible(true);
       locationOverlay.setPosition(NLatLng(position.latitude, position.longitude));
       locationOverlay.setBearing(position.heading);

@@ -10,14 +10,12 @@ import '../../features/saved/screens/saved_screen.dart';
 import '../state/trip_repository.dart';
 import '../../features/chat/screens/chat_screen.dart';
 import '../../features/mypage/screens/mypage_screen.dart';
-import '../../features/mypage/screens/profile_edit_screen.dart';
 import '../../features/auth/screens/auth_screen.dart';
 import '../../features/auth/screens/signup_step1_screen.dart';
 import '../../features/auth/screens/signup_step2_screen.dart';
 import '../../features/auth/screens/signup_step3_screen.dart';
 import '../../features/auth/screens/signup_complete_screen.dart';
 import '../../features/splash/screens/splash_screen.dart';
-import '../../core/state/trip_repository.dart';
 import '../../features/vision/screens/vision_screen.dart';
 import '../../features/saved/screens/navigation_screen.dart';
 
@@ -56,6 +54,10 @@ final appRouter = GoRouter(
               name: '',
               route: '',
               savedAt: DateTime.now(),
+              tripStartDate: DateTime.now(),
+              tripEndDate: DateTime.now(),
+              stops: const [],
+              totalDurationMinutes: 0,
             );
         return NavigationScreen(trip: trip);
       },
@@ -144,13 +146,6 @@ final appRouter = GoRouter(
             GoRoute(
               path: '/mypage',
               builder: (context, state) => const MypageScreen(),
-              routes: [
-                GoRoute(
-                  path: 'edit',
-                  parentNavigatorKey: _rootNavigatorKey,
-                  builder: (context, state) => const ProfileEditScreen(),
-                ),
-              ],
             ),
           ],
         ),

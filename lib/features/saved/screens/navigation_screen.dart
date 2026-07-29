@@ -64,9 +64,9 @@ class _NavigationScreenState extends State<NavigationScreen>
   // ─────────────────────────────────────────────────────────── 일정 로드 ──
 
   void _initStops() {
-    final res = widget.trip.response;
-    if (res != null) {
-      _stops = res.stops
+    final stops = widget.trip.stops;
+    if (stops.isNotEmpty) {
+      _stops = stops
           .map((s) => _Stop(
                 name: s.name,
                 address: s.address,
@@ -81,7 +81,7 @@ class _NavigationScreenState extends State<NavigationScreen>
                     : null,
               ))
           .toList();
-      _totalMinutes = res.totalDurationMinutes;
+      _totalMinutes = widget.trip.totalDurationMinutes;
     } else {
       _stops = _kPlaceholder;
       _totalMinutes = 25;
@@ -316,11 +316,8 @@ class _NavigationScreenState extends State<NavigationScreen>
         ),
     );
 
-    // ── NLocationOverlay: 파란 점 + 정확도 원 (기본 아이콘 사용)
+    // ── NLocationOverlay: 파란 점
     final overlay = controller.getLocationOverlay();
-    overlay.setCircleColor(AppColors.primaryScale[400]!.withAlpha(0x22));
-    overlay.setCircleOutlineColor(AppColors.primaryScale[400]!.withAlpha(0x66));
-    overlay.setCircleOutlineWidth(1);
 
     // 맵 준비 전 수신된 GPS 위치가 있으면 즉시 반영
     if (_lastPosition != null) {
