@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../core/naver_map/naver_map_adapter.dart';
 import 'package:go_router/go_router.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../common/theme/app_icons.dart';
 import '../widgets/transport_theme.dart';
@@ -19,11 +20,13 @@ class TripCreatedScreen extends StatefulWidget {
     this.showBackButton = false,
     this.onPrev,
     this.response,
+    this.savedTrip,
   });
 
   final bool showBackButton;
   final VoidCallback? onPrev;
   final TripGenerateResponse? response;
+  final SavedTrip? savedTrip;
 
   @override
   State<TripCreatedScreen> createState() => _TripCreatedScreenState();
@@ -34,6 +37,8 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
 
   late final List<_ScheduleStop> _stops;
   late final int _totalDurationMinutes;
+
+  NaverMapController? _mapController;
 
   @override
   void initState() {
@@ -118,7 +123,12 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
         // ── 저장 탭에서 열렸을 때 뒤로가기 헤더 ──
         if (widget.showBackButton)
           Container(
-            padding: const EdgeInsets.fromLTRB(8, 12, 16, 4),
+            padding: EdgeInsets.fromLTRB(
+              8,
+              MediaQuery.paddingOf(context).top + 8,
+              16,
+              4,
+            ),
             child: Row(
               children: [
                 IconButton(
@@ -126,12 +136,48 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
                       size: 20, color: AppColors.neutralScale[500]),
                   onPressed: () => context.go('/saved'),
                 ),
-                Text(
-                  '저장된 일정',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.neutralScale[500],
+                Expanded(
+                  child: Text(
+                    widget.savedTrip?.name ?? '저장된 일정',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.neutralScale[500],
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // "가는 방법 알아보기" 그라디언트 버튼
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFE0489A), Color(0xFF8B3FD6)],
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: ElevatedButton(
+                    onPressed: () {},
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      shadowColor: Colors.transparent,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 8),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20)),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: const Text(
+                      '가는 방법 알아보기',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -163,7 +209,10 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
           ),
         ),
         // ── 하단 고정 버튼 ──
-        if (!widget.showBackButton) _buildBottomButtons(context),
+        if (widget.showBackButton)
+          _buildStartButton(context)
+        else
+          _buildBottomButtons(context),
       ],
     );
   }
@@ -187,11 +236,42 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
           mapType: NMapType.basic,
         ),
         onMapReady: _onMapReady,
+        onMapTapped: (point, latLng) => _onMapTapped(latLng),
       ),
     );
   }
 
+  Future<void> _onMapTapped(NLatLng latLng) async {
+    final controller = _mapController;
+    if (controller == null) return;
+
+    // 현재 GPS 위치 가져오기
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) return;
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) return;
+      }
+      if (permission == LocationPermission.deniedForever) return;
+
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      final locationOverlay = await controller.getLocationOverlay();
+      locationOverlay.setIsVisible(true);
+      locationOverlay.setPosition(NLatLng(position.latitude, position.longitude));
+      locationOverlay.setBearing(position.heading);
+    } catch (_) {
+      // 위치 권한 없거나 실패 시 무시
+    }
+  }
+
   Future<void> _onMapReady(NaverMapController controller) async {
+    _mapController = controller;
     // 번호 마커 추가
     for (int i = 0; i < _stops.length; i++) {
       if (!mounted) return;
@@ -263,6 +343,41 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
   // ── 제목 / 소요시간 ──────────────────────────────────────────
 
   Widget _buildTitle() {
+    if (widget.showBackButton) {
+      final savedAt = widget.savedTrip?.savedAt;
+      final dateStr = savedAt != null
+          ? '${savedAt.year}.${savedAt.month.toString().padLeft(2, '0')}.${savedAt.day.toString().padLeft(2, '0')}'
+          : '';
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            widget.savedTrip?.name ?? '저장된 일정',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+              color: AppColors.neutralScale[600],
+              height: 1.2,
+            ),
+          ),
+          if (dateStr.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Icon(Icons.calendar_today_outlined,
+                    size: 13, color: AppColors.neutralScale[300]),
+                const SizedBox(width: 4),
+                Text(
+                  dateStr,
+                  style: TextStyle(
+                      fontSize: 13, color: AppColors.neutralScale[300]),
+                ),
+              ],
+            ),
+          ],
+        ],
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -444,6 +559,54 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
               ),
               const SizedBox(width: 4),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── 일정 시작하기 버튼 (showBackButton=true) ─────────────────
+
+  Widget _buildStartButton(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        24,
+        12,
+        24,
+        MediaQuery.paddingOf(context).bottom + 16,
+      ),
+      child: SizedBox(
+        width: double.infinity,
+        height: 56,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                AppColors.primaryScale[400]!,
+                AppColors.primaryScale[600]!,
+              ],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: ElevatedButton(
+            onPressed: () =>
+                context.push('/navigation', extra: widget.savedTrip),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.transparent,
+              shadowColor: Colors.transparent,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
+            ),
+            child: const Text(
+              '일정 시작하기',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+              ),
+            ),
           ),
         ),
       ),

@@ -45,7 +45,7 @@ class _VisionScreenState extends State<VisionScreen> {
   VisionResponse? _lastResult;
   String _confirmedText = '';     // 이전 STT 세션에서 확정된 텍스트
   String _currentSessionText = ''; // 현재 STT 세션 텍스트
-  String _partialText = '';       // 화면 표시용 (confirmed + current)
+  final _partialTextNotifier = ValueNotifier<String>(''); // 화면 표시용 (confirmed + current)
   String _latestWords = '';       // 중지 시 전송할 최종 텍스트
 
   final List<_ChatMessage> _messages = [];
@@ -121,10 +121,8 @@ class _VisionScreenState extends State<VisionScreen> {
     final full = _confirmedText.isEmpty
         ? _currentSessionText
         : '$_confirmedText $_currentSessionText';
-    setState(() {
-      _partialText = full;
-      _latestWords = full;
-    });
+    _partialTextNotifier.value = full;
+    _latestWords = full;
   }
 
   void _onResponse(VisionResponse response) {
@@ -150,12 +148,12 @@ class _VisionScreenState extends State<VisionScreen> {
 
   Future<void> _startListening() async {
     if (!_sttReady || _isListening || _isProcessing) return;
+    _confirmedText = '';
+    _currentSessionText = '';
+    _partialTextNotifier.value = '';
+    _latestWords = '';
     setState(() {
       _isListening = true;
-      _confirmedText = '';
-      _currentSessionText = '';
-      _partialText = '';
-      _latestWords = '';
     });
     await _stt.listen(
       onResult: _onSttResult,
@@ -181,9 +179,9 @@ class _VisionScreenState extends State<VisionScreen> {
         await _sendTextOnly(words);
       }
     } else {
+      _partialTextNotifier.value = '';
       setState(() {
         _isListening = false;
-        _partialText = '';
       });
     }
   }
@@ -195,9 +193,9 @@ class _VisionScreenState extends State<VisionScreen> {
     final bytes = await file.readAsBytes();
     final b64 = base64Encode(bytes);
 
+    _partialTextNotifier.value = '';
     setState(() {
       _isListening = false;
-      _partialText = '';
       _isProcessing = true;
       _frozenFrameB64 = b64;
       _lastResult = null;
@@ -231,9 +229,9 @@ class _VisionScreenState extends State<VisionScreen> {
             })
         .toList();
 
+    _partialTextNotifier.value = '';
     setState(() {
       _isListening = false;
-      _partialText = '';
       _isProcessing = true;
       _messages.add(_ChatMessage(isUser: true, text: words));
     });
@@ -269,6 +267,7 @@ class _VisionScreenState extends State<VisionScreen> {
     _wsService.dispose();
     _cameraController?.dispose();
     _stt.stop();
+    _partialTextNotifier.dispose();
     super.dispose();
   }
 
@@ -449,7 +448,12 @@ class _VisionScreenState extends State<VisionScreen> {
                   ),
 
                   // 대화 버블들
-                  ..._messages.map(_buildBubble),
+                  ..._messages.asMap().entries.map(
+                        (e) => KeyedSubtree(
+                          key: ValueKey('msg_${e.key}'),
+                          child: _buildBubble(e.value),
+                        ),
+                      ),
 
                   // 처리 중
                   if (_isProcessing)
@@ -462,29 +466,36 @@ class _VisionScreenState extends State<VisionScreen> {
                     ),
 
                   // 실시간 STT 텍스트
-                  if (_isListening && _partialText.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: Container(
-                          constraints: const BoxConstraints(maxWidth: 240),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.3)),
-                          ),
-                          child: Text(
-                            _partialText,
-                            style: const TextStyle(
-                                color: Colors.white70, fontSize: 14),
+                  ValueListenableBuilder<String>(
+                    valueListenable: _partialTextNotifier,
+                    builder: (context, partialText, _) {
+                      if (!_isListening || partialText.isEmpty) {
+                        return const SizedBox.shrink();
+                      }
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: Container(
+                            constraints: const BoxConstraints(maxWidth: 240),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.3)),
+                            ),
+                            child: Text(
+                              partialText,
+                              style: const TextStyle(
+                                  color: Colors.white70, fontSize: 14),
+                            ),
                           ),
                         ),
-                      ),
-                    ),
+                      );
+                    },
+                  ),
 
                   // 퀵 리플라이
                   if (_lastResult != null && !_isProcessing)

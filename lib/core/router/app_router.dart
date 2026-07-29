@@ -16,6 +16,7 @@ import '../../features/auth/screens/signup_complete_screen.dart';
 import '../../features/splash/screens/splash_screen.dart';
 import '../../core/state/trip_repository.dart';
 import '../../features/vision/screens/vision_screen.dart';
+import '../../features/saved/screens/navigation_screen.dart';
 
 final isAuthenticated = ValueNotifier<bool>(false);
 
@@ -40,6 +41,18 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/vision',
       builder: (context, state) => const VisionScreen(),
+    ),
+    GoRoute(
+      path: '/navigation',
+      builder: (context, state) {
+        final trip = state.extra as SavedTrip? ??
+            SavedTrip(
+              name: '',
+              route: '',
+              savedAt: DateTime.now(),
+            );
+        return NavigationScreen(trip: trip);
+      },
     ),
     GoRoute(
       path: '/auth',
@@ -100,6 +113,7 @@ final appRouter = GoRouter(
                     return TripCreatedScreen(
                       showBackButton: true,
                       response: trip?.response,
+                      savedTrip: trip,
                     );
                   },
                 ),
