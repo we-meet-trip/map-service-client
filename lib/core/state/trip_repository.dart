@@ -27,10 +27,18 @@ class SavedTrip {
   final String name;
   final String route;
   final DateTime savedAt;
+  final DateTime tripStartDate;
+  final DateTime tripEndDate;
+  final List<TripStop> stops;
+  final int totalDurationMinutes;
 
   SavedTrip({
     required this.name,
     required this.route,
     required this.savedAt,
+    required this.tripStartDate,
+    required this.tripEndDate,
+    required this.stops,
+    required this.totalDurationMinutes,
   });
 }

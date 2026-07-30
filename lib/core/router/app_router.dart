@@ -1,13 +1,16 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../common/layout/main_layout.dart';
 import '../../features/home/screens/home_screen.dart';
 import '../../features/trip/screens/trip_regenerate_screen.dart';
 import '../../features/trip/screens/trip_created_screen.dart';
+import '../../features/trip/screens/trip_directions_screen.dart';
 import '../../features/trip/screens/search_step1_screen.dart';
 import '../../features/saved/screens/saved_screen.dart';
+import '../state/trip_repository.dart';
 import '../../features/chat/screens/chat_screen.dart';
 import '../../features/mypage/screens/mypage_screen.dart';
+import '../../features/mypage/screens/profile_edit_screen.dart';
 import '../../features/auth/screens/auth_screen.dart';
 import '../../features/auth/screens/signup_step1_screen.dart';
 import '../../features/auth/screens/signup_step2_screen.dart';
@@ -19,7 +22,10 @@ final isAuthenticated = ValueNotifier<bool>(false);
 
 const _publicPrefixes = ['/splash', '/auth', '/signup'];
 
+final _rootNavigatorKey = GlobalKey<NavigatorState>();
+
 final appRouter = GoRouter(
+  navigatorKey: _rootNavigatorKey,
   initialLocation: '/splash',
   // refreshListenable: isAuthenticated,
   // redirect: (context, state) {
@@ -89,8 +95,18 @@ final appRouter = GoRouter(
               routes: [
                 GoRoute(
                   path: 'trip',
-                  builder: (context, state) =>
-                      const TripCreatedScreen(showBackButton: true),
+                  builder: (context, state) => TripCreatedScreen(
+                    showBackButton: true,
+                    savedTrip: state.extra as SavedTrip?,
+                  ),
+                  routes: [
+                    GoRoute(
+                      path: 'directions',
+                      builder: (context, state) => TripDirectionsScreen(
+                        savedTrip: state.extra as SavedTrip?,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -109,6 +125,13 @@ final appRouter = GoRouter(
             GoRoute(
               path: '/mypage',
               builder: (context, state) => const MypageScreen(),
+              routes: [
+                GoRoute(
+                  path: 'edit',
+                  parentNavigatorKey: _rootNavigatorKey,
+                  builder: (context, state) => const ProfileEditScreen(),
+                ),
+              ],
             ),
           ],
         ),

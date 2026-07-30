@@ -38,6 +38,7 @@ class SvgIcons {
 
   // ─── UI / Actions ──────────────────────────────────────────────────────────
   static const arrowRight        = '$_base/arrow_right.svg';
+  static const chevronRightThin  = '$_base/chevron_right_thin.svg';
   static const chevronLeft       = '$_base/chevron_left.svg';
   static const chevronDownGray   = '$_base/chevron_down_gray.svg';
   static const chevronDownPurple = '$_base/chevron_down_purple.svg';
