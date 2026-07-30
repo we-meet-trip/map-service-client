@@ -48,7 +48,7 @@ android {
         versionName = flutter.versionName
         manifestPlaceholders["naverMapClientId"] = naverMapClientId
         // TODO: 실제 도메인 확정 후 아래 값을 교체하세요 (예: "myapp.web.app")
-        manifestPlaceholders["deepLinkHost"] = "TODO_REPLACE_WITH_ACTUAL_DOMAIN"
+        manifestPlaceholders["deepLinkHost"] = "map-project-cbd94.web.app"
     }
 
     buildTypes {
