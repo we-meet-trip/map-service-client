@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../common/theme/app_colors.dart';
-import '../../../common/theme/app_icons.dart';
 import '../../../common/widgets/next_button.dart';
+import '../../auth/widgets/signup_back_button.dart';
 import '../../../core/state/trip_repository.dart';
 import '../../../data/repositories/chat_repository.dart';
 import '../providers/chat_room_list_provider.dart';
@@ -43,36 +43,36 @@ class _TripSelectionForChatScreenState
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.background,
+        elevation: 0,
+        leading: SignupBackButton(onPressed: () => context.pop()),
+      ),
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  GestureDetector(
-                    onTap: () => context.pop(),
-                    child: AppIcon(SvgIcons.chevronLeft, size: 28),
-                  ),
-                  const SizedBox(height: 28),
                   Text(
-                    '채팅방을 만들\n일정을 선택해주세요',
+                    '알정 선택',
                     style: TextStyle(
                       fontSize: 24,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w800,
                       color: AppColors.neutralScale[600],
                       height: 1.35,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 8),
                   Text(
-                    '예정된 일정에 채팅방을 연결할 수 있어요.',
+                    '대화방을 생성할 일정을 선택해주세요.',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
-                      color: AppColors.neutralScale[300],
+                      color: AppColors.neutralScale[500],
                     ),
                   ),
                 ],
@@ -113,7 +113,7 @@ class _TripSelectionForChatScreenState
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 42),
               child: NextButton(
                 label: _loading ? '생성 중...' : '대화방 생성하기',
                 onPressed: (_selectedTripId != null && !_loading)
