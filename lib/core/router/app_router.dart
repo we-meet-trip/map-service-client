@@ -12,6 +12,7 @@ import '../../features/chat/screens/chat_screen.dart';
 import '../../features/mypage/screens/mypage_screen.dart';
 import '../../features/mypage/screens/profile_edit_screen.dart';
 import '../../features/auth/screens/auth_screen.dart';
+import '../../features/auth/screens/email_login_screen.dart';
 import '../../features/auth/screens/signup_step1_screen.dart';
 import '../../features/auth/screens/signup_step2_screen.dart';
 import '../../features/auth/screens/signup_step3_screen.dart';
@@ -44,6 +45,10 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/auth',
       builder: (context, state) => const AuthScreen(),
+    ),
+    GoRoute(
+      path: '/auth/email',
+      builder: (context, state) => const EmailLoginScreen(),
     ),
     GoRoute(
       path: '/signup/step1',

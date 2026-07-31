@@ -635,7 +635,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
                 child: OutlinedButton(
                   onPressed: () {
                     Navigator.of(ctx).pop();
-                    // TODO: 이메일 로그인 연동
+                    context.push('/auth/email');
                   },
                   style: OutlinedButton.styleFrom(
                     side: BorderSide(color: AppColors.neutralScale[200]!),

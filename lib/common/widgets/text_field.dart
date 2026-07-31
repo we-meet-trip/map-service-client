@@ -15,6 +15,7 @@ class AppTextField extends StatefulWidget {
   final TextInputType? keyboardType;
   final ValueChanged<String>? onSubmitted;
   final TextInputAction? textInputAction;
+  final bool obscureText;
 
   const AppTextField({
     super.key,
@@ -27,6 +28,7 @@ class AppTextField extends StatefulWidget {
     this.keyboardType,
     this.onSubmitted,
     this.textInputAction,
+    this.obscureText = false,
   });
 
   @override
@@ -36,6 +38,7 @@ class AppTextField extends StatefulWidget {
 class _AppTextFieldState extends State<AppTextField> {
   late final FocusNode _focusNode;
   bool _isFocused = false;
+  bool _obscured = true;
 
   @override
   void initState() {
@@ -66,7 +69,7 @@ class _AppTextFieldState extends State<AppTextField> {
               Text(
                 widget.labelText!,
                 style: TextStyle(
-                  fontSize: 18,
+                  fontSize: 14,
                   fontWeight: FontWeight.w500,
                   color: AppColors.neutralScale[500],
                 ),
@@ -80,6 +83,7 @@ class _AppTextFieldState extends State<AppTextField> {
               onSubmitted: widget.onSubmitted,
               keyboardType: widget.keyboardType,
               textInputAction: widget.textInputAction,
+              obscureText: widget.obscureText && _obscured,
               inputFormatters: widget.maxLength != null
                   ? [LengthLimitingTextInputFormatter(widget.maxLength)]
                   : null,
@@ -97,22 +101,31 @@ class _AppTextFieldState extends State<AppTextField> {
                 ),
                 filled: false,
                 contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                suffixIcon: ListenableBuilder(
-                  listenable: widget.controller,
-                  builder: (context, _) => widget.controller.text.isEmpty
-                      ? const SizedBox.shrink()
-                      : GestureDetector(
-                          onTap: () {
-                            widget.controller.clear();
-                            widget.onChanged?.call('');
-                          },
-                          child: Icon(
-                            AppIcons.cancel,
-                            size: 18,
-                            color: AppColors.neutralScale[300],
-                          ),
+                suffixIcon: widget.obscureText
+                    ? GestureDetector(
+                        onTap: () => setState(() => _obscured = !_obscured),
+                        child: Icon(
+                          _obscured ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                          size: 20,
+                          color: AppColors.neutralScale[300],
                         ),
-                ),
+                      )
+                    : ListenableBuilder(
+                        listenable: widget.controller,
+                        builder: (context, _) => widget.controller.text.isEmpty
+                            ? const SizedBox.shrink()
+                            : GestureDetector(
+                                onTap: () {
+                                  widget.controller.clear();
+                                  widget.onChanged?.call('');
+                                },
+                                child: Icon(
+                                  AppIcons.cancel,
+                                  size: 18,
+                                  color: AppColors.neutralScale[300],
+                                ),
+                              ),
+                      ),
                 // Flutter 기본 밑줄은 숨기고 아래에서 직접 그림
                 enabledBorder: InputBorder.none,
                 focusedBorder: InputBorder.none,
