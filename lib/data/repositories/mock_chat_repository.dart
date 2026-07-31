@@ -1,3 +1,4 @@
+import '../local/message_local_store.dart';
 import '../models/chat_message.dart';
 import '../models/chat_room.dart';
 import 'chat_repository.dart';
@@ -46,7 +47,8 @@ class MockChatRepository implements ChatRepository {
     ),
   ];
 
-  static final _messages = <String, List<ChatMessage>>{
+  // 최초 실행 시 Hive에 시드할 목 메시지
+  static final _seedMessages = <String, List<ChatMessage>>{
     '1': [
       ChatMessage(
         id: 'm1',
@@ -78,6 +80,8 @@ class MockChatRepository implements ChatRepository {
     ],
   };
 
+  final _store = MessageLocalStore.instance;
+
   @override
   Future<List<ChatRoom>> getChatRooms() async {
     await Future.delayed(const Duration(milliseconds: 300));
@@ -87,12 +91,26 @@ class MockChatRepository implements ChatRepository {
   @override
   Future<List<ChatMessage>> getMessages(String roomId) async {
     await Future.delayed(const Duration(milliseconds: 200));
-    return _messages[roomId] ?? [];
+    if (!_store.hasMessages(roomId)) {
+      final seed = _seedMessages[roomId] ?? [];
+      if (seed.isNotEmpty) await _store.saveMessages(seed);
+    }
+    return _store.getMessages(roomId);
   }
 
   @override
   Future<void> sendMessage(String roomId, String text) async {
     await Future.delayed(const Duration(milliseconds: 100));
+    final msg = ChatMessage(
+      id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
+      roomId: roomId,
+      senderId: 'me',
+      senderName: '나',
+      text: text,
+      sentAt: DateTime.now(),
+      isMe: true,
+    );
+    await _store.saveMessage(msg);
   }
 
   @override
