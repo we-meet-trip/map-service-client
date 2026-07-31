@@ -13,6 +13,8 @@ import '../../../common/widgets/app_confirm_dialog.dart';
 import '../../../core/state/trip_repository.dart';
 import '../../../common/widgets/text_field.dart';
 import '../../../core/api/trip_api_service.dart';
+import '../../../core/router/app_router.dart';
+import '../../auth/widgets/kakao_login_button.dart';
 import '../../../common/widgets/draggable_vision_button.dart';
 
 class TripCreatedScreen extends StatefulWidget {
@@ -39,6 +41,7 @@ class TripCreatedScreen extends StatefulWidget {
 
 class _TripCreatedScreenState extends State<TripCreatedScreen> {
   late bool _isSaved = widget.showBackButton;
+  bool _shouldAutoSave = false;
 
   late final List<_ScheduleStop> _stops;
   late final int _totalDurationMinutes;
@@ -62,8 +65,11 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
       _stops = _placeholder;
       _totalDurationMinutes = 25;
     }
-    _days = _stops.map((s) => s.day).toSet().toList()..sort();
-    _selectedDay = _days.first;
+    // 로그인 후 복귀 시 자동으로 저장 바텀시트 열기
+    if (TripRepository.instance.autoSaveOnNext && isAuthenticated.value) {
+      TripRepository.instance.autoSaveOnNext = false;
+      _shouldAutoSave = true;
+    }
   }
 
   List<_ScheduleStop> get _selectedDayStops =>
@@ -150,6 +156,12 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_shouldAutoSave) {
+      _shouldAutoSave = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _showSaveBottomSheet(context);
+      });
+    }
     return Stack(
       children: [
         _buildBody(context),
@@ -800,7 +812,13 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
             padding: const EdgeInsets.fromLTRB(24, 0, 24, 10),
             child: NextButton(
               label: '일정 저장하기',
-              onPressed: () => _showSaveBottomSheet(context),
+              onPressed: () {
+                if (isAuthenticated.value) {
+                  _showSaveBottomSheet(context);
+                } else {
+                  _showLoginDialog(context);
+                }
+              },
             ),
           ),
         Padding(
@@ -811,6 +829,85 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  // ── 로그인 유도 다이얼로그 ───────────────────────────────────
+
+  void _showLoginDialog(BuildContext context) {
+    if (widget.response != null) {
+      TripRepository.instance.setPendingTrip(widget.response!);
+    }
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        backgroundColor: Colors.white,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 32, 24, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '일정을 저장하려면\n로그인이 필요해요',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.neutralScale[600],
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 28),
+              KakaoLoginButton(onPressed: () {
+                Navigator.of(ctx).pop();
+                // TODO: 카카오 로그인 연동
+              }),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: OutlinedButton(
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                    context.push('/auth/email');
+                  },
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: AppColors.neutralScale[200]!),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(50),
+                    ),
+                  ),
+                  child: Text(
+                    '이메일로 계속하기',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: -0.3,
+                      color: AppColors.neutralScale[500],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              TextButton(
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  context.push('/signup/step1');
+                },
+                child: Text(
+                  '회원가입',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w400,
+                    color: AppColors.neutralScale[300],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
