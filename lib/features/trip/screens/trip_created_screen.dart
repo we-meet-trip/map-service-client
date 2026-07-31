@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../core/naver_map/naver_map_adapter.dart';
 import 'package:go_router/go_router.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../common/theme/app_icons.dart';
 import '../widgets/transport_theme.dart';
@@ -12,6 +13,7 @@ import '../../../common/widgets/app_confirm_dialog.dart';
 import '../../../core/state/trip_repository.dart';
 import '../../../common/widgets/text_field.dart';
 import '../../../core/api/trip_api_service.dart';
+import '../../../common/widgets/draggable_vision_button.dart';
 
 class TripCreatedScreen extends StatefulWidget {
   const TripCreatedScreen({
@@ -40,6 +42,9 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
 
   late final List<_ScheduleStop> _stops;
   late final int _totalDurationMinutes;
+  late final List<int> _days;
+  late int _selectedDay;
+  NaverMapController? _mapController;
 
   @override
   void initState() {
@@ -57,9 +62,15 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
       _stops = _placeholder;
       _totalDurationMinutes = 25;
     }
+    _days = _stops.map((s) => s.day).toSet().toList()..sort();
+    _selectedDay = _days.first;
   }
 
+  List<_ScheduleStop> get _selectedDayStops =>
+      _stops.where((s) => s.day == _selectedDay).toList();
+
   static _ScheduleStop _fromApiStop(TripStop s) => _ScheduleStop(
+        day: s.day,
         name: s.name,
         address: s.address,
         time: s.time,
@@ -75,6 +86,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
 
   static final List<_ScheduleStop> _placeholder = [
     _ScheduleStop(
+      day: 1,
       name: '속초 버스 터미널',
       address: '강원특별자치도 속초시 중앙로 96',
       time: '09:00',
@@ -86,6 +98,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
       ),
     ),
     _ScheduleStop(
+      day: 1,
       name: '속초해변',
       address: '강원특별자치도 속초시 청호동',
       time: '09:12',
@@ -97,6 +110,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
       ),
     ),
     _ScheduleStop(
+      day: 1,
       name: '속초 중앙시장',
       address: '강원특별자치도 속초시 중앙로 147',
       time: '09:25',
@@ -105,19 +119,50 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
     ),
   ];
 
+  int _minutesSinceMidnight(String hhmm) {
+    final parts = hhmm.split(':');
+    return int.parse(parts[0]) * 60 + int.parse(parts[1]);
+  }
+
   String get _totalTimeLabel {
-    if (_totalDurationMinutes < 60) return '약 $_totalDurationMinutes분';
-    final h = _totalDurationMinutes ~/ 60;
-    final m = _totalDurationMinutes % 60;
+    final minutes = _days.length <= 1
+        ? _totalDurationMinutes
+        : _dayDurationMinutes(_selectedDayStops);
+    if (minutes < 60) return '약 $minutes분';
+    final h = minutes ~/ 60;
+    final m = minutes % 60;
     return m == 0 ? '약 $h시간' : '약 $h시간 $m분';
+  }
+
+  int _dayDurationMinutes(List<_ScheduleStop> dayStops) {
+    if (dayStops.length < 2) return 0;
+    final start = _minutesSinceMidnight(dayStops.first.time);
+    final end = _minutesSinceMidnight(dayStops.last.time);
+    return end - start;
+  }
+
+  void _onDaySelected(int day) {
+    if (day == _selectedDay) return;
+    setState(() => _selectedDay = day);
+    final controller = _mapController;
+    if (controller != null) _renderDayOverlays(controller);
   }
 
   @override
   Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        _buildBody(context),
+        const DraggableVisionButton(),
+      ],
+    );
+  }
+
+  Widget _buildBody(BuildContext context) {
     final saved = widget.savedTrip;
     return Column(
       children: [
-        // ── 저장 탭에서 열렸을 때 뒤로가기 헤더 (저장된 일정 데이터 없이 열린 경우) ──
+        // ── 저장 탭에서 열렸을 때 뒤로가기 헤더 (savedTrip 없이 열린 경우) ──
         if (widget.showBackButton && saved == null)
           SafeArea(
             bottom: false,
@@ -156,10 +201,15 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
                     children: [
                       saved != null ? _buildSavedTripHeader(saved) : _buildTitle(),
                       const SizedBox(height: 16),
+                      if (_days.length > 1) ...[
+                        _buildDayTabs(),
+                        const SizedBox(height: 16),
+                      ],
                       _buildTotalTime(),
                       const SizedBox(height: 28),
-                      ..._stops.asMap().entries.map((entry) =>
-                          _buildStopItem(entry.value, entry.key == _stops.length - 1)),
+                      ..._selectedDayStops.asMap().entries.map((entry) =>
+                          _buildStopItem(entry.value,
+                              entry.key == _selectedDayStops.length - 1)),
                     ],
                   ),
                 ),
@@ -177,6 +227,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
   }
 
   // ── 지도 영역 ────────────────────────────────────────────────
+  // (Stack의 두 번째 자식 DraggableVisionButton은 build()에서 추가됨)
 
   Widget _buildMapArea() {
     return SizedBox(
@@ -185,7 +236,9 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
       child: NaverMap(
         options: NaverMapViewOptions(
           initialCameraPosition: NCameraPosition(
-            target: _stops.first.latLng,
+            target: _selectedDayStops.isNotEmpty
+                ? _selectedDayStops.first.latLng
+                : _stops.first.latLng,
             zoom: 14,
           ),
           scrollGesturesEnable: true,
@@ -196,6 +249,35 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
         onMapReady: _onMapReady,
       ),
     );
+  }
+
+  Future<void> _onMapTapped(NLatLng latLng) async {
+    final controller = _mapController;
+    if (controller == null) return;
+
+    // 현재 GPS 위치 가져오기
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) return;
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) return;
+      }
+      if (permission == LocationPermission.deniedForever) return;
+
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      final locationOverlay = controller.getLocationOverlay();
+      locationOverlay.setIsVisible(true);
+      locationOverlay.setPosition(NLatLng(position.latitude, position.longitude));
+      locationOverlay.setBearing(position.heading);
+    } catch (_) {
+      // 위치 권한 없거나 실패 시 무시
+    }
   }
 
   Widget _buildMapAreaWithBackButton() {
@@ -234,8 +316,18 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
   }
 
   Future<void> _onMapReady(NaverMapController controller) async {
+    _mapController = controller;
+    await _renderDayOverlays(controller);
+  }
+
+  Future<void> _renderDayOverlays(NaverMapController controller) async {
+    final stops = _selectedDayStops;
+    if (stops.isEmpty) return;
+
+    await controller.clearOverlays();
+
     // 번호 마커 추가
-    for (int i = 0; i < _stops.length; i++) {
+    for (int i = 0; i < stops.length; i++) {
       if (!mounted) return;
       final icon = await NOverlayImage.fromWidget(
         widget: _buildNumberMarker('${i + 1}'),
@@ -244,7 +336,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
       );
       await controller.addOverlay(NMarker(
         id: 'stop_$i',
-        position: _stops[i].latLng,
+        position: stops[i].latLng,
         icon: icon,
       ));
     }
@@ -252,14 +344,14 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
     // 경로 폴리라인 추가
     await controller.addOverlay(NPolylineOverlay(
       id: 'route',
-      coords: _stops.map((s) => s.latLng).toList(),
+      coords: stops.map((s) => s.latLng).toList(),
       color: AppColors.primaryScale[400]!,
       width: 4,
     ));
 
-    // 모든 정류장이 보이도록 fitBounds
-    final lats = _stops.map((s) => s.latLng.latitude);
-    final lngs = _stops.map((s) => s.latLng.longitude);
+    // 해당 일차 정류장이 모두 보이도록 fitBounds
+    final lats = stops.map((s) => s.latLng.latitude);
+    final lngs = stops.map((s) => s.latLng.longitude);
     final bounds = NLatLngBounds(
       southWest: NLatLng(lats.reduce(min), lngs.reduce(min)),
       northEast: NLatLng(lats.reduce(max), lngs.reduce(max)),
@@ -305,6 +397,41 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
   // ── 제목 / 소요시간 ──────────────────────────────────────────
 
   Widget _buildTitle() {
+    if (widget.showBackButton) {
+      final savedAt = widget.savedTrip?.savedAt;
+      final dateStr = savedAt != null
+          ? '${savedAt.year}.${savedAt.month.toString().padLeft(2, '0')}.${savedAt.day.toString().padLeft(2, '0')}'
+          : '';
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            widget.savedTrip?.name ?? '저장된 일정',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+              color: AppColors.neutralScale[600],
+              height: 1.2,
+            ),
+          ),
+          if (dateStr.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Icon(Icons.calendar_today_outlined,
+                    size: 13, color: AppColors.neutralScale[300]),
+                const SizedBox(width: 4),
+                Text(
+                  dateStr,
+                  style: TextStyle(
+                      fontSize: 13, color: AppColors.neutralScale[300]),
+                ),
+              ],
+            ),
+          ],
+        ],
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -385,6 +512,68 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
 
   String _fmtDate(DateTime dt) =>
       '${dt.year}.${dt.month.toString().padLeft(2, '0')}.${dt.day.toString().padLeft(2, '0')}';
+
+  // ── 일차 탭 ──────────────────────────────────────────────────
+
+  Widget _buildDayTabs() {
+    return Stack(
+      children: [
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: _days
+                .map((day) => Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: _buildDayTab(day),
+                    ))
+                .toList(),
+          ),
+        ),
+        Positioned(
+          right: 0,
+          top: 0,
+          bottom: 0,
+          child: IgnorePointer(
+            child: Container(
+              width: 32,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.centerRight,
+                  end: Alignment.centerLeft,
+                  colors: [
+                    AppColors.background,
+                    AppColors.background.withAlpha(0),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDayTab(int day) {
+    final isSelected = day == _selectedDay;
+    return GestureDetector(
+      onTap: () => _onDaySelected(day),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.secondaryScale[200]!.withAlpha(153) : null,
+          borderRadius: BorderRadius.circular(100),
+        ),
+        child: Text(
+          '$day일차',
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            color: isSelected ? AppColors.gradientScale[500] : AppColors.neutralScale[300],
+          ),
+        ),
+      ),
+    );
+  }
 
   Widget _buildTotalTime() {
     return RichText(
@@ -546,6 +735,54 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
               ),
               const SizedBox(width: 4),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── 일정 시작하기 버튼 (showBackButton=true) ─────────────────
+
+  Widget _buildStartButton(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        24,
+        12,
+        24,
+        MediaQuery.paddingOf(context).bottom + 16,
+      ),
+      child: SizedBox(
+        width: double.infinity,
+        height: 56,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                AppColors.primaryScale[400]!,
+                AppColors.primaryScale[600]!,
+              ],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: ElevatedButton(
+            onPressed: () =>
+                context.push('/navigation', extra: widget.savedTrip),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.transparent,
+              shadowColor: Colors.transparent,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
+            ),
+            child: const Text(
+              '일정 시작하기',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+              ),
+            ),
           ),
         ),
       ),
@@ -866,6 +1103,7 @@ class _SaveBottomSheetState extends State<_SaveBottomSheet> {
 // ─── 데이터 모델 ──────────────────────────────────────────────
 
 class _ScheduleStop {
+  final int day;
   final String name;
   final String address;
   final String time;
@@ -873,6 +1111,7 @@ class _ScheduleStop {
   final _TransportInfo? transport;
 
   const _ScheduleStop({
+    required this.day,
     required this.name,
     required this.address,
     required this.time,

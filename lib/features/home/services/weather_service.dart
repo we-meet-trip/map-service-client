@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import '../models/weather_data.dart';
@@ -20,7 +19,7 @@ class WeatherService {
     }
 
     // data.go.kr 인증키 (디코딩 후 Uri 빌더에 전달)
-    final key = Uri.decodeComponent(dotenv.env['KMA_API_KEY'] ?? '');
+    const key = String.fromEnvironment('KMA_API_KEY');
     final pos = await _location();
     var grid = _latLonToGrid(pos.latitude, pos.longitude);
     // 한국 격자 범위(nx: 1~149, ny: 1~253) 벗어나면 서울 기본값 사용
@@ -315,8 +314,10 @@ class WeatherService {
       throw Exception('위치 권한이 영구적으로 거부되었습니다. 설정에서 허용해주세요.');
     }
 
-    final last = await Geolocator.getLastKnownPosition();
-    if (last != null) return last;
+    if (!kIsWeb) {
+      final last = await Geolocator.getLastKnownPosition();
+      if (last != null) return last;
+    }
 
     return Geolocator.getCurrentPosition(
       locationSettings: const LocationSettings(accuracy: LocationAccuracy.low),

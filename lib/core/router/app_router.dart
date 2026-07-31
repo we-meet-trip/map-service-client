@@ -11,6 +11,8 @@ import '../state/trip_repository.dart';
 import '../../features/chat/screens/chat_screen.dart';
 import '../../features/mypage/screens/mypage_screen.dart';
 import '../../features/mypage/screens/profile_edit_screen.dart';
+import '../../features/mypage/screens/interests_edit_screen.dart';
+import '../../features/mypage/screens/notification_settings_screen.dart';
 import '../../features/auth/screens/auth_screen.dart';
 import '../../features/auth/screens/signup_step1_screen.dart';
 import '../../features/auth/screens/signup_step2_screen.dart';
@@ -18,6 +20,10 @@ import '../../features/auth/screens/signup_step3_screen.dart';
 import '../../features/auth/screens/signup_complete_screen.dart';
 import '../../features/splash/screens/splash_screen.dart';
 import '../../features/mobility/screens/bike_scooter_location_screen.dart';
+import '../../features/vision/screens/vision_screen.dart';
+import '../../features/saved/screens/navigation_screen.dart';
+import '../../features/trip/screens/subway_route_screen.dart';
+import '../../common/widgets/address_search_screen.dart';
 
 final isAuthenticated = ValueNotifier<bool>(false);
 
@@ -43,6 +49,26 @@ final appRouter = GoRouter(
       builder: (context, state) => const SplashScreen(),
     ),
     GoRoute(
+      path: '/vision',
+      builder: (context, state) => const VisionScreen(),
+    ),
+    GoRoute(
+      path: '/navigation',
+      builder: (context, state) {
+        final trip = state.extra as SavedTrip? ??
+            SavedTrip(
+              name: '',
+              route: '',
+              savedAt: DateTime.now(),
+              tripStartDate: DateTime.now(),
+              tripEndDate: DateTime.now(),
+              stops: const [],
+              totalDurationMinutes: 0,
+            );
+        return NavigationScreen(trip: trip);
+      },
+    ),
+    GoRoute(
       path: '/auth',
       builder: (context, state) => const AuthScreen(),
     ),
@@ -65,6 +91,10 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/bike-scooter',
       builder: (context, state) => const BikeScooterLocationScreen(),
+    ),
+    GoRoute(
+      path: '/address-search',
+      builder: (context, state) => const AddressSearchScreen(),
     ),
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) =>
@@ -110,6 +140,14 @@ final appRouter = GoRouter(
                       builder: (context, state) => TripDirectionsScreen(
                         savedTrip: state.extra as SavedTrip?,
                       ),
+                      routes: [
+                        GoRoute(
+                          path: 'subway',
+                          builder: (context, state) => SubwayRouteScreen(
+                            args: state.extra as SubwayRouteArgs,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -135,6 +173,16 @@ final appRouter = GoRouter(
                   path: 'edit',
                   parentNavigatorKey: _rootNavigatorKey,
                   builder: (context, state) => const ProfileEditScreen(),
+                ),
+                GoRoute(
+                  path: 'interests',
+                  parentNavigatorKey: _rootNavigatorKey,
+                  builder: (context, state) => const InterestsEditScreen(),
+                ),
+                GoRoute(
+                  path: 'notifications',
+                  parentNavigatorKey: _rootNavigatorKey,
+                  builder: (context, state) => const NotificationSettingsScreen(),
                 ),
               ],
             ),
