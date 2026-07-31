@@ -17,6 +17,7 @@ import '../../features/auth/screens/signup_step2_screen.dart';
 import '../../features/auth/screens/signup_step3_screen.dart';
 import '../../features/auth/screens/signup_complete_screen.dart';
 import '../../features/splash/screens/splash_screen.dart';
+import '../../features/mobility/screens/bike_scooter_location_screen.dart';
 
 final isAuthenticated = ValueNotifier<bool>(false);
 
@@ -60,6 +61,10 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/signup/complete',
       builder: (context, state) => const SignupCompleteScreen(),
+    ),
+    GoRoute(
+      path: '/bike-scooter',
+      builder: (context, state) => const BikeScooterLocationScreen(),
     ),
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) =>
