@@ -82,6 +82,23 @@ class AppColors {
     400: Color(0xFF42BDB3), // 기본 청록 (아이콘/텍스트)
   };
 
+  // saved
+  static const savedBadgeUrgent = Color(0xFFFF3AB7); // D-DAY 뱃지
+  static const savedBadgeFar = Color(0xFFACA9AE); // D-50 이상 뱃지 / 날짜 텍스트
+  static const savedTabInactive = Color(0xFF9989B2); // 비선택 탭 텍스트
+  static const savedSortUnselected = Color(0xFFD6D4D7); // 정렬 메뉴 비선택 옵션 배경
+
+  // saved trip detail / directions
+  static const tripAccentPurple = Color(0xFF5422AC); // 출발지 라벨/칩 텍스트, 시작하기 버튼 그라데이션
+  static const tripAccentPurpleEnd = Color(0xFFA752F2); // 시작하기 버튼 그라데이션 끝
+  static const tripDirectionsPinkEnd = Color(0xFFFF87D3); // 가는 방법 알아보기 버튼 그라데이션 끝
+  static const tripOriginChipBg = Color(0xBFF4EEFE); // 출발지 칩 배경 (rgba(244,238,254,0.75))
+  static const tripOriginChipBorder = Color(0xFFCFBEFB); // 출발지 칩 테두리
+
+  // mypage
+  static const mypageAvatarAccent = Color(0xFF984CFF); // 프로필 아바타 배경/아이콘 색
+  static const mypageDivider = Color(0xFFF2F2F3); // 마이페이지 섹션 구분 띠
+
   // chat
   static const inputBarBg      = Color(0xFFFFFFFF);
   static const shareIcon       = Color(0xFF8D46ED);
