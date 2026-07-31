@@ -19,6 +19,7 @@ import '../../features/auth/screens/signup_step2_screen.dart';
 import '../../features/auth/screens/signup_step3_screen.dart';
 import '../../features/auth/screens/signup_complete_screen.dart';
 import '../../features/splash/screens/splash_screen.dart';
+import '../../features/mobility/screens/bike_scooter_location_screen.dart';
 import '../../features/vision/screens/vision_screen.dart';
 import '../../features/saved/screens/navigation_screen.dart';
 import '../../features/trip/screens/subway_route_screen.dart';
@@ -86,6 +87,10 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/signup/complete',
       builder: (context, state) => const SignupCompleteScreen(),
+    ),
+    GoRoute(
+      path: '/bike-scooter',
+      builder: (context, state) => const BikeScooterLocationScreen(),
     ),
     GoRoute(
       path: '/address-search',

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../common/theme/app_icons.dart';
@@ -154,6 +155,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 error: _weatherError,
                 onRetry: _loadWeather,
               ),
+              const SizedBox(height: 16),
+              _BikeScooterBanner(),
             ],
           ),
         ),
@@ -359,6 +362,67 @@ class _TripCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─── 자전거·킥보드 위치 배너 ──────────────────────────────────────────────────
+
+class _BikeScooterBanner extends StatelessWidget {
+  const _BikeScooterBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => context.push('/bike-scooter'),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+        decoration: BoxDecoration(
+          color: AppColors.neutralScale[0],
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.secondaryScale[900]!.withAlpha(15),
+              blurRadius: 10,
+              offset: const Offset(0, 1),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '자전거·킥보드 위치',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.neutralScale[600],
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '가까운 단거리 이동',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.savedBadgeFar,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Image.asset(
+              'assets/images/transport/scooter_location.png',
+              width: 62,
+              height: 62,
+            ),
+          ],
+        ),
       ),
     );
   }
