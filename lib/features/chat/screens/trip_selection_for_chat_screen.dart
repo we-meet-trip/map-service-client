@@ -105,6 +105,7 @@ class _TripSelectionForChatScreenState
                     itemBuilder: (_, i) => TripSelectableCard(
                       trip: available[i],
                       isSelected: _selectedTripId == available[i].id,
+                      hasSelection: _selectedTripId != null,
                       onTap: () =>
                           setState(() => _selectedTripId = available[i].id),
                     ),

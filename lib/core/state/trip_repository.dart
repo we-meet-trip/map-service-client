@@ -5,7 +5,28 @@ class TripRepository {
   TripRepository._();
   static final TripRepository instance = TripRepository._();
 
-  final ValueNotifier<List<SavedTrip>> plannedTrips = ValueNotifier([]);
+  final ValueNotifier<List<SavedTrip>> plannedTrips = ValueNotifier([
+    SavedTrip(
+      id: 'mock_trip_001',
+      name: '제주 3박 4일 여행',
+      route: '제주',
+      savedAt: DateTime(2026, 7, 20),
+      tripStartDate: DateTime(2026, 8, 15),
+      tripEndDate: DateTime(2026, 8, 18),
+      stops: [],
+      totalDurationMinutes: 0,
+    ),
+    SavedTrip(
+      id: 'mock_trip_002',
+      name: '부산 당일치기',
+      route: '부산',
+      savedAt: DateTime(2026, 7, 25),
+      tripStartDate: DateTime(2026, 9, 6),
+      tripEndDate: DateTime(2026, 9, 6),
+      stops: [],
+      totalDurationMinutes: 0,
+    ),
+  ]);
   // 저장 탭 열릴 때 보여줄 탭 인덱스 (0: 완료, 1: 예정)
   final ValueNotifier<int> requestedTab = ValueNotifier(0);
 
