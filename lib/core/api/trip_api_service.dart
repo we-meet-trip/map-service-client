@@ -77,6 +77,7 @@ class TripTransportToNext {
 
 class TripStop {
   final int order;
+  final int day; // 1부터 시작하는 여행 일차
   final String name;
   final String address;
   final String time; // HH:mm
@@ -86,6 +87,7 @@ class TripStop {
 
   const TripStop({
     required this.order,
+    this.day = 1,
     required this.name,
     required this.address,
     required this.time,
@@ -96,6 +98,7 @@ class TripStop {
 
   factory TripStop.fromJson(Map<String, dynamic> json) => TripStop(
         order: json['order'] as int,
+        day: json['day'] as int? ?? 1,
         name: json['name'] as String,
         address: json['address'] as String,
         time: json['time'] as String,

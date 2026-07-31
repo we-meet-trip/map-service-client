@@ -189,7 +189,7 @@ class _SavedScreenState extends State<SavedScreen> {
               AnimatedRotation(
                 turns: _sortMenuOpen ? 0.5 : 0,
                 duration: const Duration(milliseconds: 150),
-                child: AppIcon(SvgIcons.chevronDownGray, size: 12),
+                child: AppIcon(SvgIcons.chevronDownPurple, size: 12),
               ),
             ],
           ),
