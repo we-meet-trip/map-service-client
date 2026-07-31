@@ -36,28 +36,6 @@ class _SavedScreenState extends State<SavedScreen> {
     });
   }
 
-  // 완료된 일정 목 데이터
-  final List<_TripCardData> _completedTrips = [
-    _TripCardData(
-      name: '속초 당일치기 코스',
-      startDate: DateTime(2026, 4, 20),
-      endDate: DateTime(2026, 4, 20),
-      registeredAt: DateTime(2026, 4, 20, 10, 30),
-    ),
-    _TripCardData(
-      name: '강릉 바다 여행',
-      startDate: DateTime(2026, 3, 15),
-      endDate: DateTime(2026, 3, 16),
-      registeredAt: DateTime(2026, 3, 15, 14, 0),
-    ),
-    _TripCardData(
-      name: '춘천 닭갈비 투어',
-      startDate: DateTime(2026, 2, 8),
-      endDate: DateTime(2026, 2, 8),
-      registeredAt: DateTime(2026, 2, 8, 9, 0),
-    ),
-  ];
-
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -135,7 +113,7 @@ class _SavedScreenState extends State<SavedScreen> {
     );
   }
 
-  // ── 탭 ────────────────────────────────────────────────────
+  // ── 탭 버튼 행 ────────────────────────────────────────────────
 
   Widget _buildTabs() {
     return Row(
@@ -260,19 +238,32 @@ class _SavedScreenState extends State<SavedScreen> {
   // ── 완료된 일정 목록 ────────────────────────────────────────
 
   Widget _buildCompletedList() {
-    if (_completedTrips.isEmpty) {
-      return _buildEmpty('완료된 일정이 없어요.');
-    }
-    final trips = _sortByRegisteredAt(_completedTrips);
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-      itemCount: trips.length,
-      separatorBuilder: (context, i) => const SizedBox(height: 12),
-      itemBuilder: (_, i) => _buildTripCard(trips[i], completed: true),
+    return ValueListenableBuilder<List<SavedTrip>>(
+      valueListenable: TripRepository.instance.completedTrips,
+      builder: (context, trips, _) {
+        if (trips.isEmpty) {
+          return _buildEmpty('완료된 일정이 없어요.');
+        }
+        final cards = _sortByRegisteredAt(trips
+            .map((t) => _TripCardData(
+                  name: t.name,
+                  startDate: t.tripStartDate,
+                  endDate: t.tripEndDate,
+                  registeredAt: t.savedAt,
+                  savedTrip: t,
+                ))
+            .toList());
+        return ListView.separated(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+          itemCount: cards.length,
+          separatorBuilder: (context, i) => const SizedBox(height: 12),
+          itemBuilder: (_, i) => _buildTripCard(cards[i], completed: true),
+        );
+      },
     );
   }
 
-  // ── 예정된 일정 목록 (실시간) ───────────────────────────────
+  // ── 예정된 일정 목록 ───────────────────────────────────────
 
   Widget _buildPlannedList() {
     return ValueListenableBuilder<List<SavedTrip>>(

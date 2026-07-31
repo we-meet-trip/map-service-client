@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../widgets/bottom_nav.dart';
+import '../widgets/draggable_vision_button.dart';
 import '../../features/trip/screens/trip_screen.dart';
 
 class MainLayout extends StatelessWidget {
@@ -11,7 +12,13 @@ class MainLayout extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: navigationShell,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          navigationShell,
+          const DraggableVisionButton(),
+        ],
+      ),
       bottomNavigationBar: BottomNav(
         currentIndex: navigationShell.currentIndex,
         onDestinationSelected: (index) {
