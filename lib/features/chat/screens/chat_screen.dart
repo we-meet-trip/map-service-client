@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import '../../../common/theme/app_colors.dart';
 import '../providers/chat_room_list_provider.dart';
@@ -36,6 +37,16 @@ class _ChatRoomListScreenState extends State<ChatRoomListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF9F8FA),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => context.push('/chat/new'),
+        backgroundColor: AppColors.secondaryScale[500],
+        shape: const CircleBorder(),
+        child: Icon(
+          PhosphorIcons.plus(),
+          color: Colors.white,
+          size: 26,
+        ),
+      ),
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

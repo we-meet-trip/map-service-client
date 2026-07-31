@@ -22,6 +22,7 @@ import '../../features/auth/screens/signup_step1_screen.dart';
 import '../../features/auth/screens/signup_step2_screen.dart';
 import '../../features/auth/screens/signup_step3_screen.dart';
 import '../../features/auth/screens/signup_complete_screen.dart';
+import '../../features/chat/screens/trip_selection_for_chat_screen.dart';
 import '../../features/invite/screens/invite_handler_screen.dart';
 import '../../features/splash/screens/splash_screen.dart';
 
@@ -131,6 +132,12 @@ final appRouter = GoRouter(
               path: '/chat',
               builder: (context, state) => const ChatRoomListScreen(),
               routes: [
+                GoRoute(
+                  path: 'new',
+                  parentNavigatorKey: _rootNavigatorKey,
+                  builder: (context, state) =>
+                      const TripSelectionForChatScreen(),
+                ),
                 GoRoute(
                   path: ':id',
                   builder: (context, state) {

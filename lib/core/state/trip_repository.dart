@@ -12,9 +12,16 @@ class TripRepository {
   void addTrip(SavedTrip trip) {
     plannedTrips.value = [...plannedTrips.value, trip];
   }
+
+  void setChatRoomId(String tripId, String chatRoomId) {
+    plannedTrips.value = plannedTrips.value.map((t) {
+      return t.id == tripId ? t.copyWith(chatRoomId: chatRoomId) : t;
+    }).toList();
+  }
 }
 
 class SavedTrip {
+  final String id;
   final String name;
   final String route;
   final DateTime savedAt;
@@ -22,8 +29,10 @@ class SavedTrip {
   final DateTime tripEndDate;
   final List<TripStop> stops;
   final int totalDurationMinutes;
+  final String? chatRoomId;
 
   SavedTrip({
+    String? id,
     required this.name,
     required this.route,
     required this.savedAt,
@@ -31,5 +40,18 @@ class SavedTrip {
     required this.tripEndDate,
     required this.stops,
     required this.totalDurationMinutes,
-  });
+    this.chatRoomId,
+  }) : id = id ?? DateTime.now().microsecondsSinceEpoch.toString();
+
+  SavedTrip copyWith({String? chatRoomId}) => SavedTrip(
+        id: id,
+        name: name,
+        route: route,
+        savedAt: savedAt,
+        tripStartDate: tripStartDate,
+        tripEndDate: tripEndDate,
+        stops: stops,
+        totalDurationMinutes: totalDurationMinutes,
+        chatRoomId: chatRoomId ?? this.chatRoomId,
+      );
 }

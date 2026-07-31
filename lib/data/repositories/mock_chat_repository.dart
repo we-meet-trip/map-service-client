@@ -94,4 +94,21 @@ class MockChatRepository implements ChatRepository {
   Future<void> sendMessage(String roomId, String text) async {
     await Future.delayed(const Duration(milliseconds: 100));
   }
+
+  @override
+  Future<ChatRoom> createChatRoomForTrip(String tripId, String tripName) async {
+    await Future.delayed(const Duration(milliseconds: 400));
+    final newRoom = ChatRoom(
+      id: 'room_${DateTime.now().millisecondsSinceEpoch}',
+      title: tripName,
+      participantCount: 1,
+      type: ChatRoomType.upcoming,
+      hasUnread: false,
+      lastMessage: '채팅방이 생성되었습니다.',
+      lastMessageAt: DateTime.now(),
+      linkedTripId: tripId,
+    );
+    _rooms.add(newRoom);
+    return newRoom;
+  }
 }
