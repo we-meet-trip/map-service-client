@@ -10,6 +10,9 @@ import '../../features/saved/screens/saved_screen.dart';
 import '../state/trip_repository.dart';
 import '../../features/chat/screens/chat_screen.dart';
 import '../../features/mypage/screens/mypage_screen.dart';
+import '../../features/mypage/screens/profile_edit_screen.dart';
+import '../../features/mypage/screens/interests_edit_screen.dart';
+import '../../features/mypage/screens/notification_settings_screen.dart';
 import '../../features/auth/screens/auth_screen.dart';
 import '../../features/auth/screens/signup_step1_screen.dart';
 import '../../features/auth/screens/signup_step2_screen.dart';
@@ -160,6 +163,23 @@ final appRouter = GoRouter(
             GoRoute(
               path: '/mypage',
               builder: (context, state) => const MypageScreen(),
+              routes: [
+                GoRoute(
+                  path: 'edit',
+                  parentNavigatorKey: _rootNavigatorKey,
+                  builder: (context, state) => const ProfileEditScreen(),
+                ),
+                GoRoute(
+                  path: 'interests',
+                  parentNavigatorKey: _rootNavigatorKey,
+                  builder: (context, state) => const InterestsEditScreen(),
+                ),
+                GoRoute(
+                  path: 'notifications',
+                  parentNavigatorKey: _rootNavigatorKey,
+                  builder: (context, state) => const NotificationSettingsScreen(),
+                ),
+              ],
             ),
           ],
         ),
