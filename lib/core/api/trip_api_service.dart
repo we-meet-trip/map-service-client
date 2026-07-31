@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
@@ -96,6 +97,20 @@ class TripStop {
   final double longitude;
   final TripTransportToNext? transportToNext;
 
+  /// 서버가 부여한 장소 식별자. 장소 상세를 다시 물어보거나, 고른 장소로
+  /// 동선을 다시 요청할 때 이 장소를 지목하는 키다.
+  final int? placeId;
+
+  /// 출처 서비스의 장소 페이지 링크.
+  final String? placeUrl;
+
+  /// 이 장소를 추천한 이유 한 문장.
+  final String? reason;
+
+  /// 블로그 후기를 종합한 요약 두 줄. 근거가 될 후기를 못 구한 장소는
+  /// 아예 오지 않으므로 카드에서 이 영역을 통째로 접어야 한다.
+  final List<String>? bullets;
+
   const TripStop({
     required this.order,
     this.day = 1,
@@ -105,6 +120,10 @@ class TripStop {
     required this.latitude,
     required this.longitude,
     this.transportToNext,
+    this.placeId,
+    this.placeUrl,
+    this.reason,
+    this.bullets,
   });
 
   factory TripStop.fromJson(Map<String, dynamic> json) => TripStop(
@@ -119,6 +138,17 @@ class TripStop {
             ? TripTransportToNext.fromJson(
                 json['transport_to_next'] as Map<String, dynamic>)
             : null,
+        // 아래 네 값은 서버가 못 채우면 키 자체가 없다. 필수 필드처럼
+        // 캐스팅하면 요약이 없는 장소 하나 때문에 화면 전체가 죽으므로,
+        // 타입이 어긋나는 값은 조용히 버리고 없는 것으로 취급한다.
+        placeId: json['place_id'] is int ? json['place_id'] as int : null,
+        placeUrl: json['place_url'] is String ? json['place_url'] as String : null,
+        reason: json['reason'] is String ? json['reason'] as String : null,
+        bullets: (json['bullets'] as List<dynamic>?)
+            ?.whereType<String>()
+            .where((line) => line.trim().isNotEmpty)
+            .take(2)
+            .toList(),
       );
 }
 
@@ -198,16 +228,30 @@ class TripApiService {
   static String get _baseUrl =>
       dotenv.env['API_BASE_URL'] ?? 'http://localhost:8080';
 
+  // 여행 생성은 LLM 여러 번 호출로 수 초~2분 소요된다. 무한 대기를 막되,
+  // 서버가 먼저 끊고 사유를 담은 응답을 줄 수 있도록 서버 대기 상한보다
+  // 길게 잡는다(서버 150초). 이 값이 서버보다 짧으면 서버가 아직 살아 있는
+  // 요청을 클라이언트가 먼저 버려, 곧 도착할 결과를 못 받고 실패로 표시한다.
+  static const _requestTimeout = Duration(seconds: 180);
+
   Future<TripGenerateResponse> generateTrip(TripGenerateRequest request) async {
     final uri = Uri.parse('$_baseUrl/api/v1/trip/generate');
-    final response = await http.post(
-      uri,
-      headers: {
-        'Content-Type': 'application/json',
-        'ngrok-skip-browser-warning': 'true',
-      },
-      body: jsonEncode(request.toJson()),
-    );
+    final http.Response response;
+    try {
+      response = await http
+          .post(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(request.toJson()),
+          )
+          .timeout(_requestTimeout);
+    } on TimeoutException {
+      throw TripApiException(
+        error: 'REQUEST_TIMEOUT',
+        message: '여행 생성이 지연되고 있어요. 잠시 후 다시 시도해주세요.',
+        statusCode: 408,
+      );
+    }
 
     final body = jsonDecode(response.body) as Map<String, dynamic>;
 
