@@ -125,7 +125,7 @@ class _CalendarCard extends StatelessWidget {
           _buildDayHeaders(),
           const SizedBox(height: 4),
           _buildGrid(),
-        ],
+    ],
       ),
     );
   }

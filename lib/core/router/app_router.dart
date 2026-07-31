@@ -19,6 +19,9 @@ import '../../features/auth/screens/signup_step2_screen.dart';
 import '../../features/auth/screens/signup_step3_screen.dart';
 import '../../features/auth/screens/signup_complete_screen.dart';
 import '../../features/splash/screens/splash_screen.dart';
+import '../../features/vision/screens/vision_screen.dart';
+import '../../features/saved/screens/navigation_screen.dart';
+import '../../features/trip/screens/subway_route_screen.dart';
 import '../../common/widgets/address_search_screen.dart';
 
 final isAuthenticated = ValueNotifier<bool>(false);
@@ -43,6 +46,26 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/splash',
       builder: (context, state) => const SplashScreen(),
+    ),
+    GoRoute(
+      path: '/vision',
+      builder: (context, state) => const VisionScreen(),
+    ),
+    GoRoute(
+      path: '/navigation',
+      builder: (context, state) {
+        final trip = state.extra as SavedTrip? ??
+            SavedTrip(
+              name: '',
+              route: '',
+              savedAt: DateTime.now(),
+              tripStartDate: DateTime.now(),
+              tripEndDate: DateTime.now(),
+              stops: const [],
+              totalDurationMinutes: 0,
+            );
+        return NavigationScreen(trip: trip);
+      },
     ),
     GoRoute(
       path: '/auth',
@@ -112,6 +135,14 @@ final appRouter = GoRouter(
                       builder: (context, state) => TripDirectionsScreen(
                         savedTrip: state.extra as SavedTrip?,
                       ),
+                      routes: [
+                        GoRoute(
+                          path: 'subway',
+                          builder: (context, state) => SubwayRouteScreen(
+                            args: state.extra as SubwayRouteArgs,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
