@@ -18,6 +18,8 @@ import '../../features/auth/screens/signup_complete_screen.dart';
 import '../../features/splash/screens/splash_screen.dart';
 import '../../features/vision/screens/vision_screen.dart';
 import '../../features/saved/screens/navigation_screen.dart';
+import '../../features/trip/screens/subway_route_screen.dart';
+import '../../common/widgets/address_search_screen.dart';
 
 final isAuthenticated = ValueNotifier<bool>(false);
 
@@ -82,6 +84,10 @@ final appRouter = GoRouter(
       path: '/signup/complete',
       builder: (context, state) => const SignupCompleteScreen(),
     ),
+    GoRoute(
+      path: '/address-search',
+      builder: (context, state) => const AddressSearchScreen(),
+    ),
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) =>
           MainLayout(navigationShell: navigationShell),
@@ -126,6 +132,14 @@ final appRouter = GoRouter(
                       builder: (context, state) => TripDirectionsScreen(
                         savedTrip: state.extra as SavedTrip?,
                       ),
+                      routes: [
+                        GoRoute(
+                          path: 'subway',
+                          builder: (context, state) => SubwayRouteScreen(
+                            args: state.extra as SubwayRouteArgs,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

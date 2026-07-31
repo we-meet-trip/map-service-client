@@ -1,18 +1,15 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import '../../../common/theme/app_colors.dart';
-import '../../../common/widgets/address_search_screen.dart';
 import '../../../common/widgets/app_confirm_dialog.dart';
-import '../../../common/widgets/text_field.dart';
+import '../../../common/widgets/app_loading_indicator.dart';
+import '../../../common/widgets/named_address_prompt.dart';
 import '../../../core/state/trip_repository.dart';
-
-class _RegisteredOrigin {
-  final String name;
-  final String address;
-  const _RegisteredOrigin({required this.name, required this.address});
-}
+import '../../../core/state/user_repository.dart';
+import 'subway_route_screen.dart';
 
 class TripDirectionsScreen extends StatefulWidget {
   const TripDirectionsScreen({super.key, this.savedTrip});
@@ -27,8 +24,11 @@ class _TripDirectionsScreenState extends State<TripDirectionsScreen> {
   int _originIndex = 1; // 0: 집, 1: 현재 위치, 2+i: 등록된 위치
   bool _loadingLocation = false;
   String? _currentLocationAddress;
+  Position? _currentPosition;
   String? _homeAddress;
-  final List<_RegisteredOrigin> _registeredOrigins = [];
+
+  List<NamedAddress> get _otherAddresses =>
+      UserRepository.instance.profile.value.otherAddresses;
 
   @override
   void initState() {
@@ -46,8 +46,8 @@ class _TripDirectionsScreenState extends State<TripDirectionsScreen> {
         return _currentLocationAddress ?? '현재 위치를 확인할 수 없어요';
       default:
         final i = _originIndex - 2;
-        if (i >= 0 && i < _registeredOrigins.length) {
-          return _registeredOrigins[i].address;
+        if (i >= 0 && i < _otherAddresses.length) {
+          return _otherAddresses[i].address;
         }
         return '출발지';
     }
@@ -55,7 +55,8 @@ class _TripDirectionsScreenState extends State<TripDirectionsScreen> {
 
   Future<void> _onOriginChipTap(int index) async {
     setState(() => _originIndex = index);
-    if (index == 1 && _currentLocationAddress == null && !_loadingLocation) {
+    if (index == 1 && !_loadingLocation) {
+      // 매번 다시 시도한다 — 이전 시도가 실패했다고 계속 캐시된 실패 상태로 남지 않도록.
       await _loadCurrentLocationAddress();
     } else if (index == 0 && _homeAddress == null) {
       await _registerHome();
@@ -64,12 +65,7 @@ class _TripDirectionsScreenState extends State<TripDirectionsScreen> {
   }
 
   Future<String?> _searchAddress() {
-    return Navigator.of(context, rootNavigator: true).push<String>(
-      MaterialPageRoute(
-        fullscreenDialog: true,
-        builder: (_) => const AddressSearchScreen(),
-      ),
-    );
+    return context.push<String>('/address-search');
   }
 
   Future<void> _registerHome() async {
@@ -81,6 +77,7 @@ class _TripDirectionsScreenState extends State<TripDirectionsScreen> {
     if (!mounted) return;
     final confirmed = await showDialog<bool>(
       context: context,
+      useRootNavigator: false,
       builder: (ctx) => AppConfirmDialog(
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -114,79 +111,45 @@ class _TripDirectionsScreenState extends State<TripDirectionsScreen> {
   }
 
   Future<void> _addNewOrigin() async {
-    final address = await _searchAddress();
-    if (address == null || address.isEmpty || !mounted) return;
-
-    final nameController = TextEditingController();
-    final name = await showDialog<String>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AppConfirmDialog(
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '📍 이름을 정해주세요.',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.neutralScale[600],
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                address,
-                style: TextStyle(fontSize: 14, color: AppColors.neutralScale[300]),
-              ),
-              const SizedBox(height: 24),
-              AppTextField(
-                controller: nameController,
-                hintText: '예: 회사, 학교',
-                maxLength: 10,
-                onChanged: (_) => setDialogState(() {}),
-              ),
-            ],
-          ),
-          cancelLabel: '취소',
-          confirmLabel: '등록하기',
-          onConfirm: nameController.text.trim().isNotEmpty
-              ? () => Navigator.of(ctx).pop(nameController.text.trim())
-              : null,
-        ),
-      ),
-    );
-
-    nameController.dispose();
-    if (name != null && name.isNotEmpty && mounted) {
-      setState(() {
-        _registeredOrigins.add(_RegisteredOrigin(name: name, address: address));
-        _originIndex = 2 + _registeredOrigins.length - 1;
-      });
-    }
+    final result = await promptAddNamedAddress(context);
+    if (result == null || !mounted) return;
+    UserRepository.instance.addOtherAddress(result);
+    setState(() => _originIndex = 2 + _otherAddresses.length - 1);
   }
 
   Future<void> _loadCurrentLocationAddress() async {
     setState(() => _loadingLocation = true);
     try {
       final pos = await _determinePosition();
-      final placemarks = await placemarkFromCoordinates(pos.latitude, pos.longitude);
-      if (placemarks.isEmpty) {
-        throw Exception('No placemarks found');
-      }
-      final p = placemarks.first;
-      final address = [p.administrativeArea, p.locality, p.subLocality, p.thoroughfare]
-          .where((s) => s != null && s.isNotEmpty)
-          .join(' ');
       if (!mounted) return;
+      // 좌표는 이미 확보했으므로 먼저 반영한다 — 아래 주소 변환이 실패해도
+      // 지하철 경로 탐색 등에 좌표는 그대로 쓸 수 있어야 한다.
       setState(() {
-        _currentLocationAddress = address.isEmpty ? '현재 위치' : address;
+        _currentPosition = pos;
+        _currentLocationAddress = '현재 위치';
         _loadingLocation = false;
       });
-    } catch (_) {
+
+      try {
+        final placemarks = await placemarkFromCoordinates(pos.latitude, pos.longitude);
+        if (placemarks.isEmpty || !mounted) return;
+        final p = placemarks.first;
+        final address = [p.administrativeArea, p.locality, p.subLocality, p.thoroughfare]
+            .where((s) => s != null && s.isNotEmpty)
+            .join(' ');
+        if (address.isNotEmpty) {
+          setState(() => _currentLocationAddress = address);
+        }
+      } catch (_) {
+        // 주소 변환 실패는 무시한다 — 좌표는 이미 확보되어 있다.
+      }
+    } catch (e) {
       if (!mounted) return;
       setState(() {
-        _currentLocationAddress = '위치를 확인할 수 없어요';
+        _currentPosition = null;
+        _currentLocationAddress = e is TimeoutException
+            ? '위치 확인이 시간 초과됐어요. 다시 시도해주세요.'
+            : e.toString().replaceFirst('Exception: ', '');
         _loadingLocation = false;
       });
     }
@@ -210,6 +173,72 @@ class _TripDirectionsScreenState extends State<TripDirectionsScreen> {
     return Geolocator.getCurrentPosition(
       locationSettings: const LocationSettings(accuracy: LocationAccuracy.low),
     ).timeout(const Duration(seconds: 10));
+  }
+
+  Future<Location?> _resolveOriginLocation() async {
+    if (_originIndex == 1) {
+      final pos = _currentPosition;
+      if (pos == null) return null;
+      return Location(
+        latitude: pos.latitude,
+        longitude: pos.longitude,
+        timestamp: DateTime.now(),
+      );
+    }
+    final address = _originIndex == 0
+        ? _homeAddress
+        : _otherAddresses[_originIndex - 2].address;
+    if (address == null) return null;
+    final results = await locationFromAddress(address);
+    return results.isEmpty ? null : results.first;
+  }
+
+  Future<void> _onSubwayTap() async {
+    final stops = widget.savedTrip?.stops;
+    if (stops == null || stops.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('저장된 여행 일정이 없어서 경로를 찾을 수 없어요.')),
+      );
+      return;
+    }
+    final destination = [...stops]..sort((a, b) => a.order.compareTo(b.order));
+    final firstStop = destination.first;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      useRootNavigator: false,
+      builder: (_) => const Center(child: AppLoadingIndicator()),
+    );
+
+    Location? origin;
+    try {
+      origin = await _resolveOriginLocation();
+    } catch (_) {
+      origin = null;
+    }
+
+    if (!mounted) return;
+    Navigator.of(context, rootNavigator: false).pop();
+
+    if (origin == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('출발지 위치를 확인할 수 없어요.')),
+      );
+      return;
+    }
+
+    context.push(
+      '/saved/trip/directions/subway',
+      extra: SubwayRouteArgs(
+        originLabel: _originLabel,
+        originLat: origin.latitude,
+        originLng: origin.longitude,
+        destinationLabel: firstStop.name,
+        destinationLat: firstStop.latitude,
+        destinationLng: firstStop.longitude,
+      ),
+    );
   }
 
   @override
@@ -269,29 +298,35 @@ class _TripDirectionsScreenState extends State<TripDirectionsScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: [
-                            _buildOriginChip('집', Icons.home_rounded, 0),
-                            const SizedBox(width: 8),
-                            _buildOriginChip('현재 위치', Icons.location_on, 1),
-                            for (var i = 0; i < _registeredOrigins.length; i++) ...[
-                              const SizedBox(width: 8),
-                              _buildOriginChip(_registeredOrigins[i].name, Icons.place, 2 + i),
-                            ],
-                            const SizedBox(width: 8),
-                            _buildAddChip(),
-                          ],
+                ValueListenableBuilder<UserProfile>(
+                  valueListenable: UserRepository.instance.profile,
+                  builder: (context, profile, _) {
+                    final otherAddresses = profile.otherAddresses;
+                    return Row(
+                      children: [
+                        Expanded(
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                _buildOriginChip('집', Icons.home_rounded, 0),
+                                const SizedBox(width: 8),
+                                _buildOriginChip('현재 위치', Icons.location_on, 1),
+                                for (var i = 0; i < otherAddresses.length; i++) ...[
+                                  const SizedBox(width: 8),
+                                  _buildOriginChip(otherAddresses[i].name, Icons.place, 2 + i),
+                                ],
+                                const SizedBox(width: 8),
+                                _buildAddChip(),
+                              ],
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    _buildSearchBox(),
-                  ],
+                        const SizedBox(width: 8),
+                        _buildSearchBox(),
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(height: 20),
                 _buildBigCard(
@@ -300,6 +335,7 @@ class _TripDirectionsScreenState extends State<TripDirectionsScreen> {
                   image: 'assets/images/transport/train.png',
                   imageSize: 68,
                   imageRight: 26,
+                  onTap: _onSubwayTap,
                 ),
                 const SizedBox(height: 12),
                 _buildBigCard(
@@ -466,8 +502,9 @@ class _TripDirectionsScreenState extends State<TripDirectionsScreen> {
     required String image,
     required double imageSize,
     required double imageRight,
+    VoidCallback? onTap,
   }) {
-    return ClipRRect(
+    final card = ClipRRect(
       borderRadius: BorderRadius.circular(20),
       child: Container(
         width: double.infinity,
@@ -525,6 +562,7 @@ class _TripDirectionsScreenState extends State<TripDirectionsScreen> {
         ),
       ),
     );
+    return onTap == null ? card : GestureDetector(onTap: onTap, child: card);
   }
 
   Widget _buildSmallCard({
