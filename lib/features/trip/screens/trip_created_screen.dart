@@ -64,8 +64,9 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
       _stops = _placeholder;
       _totalDurationMinutes = 25;
     }
-    _days = _stops.map((s) => s.day).toSet().toList()..sort();
-    _selectedDay = _days.isNotEmpty ? _days.first : 1;
+    // 로그인 후 복귀 시 자동으로 저장 바텀시트 열기
+      _days = _stops.map((s) => s.day).toSet().toList()..sort();
+      _selectedDay = _days.isNotEmpty ? _days.first : 1;
     if (TripRepository.instance.autoSaveOnNext && isAuthenticated.value) {
       TripRepository.instance.autoSaveOnNext = false;
       _shouldAutoSave = true;
