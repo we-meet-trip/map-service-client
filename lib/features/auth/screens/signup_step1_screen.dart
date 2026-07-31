@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../common/widgets/text_field.dart';
+import '../../../core/state/user_repository.dart';
 import '../widgets/signup_step_scaffold.dart';
 
 class SignupStep1Screen extends StatefulWidget {
@@ -43,7 +44,12 @@ class _SignupStep1ScreenState extends State<SignupStep1Screen> {
       title: '닉네임을 입력해주세요',
       currentStep: 1,
       onBack: () => context.pop(),
-      onNext: _canProceed ? () => context.push('/signup/step2') : null,
+      onNext: _canProceed
+          ? () {
+              UserRepository.instance.updateNickname(_controller.text);
+              context.push('/signup/step2');
+            }
+          : null,
       child: AppTextField(
         controller: _controller,
         hintText: '닉네임 입력',

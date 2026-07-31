@@ -6,6 +6,7 @@ class TripRepository {
   static final TripRepository instance = TripRepository._();
 
   final ValueNotifier<List<SavedTrip>> plannedTrips = ValueNotifier([_mockPlannedTrip]);
+  final ValueNotifier<List<SavedTrip>> completedTrips = ValueNotifier([]);
   // 저장 탭 열릴 때 보여줄 탭 인덱스 (0: 예정, 1: 완료)
   final ValueNotifier<int> requestedTab = ValueNotifier(0);
 

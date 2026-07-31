@@ -16,20 +16,13 @@ class BirthdateField extends StatefulWidget {
   static const int _startYear = 1950;
   static int get _endYear => DateTime.now().year;
 
-  @override
-  State<BirthdateField> createState() => _BirthdateFieldState();
-}
-
-class _BirthdateFieldState extends State<BirthdateField> {
-  bool _isOpen = false;
-
-  Future<void> _pick(BuildContext context) async {
+  /// 생년월일 선택용 바텀시트를 띄우고 선택된 날짜를 반환한다.
+  /// 다이얼로그가 닫혀도 초기값(또는 오늘)을 그대로 반환한다.
+  static Future<DateTime> pickDate(BuildContext context, {DateTime? initial}) async {
     final now = DateTime.now();
-    DateTime tempDate = widget.value != null
-        ? DateTime(widget.value!.year, widget.value!.month, widget.value!.day)
+    DateTime tempDate = initial != null
+        ? DateTime(initial.year, initial.month, initial.day)
         : DateTime(now.year, now.month, now.day);
-
-    setState(() => _isOpen = true);
 
     await showModalBottomSheet<void>(
       context: context,
@@ -44,8 +37,8 @@ class _BirthdateFieldState extends State<BirthdateField> {
               child: CupertinoDatePicker(
                 mode: CupertinoDatePickerMode.date,
                 initialDateTime: tempDate,
-                minimumYear: BirthdateField._startYear,
-                maximumYear: BirthdateField._endYear,
+                minimumYear: _startYear,
+                maximumYear: _endYear,
                 onDateTimeChanged: (date) => tempDate = date,
               ),
             ),
@@ -54,8 +47,20 @@ class _BirthdateFieldState extends State<BirthdateField> {
         ),
       ),
     );
-    widget.onChanged(tempDate);
+    return tempDate;
+  }
 
+  @override
+  State<BirthdateField> createState() => _BirthdateFieldState();
+}
+
+class _BirthdateFieldState extends State<BirthdateField> {
+  bool _isOpen = false;
+
+  Future<void> _pick(BuildContext context) async {
+    setState(() => _isOpen = true);
+    final picked = await BirthdateField.pickDate(context, initial: widget.value);
+    widget.onChanged(picked);
     setState(() => _isOpen = false);
   }
 

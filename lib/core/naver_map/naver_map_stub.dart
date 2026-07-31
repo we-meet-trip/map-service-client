@@ -25,7 +25,14 @@ class NLatLngBounds {
 class NCameraPosition {
   final NLatLng target;
   final double zoom;
-  const NCameraPosition({required this.target, this.zoom = 14});
+  final double bearing;
+  final double tilt;
+  const NCameraPosition({
+    required this.target,
+    this.zoom = 14,
+    this.bearing = 0,
+    this.tilt = 0,
+  });
 }
 
 class NMapType {
@@ -48,11 +55,20 @@ class NaverMapViewOptions {
   });
 }
 
+class NLocationOverlay {
+  Future<void> setIsVisible(bool isVisible) async {}
+  Future<void> setPosition(NLatLng position) async {}
+  Future<void> setBearing(double bearing) async {}
+}
+
 class NaverMapController {
   Future<void> addOverlay(dynamic overlay) async {}
   Future<void> addOverlayAll(Iterable<dynamic> overlays) async {}
   Future<void> updateCamera(NCameraUpdate update) async {}
   Future<void> clearOverlays({NOverlayType? type}) async {}
+  Future<NCameraPosition> getCameraPosition() async =>
+      const NCameraPosition(target: NLatLng(0, 0));
+  NLocationOverlay getLocationOverlay() => NLocationOverlay();
 }
 
 class NCameraUpdate {
@@ -60,10 +76,13 @@ class NCameraUpdate {
       NCameraUpdate._();
   static NCameraUpdate fromCameraPosition(NCameraPosition position) =>
       NCameraUpdate._();
+  static NCameraUpdate scrollAndZoomTo({NLatLng? target, double? zoom}) =>
+      NCameraUpdate._();
   static NCameraUpdate zoomIn() => NCameraUpdate._();
   static NCameraUpdate zoomOut() => NCameraUpdate._();
   NCameraUpdate._();
-  NCameraUpdate setAnimation({NCameraAnimation? animation, Duration? duration}) =>
+  NCameraUpdate setAnimation(
+          {NCameraAnimation? animation, Duration? duration}) =>
       this;
 }
 
@@ -72,6 +91,8 @@ class NCameraAnimation {
   static const NCameraAnimation easing = NCameraAnimation._();
   const NCameraAnimation._();
 }
+
+enum NCameraUpdateReason { developer, gesture, control, location }
 
 class NOverlayImage {
   static Future<NOverlayImage> fromWidget({
@@ -119,8 +140,14 @@ class NOverlayType {
 class NaverMap extends StatelessWidget {
   final NaverMapViewOptions options;
   final void Function(NaverMapController)? onMapReady;
+  final void Function(NCameraUpdateReason, bool)? onCameraChange;
 
-  const NaverMap({super.key, required this.options, this.onMapReady});
+  const NaverMap({
+    super.key,
+    required this.options,
+    this.onMapReady,
+    this.onCameraChange,
+  });
 
   @override
   Widget build(BuildContext context) {

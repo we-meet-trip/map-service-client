@@ -193,7 +193,10 @@ class TripApiService {
     final uri = Uri.parse('$_baseUrl/api/v1/trip/generate');
     final response = await http.post(
       uri,
-      headers: {'Content-Type': 'application/json'},
+      headers: {
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': 'true',
+      },
       body: jsonEncode(request.toJson()),
     );
 

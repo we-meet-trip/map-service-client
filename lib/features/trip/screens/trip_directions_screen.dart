@@ -33,7 +33,7 @@ class _TripDirectionsScreenState extends State<TripDirectionsScreen> {
   @override
   void initState() {
     super.initState();
-    _homeAddress = UserRepository.instance.profile.value.homeAddress;
+    _homeAddress = null;
     _loadCurrentLocationAddress();
   }
 
@@ -104,7 +104,6 @@ class _TripDirectionsScreenState extends State<TripDirectionsScreen> {
       ),
     );
     if (confirmed == true && mounted) {
-      UserRepository.instance.updateHomeAddress(address);
       setState(() => _homeAddress = address);
     } else if (mounted) {
       setState(() => _originIndex = 1);
