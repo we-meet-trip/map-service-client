@@ -19,12 +19,21 @@ if (envFile.exists()) {
     envFile.inputStream().use { envProperties.load(it) }
 }
 
+// 릴리스 서명 설정(B-3). key.properties 는 gitignore 되며 레포에 커밋되지 않는다.
+// 없으면(예: CI 없이 디버그만) release 서명은 debug 로 폴백한다(아래 buildTypes).
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+val hasReleaseSigning = keystorePropertiesFile.exists()
+if (hasReleaseSigning) {
+    keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
+}
+
 val naverMapClientId = envProperties.getProperty("NAVER_MAP_CLIENT_ID")
     ?: localProperties.getProperty("naver.map.client.id")
     ?: ""
 
 android {
-    namespace = "com.example.map_service_client"
+    namespace = "kr.mapservice.client"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -38,22 +47,38 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.map_service_client"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        applicationId = "kr.mapservice.client"
+        // minSdk 24: flutter_naver_map 1.4.4 요구 최소치(NCP Maps SDK).
+        minSdk = 24
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         manifestPlaceholders["naverMapClientId"] = naverMapClientId
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+                storeFile = keystoreProperties.getProperty("storeFile")?.let { file(it) }
+                storePassword = keystoreProperties.getProperty("storePassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // key.properties 가 있으면 릴리스 키로 서명(배포용). 배포 APK 는 항상
+            // 키를 보유한 빌드 머신(맥)에서 만든다. key.properties 부재 시에만
+            // debug 로 폴백(로컬 개발 편의) — 이 경우 apksigner 검증에서 debug 인증서로
+            // 드러나므로 실수 배포를 막을 수 있다.
+            signingConfig = if (hasReleaseSigning) {
+                signingConfigs.getByName("release")
+            } else {
+                logger.warn("WARNING: key.properties 부재 → release 를 debug 키로 서명(배포 금지).")
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }

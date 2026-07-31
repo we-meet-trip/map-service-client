@@ -93,6 +93,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
                     .toList(),
               )
             : null,
+        bullets: s.bullets ?? const [],
       );
 
   static final List<_ScheduleStop> _placeholder = [
@@ -704,6 +705,10 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
                   stop.address,
                   style: TextStyle(fontSize: 12, color: AppColors.neutralScale[300]),
                 ),
+                if (stop.bullets.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  _buildReviewSummary(stop.bullets),
+                ],
                 if (stop.transport != null) ...[
                   const SizedBox(height: 14),
                   _buildTransportCard(stop.transport!),
@@ -718,6 +723,50 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
   }
 
   // ── 이동수단 카드 (글라스 효과 + TransportTheme 색상) ──────────
+
+  /// 블로그 후기 요약 두 줄.
+  ///
+  /// 서버가 여러 후기 글을 종합해 만든 문장이라 장소 설명과 방문 팁이 한 줄씩
+  /// 온다. 줄마다 점을 찍어 주소·이동 정보와 시각적으로 구분한다.
+  Widget _buildReviewSummary(List<String> bullets) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: bullets
+          .map(
+            (line) => Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    // 점을 첫 줄 글자 높이 가운데에 맞춘다.
+                    padding: const EdgeInsets.only(top: 6, right: 6),
+                    child: Container(
+                      width: 3,
+                      height: 3,
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryScale[300],
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      line,
+                      style: TextStyle(
+                        fontSize: 12,
+                        height: 1.4,
+                        color: AppColors.neutralScale[400],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )
+          .toList(),
+    );
+  }
 
   Widget _buildTransportCard(_TransportInfo transport) {
     final theme = TransportTheme.byLabel(transport.label);
@@ -1240,6 +1289,10 @@ class _ScheduleStop {
   final NLatLng latLng;
   final _TransportInfo? transport;
 
+  /// 블로그 후기를 종합한 요약 두 줄. 후기를 구하지 못한 장소는 비어 있고,
+  /// 그때는 카드에서 이 영역을 통째로 접는다.
+  final List<String> bullets;
+
   const _ScheduleStop({
     required this.day,
     required this.name,
@@ -1247,6 +1300,7 @@ class _ScheduleStop {
     required this.time,
     required this.latLng,
     required this.transport,
+    this.bullets = const [],
   });
 }
 
