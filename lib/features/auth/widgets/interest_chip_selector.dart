@@ -6,17 +6,19 @@ class InterestChipSelector extends StatefulWidget {
     super.key,
     required this.items,
     required this.onChanged,
+    this.initialSelected = const [],
   });
 
   final List<String> items;
   final ValueChanged<List<String>> onChanged;
+  final List<String> initialSelected;
 
   @override
   State<InterestChipSelector> createState() => _InterestChipSelectorState();
 }
 
 class _InterestChipSelectorState extends State<InterestChipSelector> {
-  final Set<String> _selected = {};
+  late final Set<String> _selected = {...widget.initialSelected};
 
   void _toggle(String item) {
     setState(() {

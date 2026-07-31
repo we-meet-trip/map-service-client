@@ -11,12 +11,15 @@ import '../state/trip_repository.dart';
 import '../../features/chat/screens/chat_screen.dart';
 import '../../features/mypage/screens/mypage_screen.dart';
 import '../../features/mypage/screens/profile_edit_screen.dart';
+import '../../features/mypage/screens/interests_edit_screen.dart';
+import '../../features/mypage/screens/notification_settings_screen.dart';
 import '../../features/auth/screens/auth_screen.dart';
 import '../../features/auth/screens/signup_step1_screen.dart';
 import '../../features/auth/screens/signup_step2_screen.dart';
 import '../../features/auth/screens/signup_step3_screen.dart';
 import '../../features/auth/screens/signup_complete_screen.dart';
 import '../../features/splash/screens/splash_screen.dart';
+import '../../common/widgets/address_search_screen.dart';
 
 final isAuthenticated = ValueNotifier<bool>(false);
 
@@ -60,6 +63,10 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/signup/complete',
       builder: (context, state) => const SignupCompleteScreen(),
+    ),
+    GoRoute(
+      path: '/address-search',
+      builder: (context, state) => const AddressSearchScreen(),
     ),
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) =>
@@ -130,6 +137,16 @@ final appRouter = GoRouter(
                   path: 'edit',
                   parentNavigatorKey: _rootNavigatorKey,
                   builder: (context, state) => const ProfileEditScreen(),
+                ),
+                GoRoute(
+                  path: 'interests',
+                  parentNavigatorKey: _rootNavigatorKey,
+                  builder: (context, state) => const InterestsEditScreen(),
+                ),
+                GoRoute(
+                  path: 'notifications',
+                  parentNavigatorKey: _rootNavigatorKey,
+                  builder: (context, state) => const NotificationSettingsScreen(),
                 ),
               ],
             ),
