@@ -932,9 +932,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
             ],
           ),
           child: ElevatedButton(
-            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('즐거운 여행 되세요!')),
-            ),
+            onPressed: () => context.push('/navigation', extra: widget.savedTrip),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.transparent,
               shadowColor: Colors.transparent,
