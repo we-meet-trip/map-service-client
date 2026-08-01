@@ -678,9 +678,12 @@ class _WeatherCard extends StatelessWidget {
                           style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w600)),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  Text('어제보다 기온이 낮아요',
-                      style: TextStyle(fontSize: 16, color: AppColors.neutralScale[400])),
+                  // 어제 같은 시간대 기록이 있을 때만 비교 문구를 그린다.
+                  if (w.yesterdayLabel != null) ...[
+                    const SizedBox(height: 4),
+                    Text(w.yesterdayLabel!,
+                        style: TextStyle(fontSize: 16, color: AppColors.neutralScale[400])),
+                  ],
                 ],
               ),
               const Spacer(),
@@ -713,11 +716,14 @@ class _WeatherCard extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('최고  ${w.tempMax.round()}°C',
-                        style: TextStyle(fontSize: 13, color: AppColors.neutralScale[500])),
-                    const SizedBox(height: 6),
-                    Text('최저  ${w.tempMin.round()}°C',
-                        style: TextStyle(fontSize: 13, color: AppColors.neutralScale[500])),
+                    if (w.tempMax != null)
+                      Text('최고  ${w.tempMax}°C',
+                          style: TextStyle(fontSize: 13, color: AppColors.neutralScale[500])),
+                    if (w.tempMax != null && w.tempMin != null)
+                      const SizedBox(height: 6),
+                    if (w.tempMin != null)
+                      Text('최저  ${w.tempMin}°C',
+                          style: TextStyle(fontSize: 13, color: AppColors.neutralScale[500])),
                   ],
                 ),
                 const SizedBox(width: 16),
@@ -726,30 +732,37 @@ class _WeatherCard extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('강수확률  ${w.pop}%',
-                        style: TextStyle(fontSize: 13, color: AppColors.neutralScale[500])),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        Text('미세먼지 ',
-                            style: TextStyle(fontSize: 13, color: AppColors.neutralScale[500])),
-                        Text(w.pm10Label,
-                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
-                                color: _pmColor(w.pm10Label))),
-                        Text(' · 초미세먼지 ',
-                            style: TextStyle(fontSize: 13, color: AppColors.neutralScale[500])),
-                        Text(w.pm25Label,
-                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
-                                color: _pmColor(w.pm25Label))),
-                      ],
-                    ),
+                    if (w.pop != null)
+                      Text('강수확률  ${w.pop}%',
+                          style: TextStyle(fontSize: 13, color: AppColors.neutralScale[500])),
+                    if (w.pop != null && w.pm10Grade != null)
+                      const SizedBox(height: 6),
+                    // 등급은 서버가 매긴 값을 그대로 쓴다 — 기준을 양쪽에 두면
+                    // 서서히 갈라진다.
+                    if (w.pm10Grade != null)
+                      Row(
+                        children: [
+                          Text('미세먼지 ',
+                              style: TextStyle(fontSize: 13, color: AppColors.neutralScale[500])),
+                          Text(w.pm10Grade!,
+                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                                  color: _pmColor(w.pm10Grade!))),
+                          if (w.pm25Grade != null) ...[
+                            Text(' · 초미세먼지 ',
+                                style: TextStyle(fontSize: 13, color: AppColors.neutralScale[500])),
+                            Text(w.pm25Grade!,
+                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                                    color: _pmColor(w.pm25Grade!))),
+                          ],
+                        ],
+                      ),
                   ],
                 ),
               ],
             ),
           ),
           const SizedBox(height: 14),
-          Text('기상청·에어코리아 제공',
+          Text(w.attribution,
               style: TextStyle(fontSize: 11, color: AppColors.neutralScale[200])),
         ],
       ),

@@ -27,8 +27,9 @@ class TripRegenerateScreen extends StatefulWidget {
   State<TripRegenerateScreen> createState() => _TripRegenerateScreenState();
 }
 
-//API 사용시 false로 변경하면 됩니다.
-const bool _useMock = true;
+// 서버 없이 화면만 확인할 때 true 로 되돌린다. 평소에는 실제 일정 생성을
+// 호출하므로 false 다.
+const bool _useMock = false;
 
 Future<TripGenerateResponse> _mockGenerateTrip() async {
   await Future.delayed(const Duration(seconds: 2));
