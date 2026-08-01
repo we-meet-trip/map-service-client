@@ -3,8 +3,8 @@ import 'dart:convert';
 
 import 'package:stomp_dart_client/stomp_dart_client.dart';
 
+import '../config/app_config.dart';
 import '../state/auth_store.dart';
-import 'api_client.dart';
 
 /// 대화방 실시간 연결.
 ///
