@@ -2,8 +2,6 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>NMFClientId</key>
-	<string>$(NAVER_MAP_CLIENT_ID)</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>현재 위치 날씨 정보를 제공하기 위해 위치 권한이 필요합니다.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
@@ -12,6 +10,8 @@
 	<string>주변 사물을 인식하기 위해 카메라 권한이 필요합니다.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>음성으로 질문하기 위해 마이크 권한이 필요합니다.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>말한 내용을 글로 옮기기 위해 음성 인식 권한이 필요합니다.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
@@ -32,6 +32,34 @@
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
+	<!-- 앱 전용 주소. 이 목록에 없는 주소로는 앱이 열리지 않는다.
+	     mapauth  : 외부 로그인 창에서 앱으로 돌아올 때 쓴다.
+	     mapservice: 대화방 초대 링크가 앱을 직접 가리킬 때 쓴다.
+	     웹 주소로 온 초대 링크는 별도 절차(도메인 소유 확인)가 필요해
+	     여기가 아니라 계정이 정해진 뒤에 붙인다. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>kr.mapservice.client.auth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>mapauth</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>kr.mapservice.client.invite</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>mapservice</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
