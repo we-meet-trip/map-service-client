@@ -13,10 +13,15 @@ if (localPropertiesFile.exists()) {
     localPropertiesFile.inputStream().use { localProperties.load(it) }
 }
 
+// 지도 키가 담긴 설정 파일. 이 파일의 위치는 앱 루트(android 폴더의 한 단계
+// 위)다. 한 단계를 더 올라가면 파일이 없어 키가 빈 값으로 들어가고, 그러면
+// 빌드는 멀쩡히 끝나는데 실행할 때 지도만 인증에 실패한다.
 val envProperties = Properties()
-val envFile = rootProject.file("../../.env")
+val envFile = rootProject.file("../.env")
 if (envFile.exists()) {
     envFile.inputStream().use { envProperties.load(it) }
+} else {
+    logger.warn("WARNING: ${envFile.path} 부재 → 지도 클라이언트 식별자가 비어 있다.")
 }
 
 // 릴리스 서명 설정. key.properties 는 gitignore 되며 레포에 커밋되지 않는다.
