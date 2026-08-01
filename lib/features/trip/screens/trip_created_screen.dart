@@ -16,6 +16,7 @@ import '../../../core/api/trip_api_service.dart';
 import '../../../core/router/app_router.dart';
 import '../../auth/widgets/kakao_login_button.dart';
 import '../../../common/widgets/draggable_vision_button.dart';
+import '../widgets/place_detail_sheet.dart';
 
 class TripCreatedScreen extends StatefulWidget {
   const TripCreatedScreen({
@@ -680,31 +681,48 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      stop.name,
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.neutralScale[600],
+                // 장소를 누르면 후기와 요약을 담은 상세 시트를 연다.
+                InkWell(
+                  onTap: () => showPlaceDetailSheet(
+                    context,
+                    name: stop.name,
+                    address: stop.address,
+                    initialBullets: stop.bullets,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              stop.name,
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.neutralScale[600],
+                              ),
+                            ),
+                          ),
+                          Text(
+                            stop.time,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.primaryScale[500],
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                    Text(
-                      stop.time,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.primaryScale[500],
+                      const SizedBox(height: 4),
+                      Text(
+                        stop.address,
+                        style: TextStyle(
+                            fontSize: 12, color: AppColors.neutralScale[300]),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  stop.address,
-                  style: TextStyle(fontSize: 12, color: AppColors.neutralScale[300]),
+                    ],
+                  ),
                 ),
                 if (stop.bullets.isNotEmpty) ...[
                   const SizedBox(height: 8),

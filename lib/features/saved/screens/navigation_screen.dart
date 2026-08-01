@@ -93,6 +93,9 @@ class _NavigationScreenState extends State<NavigationScreen>
                         label: s.transportToNext!.label,
                         duration: '${s.transportToNext!.durationMinutes}분',
                         distance: '${s.transportToNext!.distanceKm}km',
+                        path: s.transportToNext!.path
+                            ?.map((p) => NLatLng(p[0], p[1]))
+                            .toList(),
                       )
                     : null,
               ))
@@ -360,17 +363,46 @@ class _NavigationScreenState extends State<NavigationScreen>
       ));
     }
 
-    // 경로 폴리라인
-    await controller.addOverlay(NPolylineOverlay(
-      id: 'nav_route',
-      coords: _stops.map((s) => s.latLng).toList(),
-      color: AppColors.primaryScale[400]!,
-      width: 5,
-    ));
+    // 경로 폴리라인 — 구간마다 도로 좌표가 있으면 그것을, 없으면 두 방문지를
+    // 잇는 직선을 이어 붙인다. 일차가 바뀌는 지점은 서버가 이동 정보를 비워
+    // 보내므로 그 구간은 직선 폴백으로만 남는다.
+    final routeCoords = <NLatLng>[];
+    void addPoint(NLatLng p) {
+      // 구간 접점의 중복 좌표는 값 비교로 걸러 낸다.
+      if (routeCoords.isEmpty ||
+          routeCoords.last.latitude != p.latitude ||
+          routeCoords.last.longitude != p.longitude) {
+        routeCoords.add(p);
+      }
+    }
 
-    // 모든 정류장이 보이도록 fitBounds (하단 시트 공간 확보)
-    final lats = _stops.map((s) => s.latLng.latitude);
-    final lngs = _stops.map((s) => s.latLng.longitude);
+    for (int i = 0; i < _stops.length - 1; i++) {
+      final legPath = _stops[i].transport?.path;
+      final seg = (legPath != null && legPath.length >= 2)
+          ? legPath
+          : [_stops[i].latLng, _stops[i + 1].latLng];
+      for (final p in seg) {
+        addPoint(p);
+      }
+    }
+
+    if (routeCoords.length >= 2) {
+      await controller.addOverlay(NPathOverlay(
+        id: 'nav_route',
+        coords: routeCoords,
+        color: AppColors.primaryScale[400]!,
+        width: 6,
+        outlineColor: Colors.white,
+        outlineWidth: 2,
+      ));
+    }
+
+    // 경로 전체가 보이도록 fitBounds (하단 시트 공간 확보)
+    final boundsPoints = routeCoords.isNotEmpty
+        ? routeCoords
+        : _stops.map((s) => s.latLng).toList();
+    final lats = boundsPoints.map((p) => p.latitude);
+    final lngs = boundsPoints.map((p) => p.longitude);
     await controller.updateCamera(
       NCameraUpdate.fitBounds(
         NLatLngBounds(
@@ -1147,9 +1179,13 @@ class _Transport {
   final String duration;
   final String distance;
 
+  /// 서버가 내려준 도로 좌표. 없으면 두 방문지를 직선으로 잇는다.
+  final List<NLatLng>? path;
+
   const _Transport({
     required this.label,
     required this.duration,
     required this.distance,
+    this.path,
   });
 }
