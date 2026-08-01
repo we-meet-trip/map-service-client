@@ -47,6 +47,8 @@ android {
     }
 
     defaultConfig {
+        // 지도 SDK 인증은 이 식별자로 이뤄진다. 지도 콘솔에 이 이름이 등록돼
+        // 있어야 지도가 뜬다 — 등록되지 않으면 401 로 타일이 비어 나온다.
         applicationId = "kr.mapservice.client"
         // minSdk 24: flutter_naver_map 1.4.4 요구 최소치(NCP Maps SDK).
         minSdk = 24
