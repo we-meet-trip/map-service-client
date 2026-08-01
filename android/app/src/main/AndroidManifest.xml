@@ -30,6 +30,15 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- 카카오 로그인 복귀 주소. 브라우저에서 인가를 마치면 서버가 이
+                 주소로 되돌려보내고, 앱이 인가 코드를 받아 토큰으로 바꾼다.
+                 체계 이름은 서버 설정과 같아야 한다. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="mapauth" android:host="kakao" />
+            </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->

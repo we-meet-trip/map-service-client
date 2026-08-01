@@ -52,6 +52,79 @@ class TripGenerateRequest {
       };
 }
 
+/// 사용자가 고른 장소 한 곳 — 동선만 다시 만들 때 서버로 보낸다.
+///
+/// 서버가 부여했던 장소 식별자는 이 요청에 싣지 않는다. 서버는 이름과 좌표로
+/// 장소를 다시 세우므로, 식별자는 화면 안에서 무엇을 골랐는지 기억하는 데만
+/// 쓰인다.
+class SelectedPlace {
+  final String name;
+  final String address;
+  final double latitude;
+  final double longitude;
+  final int day;
+
+  const SelectedPlace({
+    required this.name,
+    required this.address,
+    required this.latitude,
+    required this.longitude,
+    required this.day,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        'address': address,
+        'lat': latitude,
+        'lng': longitude,
+        'day': day,
+      };
+}
+
+/// 고른 장소로 동선만 다시 만드는 요청.
+///
+/// 예산·테마를 담지 않는다. 후보를 고를 때 쓰는 조건인데 장소가 이미
+/// 정해져 있어 쓸 곳이 없다.
+class TripRouteRequest {
+  final DateTime startDate;
+  final DateTime endDate;
+  final int activeStartHour;
+  final int activeEndHour;
+  final String transport;
+  final String province;
+  final String city;
+  final List<SelectedPlace> places;
+
+  const TripRouteRequest({
+    required this.startDate,
+    required this.endDate,
+    required this.activeStartHour,
+    required this.activeEndHour,
+    required this.transport,
+    required this.province,
+    required this.city,
+    required this.places,
+  });
+
+  String _fmtDate(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  Map<String, dynamic> toJson() => {
+        'schedule': {
+          'start_date': _fmtDate(startDate),
+          'end_date': _fmtDate(endDate),
+          'active_start_hour': activeStartHour,
+          'active_end_hour': activeEndHour,
+        },
+        'transport': transport,
+        'location': {
+          'province': province,
+          'city': city,
+        },
+        'places': places.map((p) => p.toJson()).toList(),
+      };
+}
+
 // ─── Response ─────────────────────────────────────────────────
 
 class TripTransportToNext {
@@ -106,6 +179,9 @@ class TripStop {
   /// 이 장소를 추천한 이유 한 문장.
   final String? reason;
 
+  /// 장소 분류(예: 해변, 카페). 상세 시트의 분류 칩에 쓴다.
+  final String? category;
+
   /// 블로그 후기를 종합한 요약 두 줄. 근거가 될 후기를 못 구한 장소는
   /// 아예 오지 않으므로 카드에서 이 영역을 통째로 접어야 한다.
   final List<String>? bullets;
@@ -122,6 +198,7 @@ class TripStop {
     this.placeId,
     this.placeUrl,
     this.reason,
+    this.category,
     this.bullets,
   });
 
@@ -137,12 +214,13 @@ class TripStop {
             ? TripTransportToNext.fromJson(
                 json['transport_to_next'] as Map<String, dynamic>)
             : null,
-        // 아래 네 값은 서버가 못 채우면 키 자체가 없다. 필수 필드처럼
+        // 아래 값들은 서버가 못 채우면 키 자체가 없다. 필수 필드처럼
         // 캐스팅하면 요약이 없는 장소 하나 때문에 화면 전체가 죽으므로,
         // 타입이 어긋나는 값은 조용히 버리고 없는 것으로 취급한다.
         placeId: json['place_id'] is int ? json['place_id'] as int : null,
         placeUrl: json['place_url'] is String ? json['place_url'] as String : null,
         reason: json['reason'] is String ? json['reason'] as String : null,
+        category: json['category'] is String ? json['category'] as String : null,
         bullets: (json['bullets'] as List<dynamic>?)
             ?.whereType<String>()
             .where((line) => line.trim().isNotEmpty)
@@ -235,15 +313,31 @@ class TripApiService {
   // 요청을 클라이언트가 먼저 버려, 곧 도착할 결과를 못 받고 실패로 표시한다.
   static const _requestTimeout = Duration(seconds: 180);
 
-  Future<TripGenerateResponse> generateTrip(TripGenerateRequest request) async {
-    final uri = Uri.parse('$_baseUrl/api/v1/trip/generate');
+  Future<TripGenerateResponse> generateTrip(TripGenerateRequest request) =>
+      _postTrip('/api/v1/trip/generate', request.toJson());
+
+  /// 고른 장소로 동선만 다시 만든다.
+  ///
+  /// 응답 형태가 일정 생성과 같아서 결과 화면을 그대로 재사용한다.
+  Future<TripGenerateResponse> routeTrip(TripRouteRequest request) =>
+      _postTrip('/api/v1/trip/route', request.toJson());
+
+  /// 일정 응답을 돌려주는 두 경로가 공유하는 전송부.
+  ///
+  /// 오류 본문 형태가 서버 계층마다 달라, 알아볼 수 있는 키를 순서대로
+  /// 찾아본다. 어느 것도 없으면 상태 코드만 남긴다.
+  Future<TripGenerateResponse> _postTrip(
+    String path,
+    Map<String, dynamic> body,
+  ) async {
+    final uri = Uri.parse('$_baseUrl$path');
     final http.Response response;
     try {
       response = await http
           .post(
             uri,
             headers: {'Content-Type': 'application/json'},
-            body: jsonEncode(request.toJson()),
+            body: jsonEncode(body),
           )
           .timeout(_requestTimeout);
     } on TimeoutException {
@@ -254,15 +348,29 @@ class TripApiService {
       );
     }
 
-    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    Map<String, dynamic> parsed;
+    try {
+      parsed = jsonDecode(response.body) as Map<String, dynamic>;
+    } on FormatException {
+      // 본문이 비었거나 JSON 이 아닌 응답(게이트웨이 오류 등).
+      throw TripApiException(
+        error: 'INVALID_RESPONSE',
+        message: '서버 응답을 읽지 못했어요. 잠시 후 다시 시도해주세요.',
+        statusCode: response.statusCode,
+      );
+    }
 
     if (response.statusCode == 200) {
-      return TripGenerateResponse.fromJson(body);
+      return TripGenerateResponse.fromJson(parsed);
     }
 
     throw TripApiException(
-      error: body['error'] as String? ?? 'UNKNOWN_ERROR',
-      message: body['message'] as String? ?? '알 수 없는 오류가 발생했습니다.',
+      error: parsed['error'] as String? ??
+          parsed['code'] as String? ??
+          'UNKNOWN_ERROR',
+      message: parsed['message'] as String? ??
+          parsed['detail'] as String? ??
+          '알 수 없는 오류가 발생했습니다.',
       statusCode: response.statusCode,
     );
   }

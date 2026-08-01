@@ -167,7 +167,18 @@ class NMarker {
   final String id;
   final NLatLng position;
   final NOverlayImage? icon;
-  const NMarker({required this.id, required this.position, this.icon});
+
+  NMarker({required this.id, required this.position, this.icon});
+
+  /// 마커를 눌렀을 때 부를 함수. 지정되지 않으면 클릭을 듣지 않는다.
+  ///
+  /// 인자를 받는 형태는 모바일 구현과 맞춘다 — 화면 코드가 플랫폼에 따라
+  /// 갈리지 않아야 한다.
+  void Function(NMarker overlay)? onTap;
+
+  void setOnTapListener(void Function(NMarker overlay) listener) {
+    onTap = listener;
+  }
 }
 
 class NPolylineOverlay {

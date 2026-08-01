@@ -22,6 +22,7 @@ class _SearchStep1ScreenState extends State<SearchStep1Screen> {
       iconData: Icons.refresh_rounded,
       iconBg: AppColors.secondaryScale[200]!,
       iconColor: AppColors.secondaryScale[500]!,
+      ctaLabel: '재탐색 시작하기  →',
     ),
     _SearchOption(
       title: 'AI 추천 장소 선택하기',
@@ -29,6 +30,7 @@ class _SearchStep1ScreenState extends State<SearchStep1Screen> {
       iconData: Icons.place_outlined,
       iconBg: const Color(0xFFFFEDD5),
       iconColor: const Color(0xFFF97316),
+      ctaLabel: '장소 고르러 가기  →',
     ),
     _SearchOption(
       title: '직접 수정하기',
@@ -37,8 +39,22 @@ class _SearchStep1ScreenState extends State<SearchStep1Screen> {
       iconBg: const Color(0xFFDBEAFE),
       iconColor: const Color(0xFF3B82F6),
       disabled: true,
+      ctaLabel: '준비 중',
     ),
   ];
+
+  /// 고른 항목에 따라 다음 화면이 갈린다.
+  ///
+  /// 처음부터 다시 만드는 길과, 방금 받은 추천 장소 중에서 고르는 길이
+  /// 다르다. 예전에는 어느 것을 골라도 완전 재탐색으로만 갔다.
+  void _start() {
+    if (_selectedIndex == 1) {
+      context.go('/trip/search/places');
+      return;
+    }
+    tripRetrialNotifier.value++;
+    context.go('/trip');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -102,11 +118,8 @@ class _SearchStep1ScreenState extends State<SearchStep1Screen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               NextButton(
-                label: '재탐색 시작하기  →',
-                onPressed: () {
-                  tripRetrialNotifier.value++;
-                  context.go('/trip');
-                },
+                label: _options[_selectedIndex].ctaLabel,
+                onPressed: _start,
               ),
               const SizedBox(height: 10),
               PrevButton(
@@ -275,12 +288,17 @@ class _SearchOption {
   final Color iconColor;
   final bool disabled;
 
+  /// 이 항목을 골랐을 때 하단 버튼에 적히는 문구. 항목마다 다음에 일어날
+  /// 일이 달라 버튼 문구도 함께 바뀐다.
+  final String ctaLabel;
+
   const _SearchOption({
     required this.title,
     required this.subtitle,
     required this.iconData,
     required this.iconBg,
     required this.iconColor,
+    required this.ctaLabel,
     this.disabled = false,
   });
 }

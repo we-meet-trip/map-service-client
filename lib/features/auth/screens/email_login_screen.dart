@@ -3,7 +3,8 @@ import 'package:go_router/go_router.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../common/widgets/next_button.dart';
 import '../../../common/widgets/text_field.dart';
-import '../../../core/router/app_router.dart';
+import '../../../core/api/api_client.dart';
+import '../../../core/api/auth_api_service.dart';
 import '../../../core/state/trip_repository.dart';
 
 class EmailLoginScreen extends StatefulWidget {
@@ -51,11 +52,20 @@ class _EmailLoginScreenState extends State<EmailLoginScreen> {
 
     setState(() => _loading = true);
 
-    // TODO: 실제 로그인 API 연결
-    await Future.delayed(const Duration(milliseconds: 800));
+    try {
+      await AuthApiService.instance.login(email: email, password: password);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        // 서버는 이메일과 비밀번호 중 무엇이 틀렸는지 가려 주지 않는다.
+        // 가려 주면 어떤 이메일이 가입돼 있는지 알아낼 수 있기 때문이다.
+        _passwordError = e.message;
+      });
+      return;
+    }
     if (!mounted) return;
-
-    isAuthenticated.value = true;
+    setState(() => _loading = false);
 
     if (TripRepository.instance.pendingTrip != null) {
       context.go('/trip');

@@ -100,7 +100,24 @@ class NaverMapController {
         'anchor': JsPoint(18, 18),
       }),
     }));
-    _overlays.add(_Tracked(() => marker.setMap(null), null));
+    // 마커를 눌러 고르는 화면이 있어 클릭을 듣는다. 지도에서 뗄 때 리스너도
+    // 함께 떼지 않으면 사라진 마커와 그 마커가 붙들고 있는 화면 상태가
+    // 계속 살아남는다.
+    final onTap = m.onTap;
+    JSAny? listener;
+    if (onTap != null) {
+      listener = naverEventAddListener(
+        marker,
+        'click',
+        ((JSAny? _) => onTap(m)).toJS,
+      );
+    }
+    _overlays.add(_Tracked(() {
+      if (listener != null) {
+        naverEventRemoveListener(listener);
+      }
+      marker.setMap(null);
+    }, null));
   }
 
   void _addPath(NPathOverlay p) {
