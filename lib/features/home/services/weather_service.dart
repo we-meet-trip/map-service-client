@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 
+import '../../../core/config/app_config.dart';
 import '../models/weather_data.dart';
 
 /// 홈 화면 날씨 카드의 데이터 공급자.
@@ -13,11 +14,9 @@ import '../models/weather_data.dart';
 /// 했는데, 그러려면 인증키를 앱에 넣어야 했고 같은 계산이 서버와 앱 양쪽에
 /// 중복으로 존재했다.
 class WeatherService {
-  /// 서버 주소. 빌드 시 주입하며, 지정하지 않으면 로컬 개발 서버를 본다.
-  static const _baseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'http://localhost:8080',
-  );
+  /// 서버 주소는 시작할 때 정해진다. 상수로 잡아 두면 그 시점의 값이
+  /// 굳어져, 원격에서 받은 주소가 반영되지 않는다.
+  static String get _baseUrl => kApiBaseUrl;
 
   /// 화면을 오갈 때마다 다시 부르지 않도록 잠시 들고 있는다. 실황이 매시
   /// 갱신이라 이보다 자주 물어도 대체로 같은 값이 온다.

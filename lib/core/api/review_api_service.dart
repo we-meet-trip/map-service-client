@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../config/app_config.dart';
+
 /// 블로그 후기 한 건.
 class BlogReview {
   /// 블로그 이름.
@@ -62,10 +64,9 @@ class ReviewApiService {
 
   static final ReviewApiService instance = ReviewApiService._();
 
-  static const _baseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'http://localhost:8080',
-  );
+  /// 서버 주소는 시작할 때 정해진다. 상수로 잡아 두면 그 시점의 값이
+  /// 굳어져, 원격에서 받은 주소가 반영되지 않는다.
+  static String get _baseUrl => kApiBaseUrl;
 
   static const _timeout = Duration(seconds: 15);
 

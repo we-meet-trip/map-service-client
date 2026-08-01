@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
+import '../config/app_config.dart';
+
 // ─── Request ──────────────────────────────────────────────────
 
 class TripGenerateRequest {
@@ -303,8 +305,7 @@ class TripApiService {
   TripApiService._();
   static final TripApiService instance = TripApiService._();
 
-  static String get _baseUrl =>
-      dotenv.env['API_BASE_URL'] ?? 'http://localhost:8080';
+  static String get _baseUrl => kApiBaseUrl;
 
   // 여행 생성은 LLM 여러 번 호출로 수 초~2분 소요된다. 무한 대기를 막되,
   // 서버가 먼저 끊고 사유를 담은 응답을 줄 수 있도록 서버 대기 상한보다

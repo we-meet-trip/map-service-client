@@ -3,13 +3,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../config/app_config.dart';
 import '../state/auth_store.dart';
-
-/// 서버 주소. 빌드 때 넘긴 값이 없으면 로컬을 본다.
-const String kApiBaseUrl = String.fromEnvironment(
-  'API_BASE_URL',
-  defaultValue: 'http://localhost:8080',
-);
 
 /// 서버가 돌려준 오류.
 ///
