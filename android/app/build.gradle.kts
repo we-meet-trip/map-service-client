@@ -68,8 +68,10 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         manifestPlaceholders["naverMapClientId"] = naverMapClientId
-        // TODO: 실제 도메인 확정 후 아래 값을 교체하세요 (예: "myapp.web.app")
-        manifestPlaceholders["deepLinkHost"] = "map-project-cbd94.web.app"
+        // 초대 링크를 받는 도메인. 이 도메인의 /.well-known/assetlinks.json 에
+        // 아래 applicationId 와 릴리스 서명 지문이 올라가 있어야 링크가 앱으로
+        // 열린다(그렇지 않으면 브라우저로만 열린다).
+        manifestPlaceholders["deepLinkHost"] = "mapcenter-b59ca.web.app"
     }
 
     signingConfigs {
