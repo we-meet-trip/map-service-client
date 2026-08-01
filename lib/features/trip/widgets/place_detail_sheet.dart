@@ -7,9 +7,9 @@ import '../../../core/api/review_api_service.dart';
 /// 장소 상세를 아래에서 올라오는 시트로 보여 준다.
 ///
 /// [name] 은 장소명, [address] 는 주소, [category] 는 분류 칩에 쓴다.
-/// [initialBullets] 는 일정을 만들 때 이미 받아 둔 두 줄 요약이다. 값이 있으면
-/// 그대로 쓰고, 없을 때만 서버에 새로 물어 본다 — 같은 요약을 두 번 만들 이유가
-/// 없다.
+/// 두 줄 요약은 이 시트를 열 때 서버에 물어 만든다. 일정 목록에는 요약을 싣지
+/// 않는다 — 요약은 장소를 눌러 자세히 볼 때 필요한 정보다. 서버가 장소별로
+/// 하루 동안 결과를 들고 있어 두 번째 클릭부터는 즉시 나온다.
 ///
 /// 별점·사진·영업시간은 화면에 두지 않는다. 지금 쓰는 장소 출처가 그 값을 주지
 /// 않아서, 자리를 만들어 두면 늘 비어 있는 칸이 남는다.
@@ -18,7 +18,6 @@ Future<void> showPlaceDetailSheet(
   required String name,
   required String address,
   String? category,
-  List<String> initialBullets = const [],
 }) {
   return showModalBottomSheet(
     context: context,
@@ -28,7 +27,6 @@ Future<void> showPlaceDetailSheet(
       name: name,
       address: address,
       category: category,
-      initialBullets: initialBullets,
     ),
   );
 }
@@ -38,13 +36,11 @@ class _PlaceDetailSheet extends StatefulWidget {
     required this.name,
     required this.address,
     required this.category,
-    required this.initialBullets,
   });
 
   final String name;
   final String address;
   final String? category;
-  final List<String> initialBullets;
 
   @override
   State<_PlaceDetailSheet> createState() => _PlaceDetailSheetState();
@@ -71,10 +67,7 @@ class _PlaceDetailSheetState extends State<_PlaceDetailSheet> {
   @override
   void initState() {
     super.initState();
-    _bullets = widget.initialBullets;
-    if (_bullets.isEmpty) {
-      _loadSummary();
-    }
+    _loadSummary();
     _loadFirstPage();
   }
 
