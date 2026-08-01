@@ -19,14 +19,21 @@ if (envFile.exists()) {
     envFile.inputStream().use { envProperties.load(it) }
 }
 
-// 릴리스 서명 설정(B-3). key.properties 는 gitignore 되며 레포에 커밋되지 않는다.
-// 없으면(예: CI 없이 디버그만) release 서명은 debug 로 폴백한다(아래 buildTypes).
+// 릴리스 서명 설정. key.properties 는 gitignore 되며 레포에 커밋되지 않는다.
+// 설정 파일과 키스토어 실물이 모두 있어야 릴리스 키로 서명하고, 하나라도
+// 없으면 debug 로 폴백한다(아래 buildTypes).
+//
+// 설정 파일만 보고 판단하면, 키스토어만 사라진 환경에서 서명 단계에 가서야
+// 파일을 못 찾고 죽는다. 그 지점의 오류는 원인을 가리키지 않아 추적이 어렵다.
+// 경로 해석은 아래 signingConfigs 와 같은 file() 을 써서, 상대경로가 적혀도
+// 두 곳의 판정이 갈리지 않게 한다.
 val keystoreProperties = Properties()
 val keystorePropertiesFile = rootProject.file("key.properties")
-val hasReleaseSigning = keystorePropertiesFile.exists()
-if (hasReleaseSigning) {
+if (keystorePropertiesFile.exists()) {
     keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
 }
+val keystoreFile = keystoreProperties.getProperty("storeFile")?.let { file(it) }
+val hasReleaseSigning = keystoreFile != null && keystoreFile.exists()
 
 val naverMapClientId = envProperties.getProperty("NAVER_MAP_CLIENT_ID")
     ?: localProperties.getProperty("naver.map.client.id")
@@ -65,7 +72,7 @@ android {
             create("release") {
                 keyAlias = keystoreProperties.getProperty("keyAlias")
                 keyPassword = keystoreProperties.getProperty("keyPassword")
-                storeFile = keystoreProperties.getProperty("storeFile")?.let { file(it) }
+                storeFile = keystoreFile
                 storePassword = keystoreProperties.getProperty("storePassword")
             }
         }
@@ -73,14 +80,16 @@ android {
 
     buildTypes {
         release {
-            // key.properties 가 있으면 릴리스 키로 서명(배포용). 배포 APK 는 항상
-            // 키를 보유한 빌드 머신(맥)에서 만든다. key.properties 부재 시에만
-            // debug 로 폴백(로컬 개발 편의) — 이 경우 apksigner 검증에서 debug 인증서로
+            // 설정 파일과 키스토어가 모두 있으면 릴리스 키로 서명(배포용). 배포
+            // APK 는 항상 키를 보유한 빌드 머신에서 만든다. 둘 중 하나라도 없으면
+            // debug 로 폴백(로컬 개발 편의) — 이 경우 서명 검증에서 debug 인증서로
             // 드러나므로 실수 배포를 막을 수 있다.
             signingConfig = if (hasReleaseSigning) {
                 signingConfigs.getByName("release")
             } else {
-                logger.warn("WARNING: key.properties 부재 → release 를 debug 키로 서명(배포 금지).")
+                logger.warn(
+                    "WARNING: 서명 설정 또는 키스토어 부재 → release 를 debug 키로 서명(배포 금지)."
+                )
                 signingConfigs.getByName("debug")
             }
         }

@@ -30,6 +30,15 @@ class UserRepository {
     profile.value = profile.value.copyWith(interests: interests);
   }
 
+  /// 여행 테마. 관심사와 같은 단계에서 함께 고르고 함께 서버로 보낸다.
+  void updateThemes(List<String> themes) {
+    profile.value = profile.value.copyWith(themes: themes);
+  }
+
+  /// 가입 요청에 쓸 계정 정보. 서버로 보내고 나면 화면에 남기지 않는다.
+  String? signUpEmail;
+  String? signUpPassword;
+
   void updateProfileImage(String? imagePath) {
     profile.value = profile.value.copyWith(
       profileImagePath: imagePath,
@@ -88,6 +97,9 @@ class UserProfile {
   final DateTime? birthdate;
   final String? gender;
   final List<String> interests;
+
+  /// 여행 테마. 관심사와 함께 골라 함께 서버에 저장한다.
+  final List<String> themes;
   final String? profileImagePath;
   final String? englishName;
   final String? phone;
@@ -102,6 +114,7 @@ class UserProfile {
     this.birthdate,
     this.gender,
     this.interests = const [],
+    this.themes = const [],
     this.profileImagePath,
     this.englishName,
     this.phone,
@@ -121,6 +134,7 @@ class UserProfile {
     DateTime? birthdate,
     String? gender,
     List<String>? interests,
+    List<String>? themes,
     String? profileImagePath,
     bool clearImage = false,
     String? englishName,
@@ -136,6 +150,7 @@ class UserProfile {
       birthdate: birthdate ?? this.birthdate,
       gender: gender ?? this.gender,
       interests: interests ?? this.interests,
+      themes: themes ?? this.themes,
       profileImagePath: clearImage ? null : (profileImagePath ?? this.profileImagePath),
       englishName: englishName ?? this.englishName,
       phone: phone ?? this.phone,

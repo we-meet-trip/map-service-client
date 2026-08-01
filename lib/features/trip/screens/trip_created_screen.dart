@@ -12,6 +12,8 @@ import '../../../common/widgets/prev_button.dart';
 import '../../../common/widgets/app_confirm_dialog.dart';
 import '../../../core/state/trip_repository.dart';
 import '../../../common/widgets/text_field.dart';
+import '../../../core/api/api_client.dart';
+import '../../../core/api/schedule_api_service.dart';
 import '../../../core/api/trip_api_service.dart';
 import '../../../core/router/app_router.dart';
 import '../../auth/widgets/kakao_login_button.dart';
@@ -85,6 +87,8 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
         address: s.address,
         time: s.time,
         latLng: NLatLng(s.latitude, s.longitude),
+        category: s.category,
+        placeId: s.placeId,
         transport: s.transportToNext != null
             ? _TransportInfo(
                 label: s.transportToNext!.label,
@@ -686,6 +690,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
                     context,
                     name: stop.name,
                     address: stop.address,
+                    category: stop.category,
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1050,6 +1055,38 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
     );
   }
 
+  /// 저장한 일정을 서버에도 남긴다.
+  ///
+  /// 서버에 남아야 다른 기기에서 열리고, 이 일정으로 대화방을 만들 수 있다
+  /// (대화방은 자기가 소유한 일정에만 만들 수 있다).
+  ///
+  /// 방금 만든 일정이 아니거나 로그인하지 않았으면 건너뛴다 — 토큰 없이
+  /// 보내면 주인 없는 일정으로 남아 다시 꺼내 볼 수 없다.
+  Future<void> _persistToServer(
+      String name, DateTime start, DateTime end) async {
+    final response = widget.response;
+    final plan = TripRepository.instance.lastPlan;
+    if (response == null || plan == null || !isAuthenticated.value) {
+      return;
+    }
+    try {
+      await ScheduleApiService.instance.save(
+        jobId: response.tripId,
+        title: name,
+        dateStart: start,
+        dateEnd: end,
+        transport: plan.transport,
+        activeStartHour: plan.activeStartHour,
+        activeEndHour: plan.activeEndHour,
+      );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('서버 저장에 실패했어요: ${e.message}')),
+      );
+    }
+  }
+
   // ── 저장 바텀시트 ─────────────────────────────────────────────
 
   void _showSaveBottomSheet(BuildContext context) {
@@ -1060,18 +1097,23 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
       backgroundColor: Colors.transparent,
       useSafeArea: true,
       builder: (sheetContext) => _SaveBottomSheet(
-        onSaved: (name) {
+        onSaved: (name) async {
+          final start = widget.startDate ?? DateTime.now();
+          final end = widget.endDate ?? start;
           TripRepository.instance.addTrip(SavedTrip(
             name: name,
             route: route,
             savedAt: DateTime.now(),
-            tripStartDate: widget.startDate ?? DateTime.now(),
-            tripEndDate: widget.endDate ?? DateTime.now(),
+            tripStartDate: start,
+            tripEndDate: end,
             stops: widget.response?.stops ?? const [],
             totalDurationMinutes: widget.response?.totalDurationMinutes ?? _totalDurationMinutes,
           ));
           setState(() => _isSaved = true);
-          _showSavedDialog(context, name);
+          if (mounted) _showSavedDialog(context, name);
+          // 서버에도 남긴다. 여기에 남아야 다른 기기에서도 보이고, 이 일정으로
+          // 대화방을 만들 수 있다. 실패해도 방금 만든 일정은 화면에 남는다.
+          await _persistToServer(name, start, end);
         },
       ),
     );
@@ -1258,6 +1300,13 @@ class _ScheduleStop {
   final NLatLng latLng;
   final _TransportInfo? transport;
 
+  /// 장소 분류. 상세 시트의 분류 칩에 쓴다. 서버가 못 채우면 비어 있고,
+  /// 그때는 칩이 아예 나오지 않는다.
+  final String? category;
+
+  /// 서버가 부여한 장소 식별자. 이 장소를 지목해 다시 요청할 때 쓴다.
+  final int? placeId;
+
   const _ScheduleStop({
     required this.day,
     required this.name,
@@ -1265,6 +1314,8 @@ class _ScheduleStop {
     required this.time,
     required this.latLng,
     required this.transport,
+    this.category,
+    this.placeId,
   });
 }
 

@@ -14,9 +14,20 @@ class TripRepository {
   TripGenerateResponse? pendingTrip;
   bool autoSaveOnNext = false;
 
+  /// 방금 만든 일정과 그때 쓴 조건.
+  ///
+  /// 장소를 골라 동선만 다시 만들려면 그 일정의 장소 목록과 함께 기간·
+  /// 이동수단·지역이 필요한데, 결과 화면에는 장소만 있고 나머지는 없다.
+  /// 재탐색 화면은 라우트가 달라 화면 사이로 값을 넘길 수도 없어 여기에 둔다.
+  TripPlanContext? lastPlan;
+
   void setPendingTrip(TripGenerateResponse response) {
     pendingTrip = response;
     autoSaveOnNext = true;
+  }
+
+  void setLastPlan(TripPlanContext context) {
+    lastPlan = context;
   }
 
   void addTrip(SavedTrip trip) {
@@ -28,6 +39,32 @@ class TripRepository {
       return t.id == tripId ? t.copyWith(chatRoomId: chatRoomId) : t;
     }).toList();
   }
+}
+
+/// 방금 만든 일정과 그때 쓴 조건.
+///
+/// 고른 장소로 동선만 다시 만들 때 그대로 다시 보낸다 — 기간·활동 시간대·
+/// 이동수단·지역은 장소를 바꿔도 그대로 유지되는 조건이다.
+class TripPlanContext {
+  final DateTime startDate;
+  final DateTime endDate;
+  final int activeStartHour;
+  final int activeEndHour;
+  final String transport;
+  final String province;
+  final String city;
+  final List<TripStop> stops;
+
+  const TripPlanContext({
+    required this.startDate,
+    required this.endDate,
+    required this.activeStartHour,
+    required this.activeEndHour,
+    required this.transport,
+    required this.province,
+    required this.city,
+    required this.stops,
+  });
 }
 
 /// 매번 일정을 직접 만들지 않고도 저장 페이지를 테스트할 수 있도록 넣어둔 목 데이터.

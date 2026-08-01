@@ -58,6 +58,20 @@ extension type JsPolygon._(JSObject _) implements JSObject {
 @JS('naver.maps.Event.trigger')
 external void naverEventTrigger(JSObject instance, String eventName);
 
+/// `naver.maps.Event.addListener(instance, eventName, handler)` — used to catch
+/// marker clicks. The returned handle is what removeListener takes.
+@JS('naver.maps.Event.addListener')
+external JSAny naverEventAddListener(
+  JSObject instance,
+  String eventName,
+  JSFunction handler,
+);
+
+/// Detaches a listener registered with [naverEventAddListener]. Without this the
+/// handler keeps the removed marker (and the widget state it closes over) alive.
+@JS('naver.maps.Event.removeListener')
+external void naverEventRemoveListener(JSAny listener);
+
 /// Builds a plain JS object literal from Dart [entries], skipping null values.
 JSObject jsObject(Map<String, JSAny?> entries) {
   final o = JSObject();
