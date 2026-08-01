@@ -39,6 +39,28 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="mapauth" android:host="kakao" />
             </intent-filter>
+            <!-- 대화방 초대 링크. 웹 주소로 받은 링크와 앱 전용 주소를 모두
+                 같은 화면으로 보낸다.
+
+                 웹 주소는 자동 검증(autoVerify)을 켜지 않는다. 검증은 그
+                 도메인에 앱 서명 지문을 올려 두어야 성립하는데, 쓸 도메인이
+                 아직 정해지지 않아 올릴 곳이 없다. 켜 두면 검증에 실패해
+                 링크가 브라우저로만 열린다. 도메인이 정해지면 그때 켠다. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="${deepLinkHost}"
+                    android:pathPrefix="/invite" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="mapservice" android:host="invite" />
+            </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
