@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/api/auth_api_service.dart';
+import '../../../core/state/auth_store.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../common/theme/app_icons.dart';
 import '../../../core/state/user_repository.dart';
@@ -103,28 +105,40 @@ class MypageScreen extends StatelessWidget {
         _MenuItem(label: '관심사 설정', onTap: () => context.push('/mypage/interests')),
         _MenuItem(label: '알림 설정', onTap: () => context.push('/mypage/notifications')),
         Container(height: 9, width: double.infinity, color: AppColors.mypageDivider),
-        const _MenuItem(label: '공지/이벤트'),
-        const _MenuItem(label: '고객센터'),
+        _MenuItem(label: '공지/이벤트', onTap: () => _showComingSoon(context)),
+        _MenuItem(label: '고객센터', onTap: () => _showComingSoon(context)),
         const Spacer(),
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
           child: Align(
             alignment: Alignment.centerRight,
-            child: GestureDetector(
-              onTap: () => _showComingSoon(context),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    '로그아웃',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.savedBadgeFar,
+            // 로그인 여부에 따라 할 일이 달라진다. 로그인하지 않았는데
+            // 로그아웃만 보이면 들어갈 길이 화면에서 사라진다.
+            child: ValueListenableBuilder<bool>(
+              valueListenable: AuthStore.instance.isLoggedIn,
+              builder: (context, loggedIn, _) => GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () async {
+                  if (!loggedIn) {
+                    context.push('/auth');
+                    return;
+                  }
+                  await AuthApiService.instance.logout();
+                },
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      loggedIn ? '로그아웃' : '로그인',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.savedBadgeFar,
+                      ),
                     ),
-                  ),
-                  AppIcon(SvgIcons.chevronRightThin, size: 12, color: AppColors.savedBadgeFar),
-                ],
+                    AppIcon(SvgIcons.chevronRightThin, size: 12, color: AppColors.savedBadgeFar),
+                  ],
+                ),
               ),
             ),
           ),
@@ -165,6 +179,14 @@ class _MenuItem extends StatelessWidget {
         ],
       ),
     );
-    return onTap == null ? content : GestureDetector(onTap: onTap, child: content);
+    // 빈 여백까지 눌리게 한다. 기본 설정으로는 글자와 화살표 위만 반응해,
+    // 줄의 가운데를 눌러도 아무 일이 없는 것처럼 보인다.
+    return onTap == null
+        ? content
+        : GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onTap,
+            child: content,
+          );
   }
 }
