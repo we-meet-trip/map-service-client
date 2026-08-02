@@ -6,7 +6,7 @@
       "**/node_modules/**"
     ],
     "predeploy": [
-      "bash -c 'test -f build/web/app_config.json || { echo \"build/web/app_config.json 없음 — 배포하면 앱이 읽는 주소 파일이 사라진다. map-serve.sh 로 배포하라.\"; exit 1; }'"
+      "bash tool/check_app_config.sh"
     ],
     "headers": [
       {
