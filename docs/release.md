@@ -47,6 +47,10 @@ cd ../map-service-infra && ./scripts/map-serve.sh
 git tag v1.0.1 && git push origin v1.0.1
 ```
 
+**태그는 이 워크플로 파일이 들어 있는 커밋에 달아야 한다.** 빌드 서버는 태그가
+가리키는 커밋에서 워크플로를 읽는다. 파일이 없는 커밋에 태그를 달면 아무 일도
+일어나지 않고, 실패 표시조차 남지 않는다.
+
 `.github/workflows/release.yml` 이 받아서 한다:
 
 1. 실행 설정(`.env`)과 서명 키를 시크릿에서 되살린다
