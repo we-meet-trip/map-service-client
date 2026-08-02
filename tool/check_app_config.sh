@@ -14,7 +14,7 @@
 # 원래 뜻과 다르게 실행될 수 있다.
 set -uo pipefail
 
-dir="${RESOURCE_DIR:-build/web}"
+dir="${RESOURCE_DIR:-hosting}"
 target="$dir/app_config.json"
 
 if [ -f "$target" ]; then
