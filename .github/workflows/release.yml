@@ -5,13 +5,17 @@
 # 쓴다. 여기서 주소를 주입하면 그 설치본만 특정 주소에 묶여 버린다.
 name: release
 
+# iosbuild-* 태그는 iOS 빌드가 서는지만 확인하는 용도다. 설치본을 만들지도,
+# 테스터에게 보내지도 않는다 — 아래 두 잡의 실행 조건이 서로 배타적이다.
+# 수동 실행 버튼은 이 파일이 기본 브랜치에 있어야 나타나므로, 병합 전에도
+# 확인할 수 있도록 태그 경로를 따로 둔다.
 on:
   push:
-    tags: ["v*"]
+    tags: ["v*", "iosbuild-*"]
   workflow_dispatch:
     inputs:
       build_ios:
-        description: "iOS 빌드 건전성까지 확인(맥 러너는 과금이 크다)"
+        description: "iOS 빌드 건전성까지 확인"
         type: boolean
         default: false
 
@@ -32,7 +36,9 @@ env:
   EXPECTED_SIGNER_SHA256: "f749f89d945a627170a79d01d7c08a0ebf67dfaa97e8021a66ce491189166839"
 
 jobs:
+  # 확인 전용 태그로는 돌지 않는다. 돌면 테스터에게 판이 하나 더 배달된다.
   android:
+    if: ${{ !startsWith(github.ref, 'refs/tags/iosbuild-') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -167,7 +173,7 @@ jobs:
   # 일이라 여기서 다루지 않는다. 손으로 켤 때만 도는 이유는 맥 러너가 같은
   # 시간에 열 배로 과금되기 때문이다.
   ios:
-    if: github.event_name == 'workflow_dispatch' && inputs.build_ios
+    if: ${{ startsWith(github.ref, 'refs/tags/iosbuild-') || (github.event_name == 'workflow_dispatch' && inputs.build_ios) }}
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
