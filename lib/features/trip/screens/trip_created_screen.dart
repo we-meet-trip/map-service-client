@@ -1062,15 +1062,18 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
   ///
   /// 방금 만든 일정이 아니거나 로그인하지 않았으면 건너뛴다 — 토큰 없이
   /// 보내면 주인 없는 일정으로 남아 다시 꺼내 볼 수 없다.
-  Future<void> _persistToServer(
+  /// 반환: 저장된 일정 식별자. 저장하지 못했으면 null.
+  Future<int?> _persistToServer(
       String name, DateTime start, DateTime end) async {
     final response = widget.response;
     final plan = TripRepository.instance.lastPlan;
-    if (response == null || plan == null || !isAuthenticated.value) {
-      return;
+    if (response == null || plan == null) return null;
+    if (!isAuthenticated.value) {
+      _toast('로그인해야 일정을 저장할 수 있어요.');
+      return null;
     }
     try {
-      await ScheduleApiService.instance.save(
+      return await ScheduleApiService.instance.save(
         jobId: response.tripId,
         title: name,
         dateStart: start,
@@ -1080,17 +1083,20 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
         activeEndHour: plan.activeEndHour,
       );
     } on ApiException catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('서버 저장에 실패했어요: ${e.message}')),
-      );
+      _toast('저장하지 못했어요: ${e.message}');
+      return null;
     }
+  }
+
+  void _toast(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   // ── 저장 바텀시트 ─────────────────────────────────────────────
 
   void _showSaveBottomSheet(BuildContext context) {
-    final route = _stops.map((s) => s.name).join(' → ');
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1100,20 +1106,13 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
         onSaved: (name) async {
           final start = widget.startDate ?? DateTime.now();
           final end = widget.endDate ?? start;
-          TripRepository.instance.addTrip(SavedTrip(
-            name: name,
-            route: route,
-            savedAt: DateTime.now(),
-            tripStartDate: start,
-            tripEndDate: end,
-            stops: widget.response?.stops ?? const [],
-            totalDurationMinutes: widget.response?.totalDurationMinutes ?? _totalDurationMinutes,
-          ));
+          // 저장 탭이 서버 목록을 보므로, 서버에 남은 뒤에야 저장됐다고 말한다.
+          // 순서를 뒤집으면 실패한 저장을 성공으로 알리게 된다.
+          final scheduleId = await _persistToServer(name, start, end);
+          if (!mounted || scheduleId == null) return;
           setState(() => _isSaved = true);
-          if (mounted) _showSavedDialog(context, name);
-          // 서버에도 남긴다. 여기에 남아야 다른 기기에서도 보이고, 이 일정으로
-          // 대화방을 만들 수 있다. 실패해도 방금 만든 일정은 화면에 남는다.
-          await _persistToServer(name, start, end);
+          TripRepository.instance.markSavedChanged();
+          _showSavedDialog(this.context, name);
         },
       ),
     );
