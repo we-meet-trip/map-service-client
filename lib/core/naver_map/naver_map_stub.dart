@@ -256,6 +256,8 @@ class _NaverMapState extends State<NaverMap> {
   final String _viewType = 'naver-map-web-${_seq++}';
   web.HTMLDivElement? _host;
   web.ResizeObserver? _resizeObserver;
+  NaverMapController? _controller;
+  JSFunction? _gestureHandler;
 
   @override
   void initState() {
@@ -272,6 +274,15 @@ class _NaverMapState extends State<NaverMap> {
   @override
   void dispose() {
     _resizeObserver?.disconnect();
+    // 붙일 때와 같은 함수 객체·같은 캡처 값으로 떼야 실제로 떨어진다.
+    final gesture = _gestureHandler;
+    final host = _host;
+    if (gesture != null && host != null) {
+      host.removeEventListener('pointerdown', gesture, true.toJS);
+      host.removeEventListener('wheel', gesture, true.toJS);
+      _gestureHandler = null;
+    }
+    _controller?.dispose();
     super.dispose();
   }
 
@@ -284,12 +295,22 @@ class _NaverMapState extends State<NaverMap> {
     final host = _host;
     if (!mounted || host == null) return;
     final controller = NaverMapController.create(host, widget.options);
+    _controller = controller;
     widget.onMapReady?.call(controller);
-    // Naver caches the container size at creation; the platform-view div's final
-    // width can settle a frame later. Re-measure on any host resize so tiles
-    // fill the whole container instead of a stale sub-rect.
+
+    // 사용자가 지도를 만졌는지 판정. 끌기·휠 확대·핀치·더블클릭 확대가 전부
+    // 포인터 아니면 휠에서 시작하므로 이 둘만 보면 된다. 지도가 내부적으로
+    // 일으키는 카메라 변경과는 섞이지 않는다.
+    final gesture = ((web.Event _) => controller.markUserMoved()).toJS;
+    _gestureHandler = gesture;
+    host.addEventListener('pointerdown', gesture, true.toJS);
+    host.addEventListener('wheel', gesture, true.toJS);
+
+    // 지도는 생성 시점 상자 크기를 기억 + 플랫폼 뷰 크기는 한 프레임 뒤 확정.
+    // → 크기 변화마다 재정렬.
     _resizeObserver = web.ResizeObserver(
-      ((JSArray<JSAny?> _, web.ResizeObserver _) => controller.refresh()).toJS,
+      ((JSArray<JSAny?> _, web.ResizeObserver _) =>
+          controller.handleHostResize()).toJS,
     );
     _resizeObserver!.observe(host);
   }
