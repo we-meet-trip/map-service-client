@@ -1,4 +1,5 @@
 import 'api_client.dart';
+import 'trip_api_service.dart';
 
 /// 일정 저장·조회·삭제.
 ///
@@ -54,6 +55,15 @@ class ScheduleApiService {
         .toList();
   }
 
+  /// 저장된 일정 하나를 방문지까지 조립해 받는다.
+  ///
+  /// 목록에는 제목과 기간만 있다 — 방문지·이동 카드·도로 경로는 여기서만 온다.
+  /// 서버가 조회 시점 기준으로 경로를 다시 얹으므로 오래전 일정도 지금 경로로 열린다.
+  Future<ScheduleDetail> detail(int scheduleId) async {
+    final json = await _api.get('/api/v1/schedules/$scheduleId');
+    return ScheduleDetail.fromJson(json);
+  }
+
   Future<void> delete(int scheduleId) async {
     await _api.delete('/api/v1/schedules/$scheduleId');
   }
@@ -66,22 +76,65 @@ class ScheduleSummary {
   final DateTime? dateStart;
   final DateTime? dateEnd;
 
+  /// 저장 시각. 목록의 등록순 정렬 근거.
+  /// 여행 기간과 다르다 — 다음 달 여행을 오늘 저장하면 등록은 오늘이다.
+  final DateTime? createdAt;
+
   const ScheduleSummary({
     required this.scheduleId,
     required this.title,
     required this.dateStart,
     required this.dateEnd,
+    required this.createdAt,
   });
 
   factory ScheduleSummary.fromJson(Map<String, dynamic> json) =>
       ScheduleSummary(
         scheduleId: json['schedule_id'] as int,
         title: json['title'] as String? ?? '',
-        dateStart: json['date_start'] is String
-            ? DateTime.tryParse(json['date_start'] as String)
-            : null,
-        dateEnd: json['date_end'] is String
-            ? DateTime.tryParse(json['date_end'] as String)
-            : null,
+        dateStart: _date(json['date_start']),
+        dateEnd: _date(json['date_end']),
+        createdAt: _date(json['created_at']),
       );
 }
+
+/// 저장된 일정 상세.
+/// stops 는 일정 생성 응답과 같은 형식이라 결과 화면을 그대로 재사용한다.
+class ScheduleDetail {
+  final int scheduleId;
+  final String title;
+  final DateTime? dateStart;
+  final DateTime? dateEnd;
+  final String? transport;
+  final int totalDurationMinutes;
+  final List<TripStop> stops;
+  final DateTime? createdAt;
+
+  const ScheduleDetail({
+    required this.scheduleId,
+    required this.title,
+    required this.dateStart,
+    required this.dateEnd,
+    required this.transport,
+    required this.totalDurationMinutes,
+    required this.stops,
+    required this.createdAt,
+  });
+
+  factory ScheduleDetail.fromJson(Map<String, dynamic> json) => ScheduleDetail(
+        scheduleId: json['schedule_id'] as int,
+        title: json['title'] as String? ?? '',
+        dateStart: _date(json['date_start']),
+        dateEnd: _date(json['date_end']),
+        transport: json['transport'] as String?,
+        totalDurationMinutes: json['total_duration_minutes'] as int? ?? 0,
+        stops: (json['stops'] as List<dynamic>? ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .map(TripStop.fromJson)
+            .toList(),
+        createdAt: _date(json['created_at']),
+      );
+}
+
+DateTime? _date(dynamic v) =>
+    v is String ? DateTime.tryParse(v)?.toLocal() : null;
