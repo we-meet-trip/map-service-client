@@ -260,6 +260,8 @@ class _NaverMapState extends State<NaverMap> {
   final String _viewType = 'naver-map-web-${_seq++}';
   web.HTMLDivElement? _host;
   web.ResizeObserver? _resizeObserver;
+  NaverMapController? _controller;
+  JSFunction? _gestureHandler;
 
   @override
   void initState() {
@@ -276,6 +278,15 @@ class _NaverMapState extends State<NaverMap> {
   @override
   void dispose() {
     _resizeObserver?.disconnect();
+    // 붙일 때와 같은 함수 객체·같은 캡처 값으로 떼야 실제로 떨어진다.
+    final gesture = _gestureHandler;
+    final host = _host;
+    if (gesture != null && host != null) {
+      host.removeEventListener('pointerdown', gesture, true.toJS);
+      host.removeEventListener('wheel', gesture, true.toJS);
+      _gestureHandler = null;
+    }
+    _controller?.dispose();
     super.dispose();
   }
 
@@ -288,9 +299,17 @@ class _NaverMapState extends State<NaverMap> {
     final host = _host;
     if (!mounted || host == null) return;
     final controller = NaverMapController.create(host, widget.options);
+    _controller = controller;
     widget.onMapReady?.call(controller);
+
+    final gesture = ((web.Event _) => controller.markUserMoved()).toJS;
+    _gestureHandler = gesture;
+    host.addEventListener('pointerdown', gesture, true.toJS);
+    host.addEventListener('wheel', gesture, true.toJS);
+
     _resizeObserver = web.ResizeObserver(
-      ((JSArray<JSAny?> _, web.ResizeObserver _) => controller.refresh()).toJS,
+      ((JSArray<JSAny?> _, web.ResizeObserver _) =>
+          controller.handleHostResize()).toJS,
     );
     _resizeObserver!.observe(host);
   }

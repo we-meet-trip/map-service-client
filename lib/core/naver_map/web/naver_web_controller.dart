@@ -19,6 +19,13 @@ class NaverMapController {
   final List<_Tracked> _overlays = [];
   _WebLocationOverlay? _locationOverlay;
 
+  /// 화면이 마지막으로 요청한 카메라 의도. 상자 크기 확정 후 재적용용.
+  /// 단계 확대·축소는 상대 이동이라 재적용 시 누적됨 → 담지 않는다.
+  NCameraUpdate? _lastCamera;
+
+  /// 사용자가 직접 움직였는지. true 면 재적용 중단(화면 빼앗기 방지).
+  bool _userMoved = false;
+
   /// 현재 위치 표시 오버레이. 화면이 여러 번 요청해도 같은 마커를 다룬다.
   NLocationOverlay getLocationOverlay() =>
       _locationOverlay ??= _WebLocationOverlay(_map);
@@ -33,10 +40,32 @@ class NaverMapController {
     );
   }
 
-  /// Forces the map to re-measure its container. Naver caches the container
-  /// size at creation time, so if the host element's size is established/changed
-  /// after the map is built, tiles only fill the stale area until a 'resize'.
-  void refresh() => naverEventTrigger(_map, 'resize');
+  /// 상자 크기가 정해지거나 바뀐 뒤 호출.
+  ///
+  /// 지도는 생성 시점의 상자 크기를 기억 → 크기가 한 프레임 뒤 정해지면
+  /// 그 전에 잡힌 화면 범위가 어긋난 채 굳는다.
+  /// 순서 고정: 크기 통지 → 재그리기 → 굳은 범위 재적용.
+  /// 재측정 전에 범위를 넣으면 또 옛 크기 기준으로 계산된다.
+  void handleHostResize() {
+    naverEventTrigger(_map, 'resize');
+    _map.refresh(true);
+    if (_userMoved) return;
+    final last = _lastCamera;
+    if (last != null) _applyCamera(last);
+  }
+
+  /// 사용자가 지도를 직접 만졌다고 표시.
+  void markUserMoved() => _userMoved = true;
+
+  /// 위젯이 사라질 때 호출. 얹어 둔 것들과 그에 걸린 신호를 정리한다.
+  /// 남기면 없어진 마커와 그 마커가 붙들고 있는 화면 상태가 계속 살아남는다.
+  void dispose() {
+    for (final t in _overlays) {
+      t.remove();
+    }
+    _overlays.clear();
+    _locationOverlay = null;
+  }
 
   Future<void> addOverlay(dynamic overlay) async => _add(overlay);
 
@@ -59,13 +88,28 @@ class NaverMapController {
   Future<void> updateCamera(NCameraUpdate update) async {
     switch (update.kind) {
       case NCameraUpdateKind.fitBounds:
+      case NCameraUpdateKind.fromPosition:
+        _lastCamera = update;
+        _applyCamera(update);
+      // 아래 둘은 화면의 확대·축소 버튼에서만 옴 = 사용자 의도.
+      case NCameraUpdateKind.zoomIn:
+        _userMoved = true;
+        _map.setZoom(_map.getZoom().round() + 1, true);
+      case NCameraUpdateKind.zoomOut:
+        _userMoved = true;
+        _map.setZoom(_map.getZoom().round() - 1, true);
+    }
+  }
+
+  void _applyCamera(NCameraUpdate update) {
+    switch (update.kind) {
+      case NCameraUpdateKind.fitBounds:
         final b = update.bounds!;
         final bounds = JsLatLngBounds(
           JsLatLng(b.southWest.latitude, b.southWest.longitude),
           JsLatLng(b.northEast.latitude, b.northEast.longitude),
         );
-        // A number margin applies uniform padding (px) on every side.
-        _map.fitBounds(bounds, (update.padding?.top ?? 0.0).toJS);
+        _map.fitBounds(bounds, _marginOf(update.padding));
       case NCameraUpdateKind.fromPosition:
         final p = update.position!;
         _map.morph(
@@ -73,10 +117,21 @@ class NaverMapController {
           p.zoom.round(),
         );
       case NCameraUpdateKind.zoomIn:
-        _map.setZoom(_map.getZoom().round() + 1, true);
       case NCameraUpdateKind.zoomOut:
-        _map.setZoom(_map.getZoom().round() - 1, true);
+        break;
     }
+  }
+
+  /// 가장자리 여백 — 네 방향 개별 전달.
+  /// 숫자 하나면 사방 균일 적용 → 하단 시트에 가리는 화면에서 경로가 숨는다.
+  JSAny _marginOf(EdgeInsets? padding) {
+    if (padding == null) return 0.0.toJS;
+    return jsObject({
+      'top': padding.top.toJS,
+      'right': padding.right.toJS,
+      'bottom': padding.bottom.toJS,
+      'left': padding.left.toJS,
+    });
   }
 
   void _add(dynamic overlay) {

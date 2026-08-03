@@ -32,6 +32,10 @@ extension type JsMap._(JSObject _) implements JSObject {
   external JsLatLng getCenter();
   external void fitBounds(JsLatLngBounds bounds, [JSAny? margin]);
   external void morph(JsLatLng latlng, int zoom, [JSObject? transition]);
+
+  /// 상자 재측정 + 오버레이 재배치까지 수행.
+  /// 'resize' 통지는 타일만 옮기고 마커·선은 두고 간다.
+  external void refresh([bool noEffect]);
 }
 
 @JS('naver.maps.Marker')
