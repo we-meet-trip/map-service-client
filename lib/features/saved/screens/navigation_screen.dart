@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' show min, max, pi;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_compass/flutter_compass.dart';
 import 'package:geolocator/geolocator.dart';
@@ -172,6 +173,9 @@ class _NavigationScreenState extends State<NavigationScreen>
   }
 
   void _startCompass() {
+    // 브라우저에는 나침반을 읽는 수단이 없다. 그대로 두면 구독을 거는 순간
+    // 죽는다. 방향 표시만 빠지고 위치 추적과 경로 안내는 그대로 동작한다.
+    if (kIsWeb) return;
     _compassSub = FlutterCompass.events?.listen((CompassEvent event) {
       if (!mounted) return;
       final heading = event.heading;
