@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head>
   <!--
     If you are serving your web app in a path other than the root, change the
@@ -18,18 +18,27 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="description" content="여행 일정을 만들고 지도로 확인하는 서비스">
 
-  <!-- iOS meta tags & icons -->
+  <!-- 화면 크기에 맞추고, 노치가 있는 기기에서도 화면 끝까지 그리게 한다.
+       이 선언이 없으면 좁은 화면에서 데스크톱 폭으로 그려져 글자가 작아진다. -->
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+  <!-- 홈 화면에 추가했을 때의 동작. apple- 접두어가 붙은 쪽은 사파리만 읽고,
+       이것이 있어야 주소창 없이 앱처럼 뜬다. -->
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="map_service_client">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="MAP">
+  <!-- 애플 기기는 이 아이콘을 쓰며 투명한 부분을 검게 칠한다. 바탕이 깔린
+       그림을 따로 둔 이유다. -->
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>map_service_client</title>
+  <title>MAP</title>
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
