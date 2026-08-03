@@ -6,7 +6,8 @@
       "**/node_modules/**"
     ],
     "predeploy": [
-      "bash tool/check_app_config.sh"
+      "bash tool/check_app_config.sh",
+      "bash tool/check_web_secrets.sh"
     ],
     "headers": [
       {
@@ -24,6 +25,24 @@
           {
             "key": "Content-Type",
             "value": "application/json"
+          }
+        ]
+      },
+      {
+        "source": "/",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      },
+      {
+        "source": "/@(index.html|flutter_bootstrap.js|flutter.js|main.dart.js|flutter_service_worker.js|version.json|manifest.json)",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
           }
         ]
       }
