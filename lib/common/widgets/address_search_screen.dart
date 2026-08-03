@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../theme/app_colors.dart';
 import '../../core/api/kakao_address_service.dart';
+import 'back_header.dart';
 import 'text_field.dart';
 
 /// 카카오 주소 검색 API로 도로명주소를 검색하는 화면.
@@ -50,7 +52,7 @@ class _AddressSearchScreenState extends State<AddressSearchScreen> {
   }
 
   void _onSelect(KakaoAddressResult result) {
-    Navigator.of(context).pop(result.displayAddress);
+    context.pop(result.displayAddress);
   }
 
   @override
@@ -60,30 +62,7 @@ class _AddressSearchScreenState extends State<AddressSearchScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 12, 16, 4),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: Icon(Icons.arrow_back_ios_new_rounded,
-                        size: 20, color: AppColors.neutralScale[500]),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                  Expanded(
-                    child: Text(
-                      '주소 검색',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.neutralScale[600],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 48),
-                ],
-              ),
-            ),
+            BackHeader(title: '주소 검색', onBack: () => context.pop()),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
               child: Row(

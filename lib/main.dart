@@ -10,6 +10,7 @@ void main() async {
   await dotenv.load(fileName: '.env');
   await Hive.initFlutter();
   await MessageLocalStore.init();
+  await dotenv.load(fileName: ".env");
   await FlutterNaverMap().init(
     clientId: dotenv.env['NAVER_MAP_CLIENT_ID'] ?? '',
     onAuthFailed: (e) => debugPrint('NaverMap 인증 실패: $e'),

@@ -38,7 +38,7 @@ class TripStepScaffold extends StatelessWidget {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(24, 0, 24, 10),
+          padding: EdgeInsets.fromLTRB(24, 0, 24, 10 + MediaQuery.paddingOf(context).bottom),
           child: NextButton(onPressed: onNext, info: nextInfo),
         ),
         if (onPrev != null) ...[

@@ -3,6 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import '../../../common/widgets/next_button.dart';
 import '../../../core/router/app_router.dart';
+import '../../../core/state/trip_repository.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../common/theme/app_text_styles.dart';
 
@@ -52,7 +53,11 @@ class SignupCompleteScreen extends StatelessWidget {
                 label: '나의 여정 시작하기',
                 onPressed: () {
                   isAuthenticated.value = true;
-                  context.go('/');
+                  if (TripRepository.instance.pendingTrip != null) {
+                    context.go('/trip');
+                  } else {
+                    context.go('/');
+                  }
                 },
               ),
             ),
