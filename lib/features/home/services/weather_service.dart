@@ -30,17 +30,28 @@ class WeatherService {
   static WeatherData? _cache;
   static DateTime? _cacheTime;
 
-  Future<WeatherData> fetchWeather() async {
+  /// 담아 둔 값이 대표 지점 기준인지. 정확한 위치로 다시 물을 때는 쓰지 않는다.
+  static bool _cacheApproximate = false;
+
+  /// [useApproximateLocation] 이 참이면 기기 위치를 묻지 않고 대표 좌표로
+  /// 조회한다. 위치 제공을 미룬 사용자에게 카드를 통째로 비우는 대신
+  /// 대표 지점 날씨라도 보여주기 위한 길.
+  Future<WeatherData> fetchWeather({
+    bool useApproximateLocation = false,
+  }) async {
     final now = DateTime.now();
     final cached = _cache;
     final cachedAt = _cacheTime;
     if (cached != null &&
         cachedAt != null &&
-        now.difference(cachedAt) < _cacheDuration) {
+        now.difference(cachedAt) < _cacheDuration &&
+        (useApproximateLocation || !_cacheApproximate)) {
       return cached;
     }
 
-    final position = await _resolvePosition();
+    final position = useApproximateLocation
+        ? (_fallbackLat, _fallbackLng)
+        : await _resolvePosition();
     final uri = Uri.parse('$_baseUrl/api/v1/weather/home').replace(
       queryParameters: {
         'lat': position.$1.toString(),
@@ -59,6 +70,7 @@ class WeatherService {
 
     _cache = data;
     _cacheTime = now;
+    _cacheApproximate = useApproximateLocation;
     return data;
   }
 
