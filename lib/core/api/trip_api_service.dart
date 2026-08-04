@@ -131,7 +131,10 @@ class TripRouteRequest {
 // ─── Response ─────────────────────────────────────────────────
 
 class TripTransportToNext {
-  final String type;
+  /// 이동수단 코드. 일정을 저장할 때 이동수단을 함께 남기기 전에 만들어진
+  /// 일정에는 이 값이 없다. 화면은 이동수단을 label 로 판별하므로 없어도
+  /// 카드는 그대로 그려진다.
+  final String? type;
   final String label;
   final int durationMinutes;
   final double distanceKm;
@@ -141,19 +144,24 @@ class TripTransportToNext {
   final List<List<double>>? path;
 
   const TripTransportToNext({
-    required this.type,
+    this.type,
     required this.label,
     required this.durationMinutes,
     required this.distanceKm,
     this.path,
   });
 
+  /// 값이 빠져 있어도 카드를 만든다.
+  ///
+  /// 예전에 저장된 일정에는 이동수단이 없어 서버가 그 자리를 비워 보낸다.
+  /// 여기서 형을 단정해 읽으면 그런 일정은 화면 전체가 예외로 죽는데,
+  /// 이동 카드 하나 때문에 일정을 못 여는 것은 과한 대가다.
   factory TripTransportToNext.fromJson(Map<String, dynamic> json) =>
       TripTransportToNext(
-        type: json['type'] as String,
-        label: json['label'] as String,
-        durationMinutes: json['duration_minutes'] as int,
-        distanceKm: (json['distance_km'] as num).toDouble(),
+        type: json['type'] as String?,
+        label: json['label'] as String? ?? '이동',
+        durationMinutes: (json['duration_minutes'] as num?)?.toInt() ?? 0,
+        distanceKm: (json['distance_km'] as num?)?.toDouble() ?? 0,
         path: (json['path'] as List<dynamic>?)
             ?.map((p) => (p as List<dynamic>)
                 .map((v) => (v as num).toDouble())
