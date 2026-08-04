@@ -64,6 +64,16 @@ class ScheduleApiService {
     return ScheduleDetail.fromJson(json);
   }
 
+  /// 이 일정을 따라가기 시작했다고 알리고 상세를 받는다.
+  ///
+  /// 시작 시각은 서버가 처음 한 번만 새기므로 몇 번을 불러도 결과가 같다.
+  /// 상세를 함께 받는 이유는 시작 화면이 쓸 방문지·이동 카드·도로 경로가
+  /// 상세에서만 오기 때문이다 — 따로 부르면 왕복이 두 번이 된다.
+  Future<ScheduleDetail> start(int scheduleId) async {
+    final json = await _api.post('/api/v1/schedules/$scheduleId/start');
+    return ScheduleDetail.fromJson(json);
+  }
+
   Future<void> delete(int scheduleId) async {
     await _api.delete('/api/v1/schedules/$scheduleId');
   }
@@ -110,6 +120,9 @@ class ScheduleDetail {
   final List<TripStop> stops;
   final DateTime? createdAt;
 
+  /// 이 일정을 처음 따라가기 시작한 시각. 시작한 적이 없으면 null.
+  final DateTime? startedAt;
+
   const ScheduleDetail({
     required this.scheduleId,
     required this.title,
@@ -119,6 +132,7 @@ class ScheduleDetail {
     required this.totalDurationMinutes,
     required this.stops,
     required this.createdAt,
+    this.startedAt,
   });
 
   factory ScheduleDetail.fromJson(Map<String, dynamic> json) => ScheduleDetail(
@@ -133,6 +147,7 @@ class ScheduleDetail {
             .map(TripStop.fromJson)
             .toList(),
         createdAt: _date(json['created_at']),
+        startedAt: _date(json['started_at']),
       );
 }
 
