@@ -22,6 +22,7 @@ class ChatRoomDetailProvider extends ChangeNotifier {
     isLoading = true;
     notifyListeners();
     try {
+      await _chatRepository.markAsRead(roomId);
       _messages = await _chatRepository.getMessages(roomId);
     } finally {
       isLoading = false;
@@ -42,6 +43,7 @@ class ChatRoomDetailProvider extends ChangeNotifier {
     _messages = [..._messages, optimistic];
     notifyListeners();
     await _chatRepository.sendMessage(roomId, text);
+    await _chatRepository.updateLastMessage(roomId, text, optimistic.sentAt);
   }
 
   Future<String> getInviteLink(String roomTitle) async {

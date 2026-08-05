@@ -96,7 +96,11 @@ class _ChatRoomListScreenState extends State<ChatRoomListScreen> {
                         type: room.type,
                         participantCount: room.participantCount,
                         hasUnread: room.hasUnread,
-                        onTap: () => context.push('/chat/${room.id}', extra: room),
+                        onTap: () => context.push('/chat/${room.id}', extra: room).then((_) {
+                          if (context.mounted) {
+                            context.read<ChatRoomListProvider>().loadRooms();
+                          }
+                        }),
                       );
                     },
                   );

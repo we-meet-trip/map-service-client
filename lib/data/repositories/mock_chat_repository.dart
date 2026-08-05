@@ -7,7 +7,7 @@ class MockChatRepository implements ChatRepository {
   static final _now = DateTime.now();
   static final _yesterday = _now.subtract(const Duration(days: 1));
 
-  static final _rooms = [
+  static final List<ChatRoom> _rooms = [
     ChatRoom(
       id: '1',
       title: '속초 당일치기',
@@ -78,6 +78,35 @@ class MockChatRepository implements ChatRepository {
         isMe: false,
       ),
     ],
+    '2': [
+      ChatMessage(
+        id: 'm2_1',
+        roomId: '2',
+        senderId: 'user_soyeon',
+        senderName: '소연',
+        text: '강릉 숙소 예약 완료했어요!',
+        sentAt: DateTime(_now.year, _now.month, _now.day, 8, 40),
+        isMe: false,
+      ),
+      ChatMessage(
+        id: 'm2_2',
+        roomId: '2',
+        senderId: 'me',
+        senderName: '나',
+        text: '오 진짜요? 어디로 잡았어요?',
+        sentAt: DateTime(_now.year, _now.month, _now.day, 8, 52),
+        isMe: true,
+      ),
+      ChatMessage(
+        id: 'm2_3',
+        roomId: '2',
+        senderId: 'user_soyeon',
+        senderName: '소연',
+        text: '내일 8시에 역 앞에서 봐요!',
+        sentAt: DateTime(_now.year, _now.month, _now.day, 9, 15),
+        isMe: false,
+      ),
+    ],
   };
 
   final _store = MessageLocalStore.instance;
@@ -111,6 +140,22 @@ class MockChatRepository implements ChatRepository {
       isMe: true,
     );
     await _store.saveMessage(msg);
+  }
+
+  @override
+  Future<void> updateLastMessage(String roomId, String text, DateTime sentAt) async {
+    final index = _rooms.indexWhere((r) => r.id == roomId);
+    if (index != -1) {
+      _rooms[index] = _rooms[index].copyWith(lastMessage: text, lastMessageAt: sentAt);
+    }
+  }
+
+  @override
+  Future<void> markAsRead(String roomId) async {
+    final index = _rooms.indexWhere((r) => r.id == roomId);
+    if (index != -1) {
+      _rooms[index] = _rooms[index].copyWith(hasUnread: false);
+    }
   }
 
   @override
