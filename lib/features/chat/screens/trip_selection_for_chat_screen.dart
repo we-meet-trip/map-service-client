@@ -58,7 +58,7 @@ class _TripSelectionForChatScreenState
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '알정 선택',
+                    '일정 선택',
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.w800,
