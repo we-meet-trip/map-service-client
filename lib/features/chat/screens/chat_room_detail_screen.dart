@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import '../../../core/state/trip_repository.dart';
 import '../../../data/models/chat_room.dart';
 import '../providers/chat_room_detail_provider.dart';
 import '../widgets/chat_bubble.dart';
@@ -113,11 +114,22 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
                               },
                             ),
                             if (widget.room.linkedTripId != null)
-                              const Positioned(
+                              Positioned(
                                 top: 12,
                                 left: 0,
                                 right: 0,
-                                child: ScheduleLinkButton(),
+                                child: ScheduleLinkButton(
+                                  onTap: () {
+                                    final trip = TripRepository
+                                        .instance.plannedTrips.value
+                                        .where((t) =>
+                                            t.id == widget.room.linkedTripId)
+                                        .firstOrNull;
+                                    if (trip != null) {
+                                      context.go('/saved/trip', extra: trip);
+                                    }
+                                  },
+                                ),
                               ),
                           ],
                         ),
