@@ -98,11 +98,13 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
                                 }
                                 return ListView.separated(
                                   controller: _scrollController,
-                                  padding: const EdgeInsets.only(
+                                  padding: EdgeInsets.only(
                                     left: 16,
                                     right: 16,
                                     top: 64,
-                                    bottom: 16,
+                                    bottom: widget.room.type == ChatRoomType.upcoming
+                                        ? 90 + MediaQuery.of(context).padding.bottom
+                                        : 16,
                                   ),
                                   itemCount: provider.messages.length,
                                   separatorBuilder: (_, _) =>
@@ -135,17 +137,22 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
                           ],
                         ),
                       ),
-                      if (widget.room.type == ChatRoomType.upcoming)
-                        ChatInputBar(
-                          onSend: (text) async {
-                            await context
-                                .read<ChatRoomDetailProvider>()
-                                .sendMessage(text);
-                            _scrollToBottom();
-                          },
-                        ),
                     ],
                   ),
+                  if (widget.room.type == ChatRoomType.upcoming)
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      child: ChatInputBar(
+                        onSend: (text) async {
+                          await context
+                              .read<ChatRoomDetailProvider>()
+                              .sendMessage(text);
+                          _scrollToBottom();
+                        },
+                      ),
+                    ),
                   if (_isSheetOpen)
                     Positioned.fill(
                       child: BackdropFilter(
