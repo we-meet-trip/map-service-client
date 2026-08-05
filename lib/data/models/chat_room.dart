@@ -10,7 +10,6 @@ class ChatRoom {
     this.hasUnread = false,
     required this.lastMessage,
     required this.lastMessageAt,
-    this.linkedTripId,
   });
 
   final String id;
@@ -21,8 +20,6 @@ class ChatRoom {
   final bool hasUnread;
   final String lastMessage;
   final DateTime lastMessageAt;
-  final String? linkedTripId;
-
   ChatRoom copyWith({bool? hasUnread, String? lastMessage, DateTime? lastMessageAt}) => ChatRoom(
         id: id,
         title: title,
@@ -32,6 +29,5 @@ class ChatRoom {
         hasUnread: hasUnread ?? this.hasUnread,
         lastMessage: lastMessage ?? this.lastMessage,
         lastMessageAt: lastMessageAt ?? this.lastMessageAt,
-        linkedTripId: linkedTripId,
       );
 }

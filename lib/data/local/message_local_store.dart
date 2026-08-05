@@ -42,7 +42,7 @@ class MessageLocalStore {
         'isMe': m.isMe,
       };
 
-  ChatMessage _fromMap(Map<String, dynamic> m) => ChatMessage(
+ChatMessage _fromMap(Map<String, dynamic> m) => ChatMessage(
         id: m['id'] as String,
         roomId: m['roomId'] as String,
         senderId: m['senderId'] as String,

@@ -55,24 +55,25 @@ class ChatDetailHeader extends StatelessWidget {
                   ],
                 ),
               ),
-              GestureDetector(
-                onTap: onShare,
-                child: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFFFFF),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: PhosphorIcon(
-                      PhosphorIconsRegular.shareNetwork,
-                      size: 20,
-                      color: AppColors.shareIcon,
+              if (onShare != null)
+                GestureDetector(
+                  onTap: onShare,
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFFFFFFF),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: PhosphorIcon(
+                        PhosphorIconsRegular.shareNetwork,
+                        size: 20,
+                        color: AppColors.shareIcon,
+                      ),
                     ),
                   ),
                 ),
-              ),
             ],
           ),
         ),

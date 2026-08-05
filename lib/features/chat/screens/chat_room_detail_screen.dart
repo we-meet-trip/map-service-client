@@ -78,7 +78,9 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
               title: widget.room.title,
               participantCount: widget.room.participantCount,
               onBack: () => context.pop(),
-              onShare: _showInviteSheet,
+              onShare: widget.room.type == ChatRoomType.upcoming
+                  ? _showInviteSheet
+                  : null,
             ),
             Expanded(
               child: Stack(
@@ -96,12 +98,10 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
                                 }
                                 return ListView.separated(
                                   controller: _scrollController,
-                                  padding: EdgeInsets.only(
+                                  padding: const EdgeInsets.only(
                                     left: 16,
                                     right: 16,
-                                    top: widget.room.linkedTripId != null
-                                        ? 64
-                                        : 16,
+                                    top: 64,
                                     bottom: 16,
                                   ),
                                   itemCount: provider.messages.length,
@@ -113,17 +113,18 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
                                 );
                               },
                             ),
-                            if (widget.room.linkedTripId != null)
-                              Positioned(
+                            Positioned(
                                 top: 12,
                                 left: 0,
                                 right: 0,
                                 child: ScheduleLinkButton(
                                   onTap: () {
-                                    final trip = TripRepository
-                                        .instance.plannedTrips.value
-                                        .where((t) =>
-                                            t.id == widget.room.linkedTripId)
+                                    final allTrips = [
+                                      ...TripRepository.instance.plannedTrips.value,
+                                      ...TripRepository.instance.completedTrips.value,
+                                    ];
+                                    final trip = allTrips
+                                        .where((t) => t.id == widget.room.id)
                                         .firstOrNull;
                                     if (trip != null) {
                                       context.go('/saved/trip', extra: trip);
@@ -134,14 +135,15 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
                           ],
                         ),
                       ),
-                      ChatInputBar(
-                        onSend: (text) async {
-                          await context
-                              .read<ChatRoomDetailProvider>()
-                              .sendMessage(text);
-                          _scrollToBottom();
-                        },
-                      ),
+                      if (widget.room.type == ChatRoomType.upcoming)
+                        ChatInputBar(
+                          onSend: (text) async {
+                            await context
+                                .read<ChatRoomDetailProvider>()
+                                .sendMessage(text);
+                            _scrollToBottom();
+                          },
+                        ),
                     ],
                   ),
                   if (_isSheetOpen)
