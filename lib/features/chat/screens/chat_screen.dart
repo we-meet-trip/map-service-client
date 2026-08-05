@@ -95,6 +95,7 @@ class _ChatRoomListScreenState extends State<ChatRoomListScreen> {
                         timeLabel: _formatTime(room.lastMessageAt),
                         type: room.type,
                         participantCount: room.participantCount,
+                        hasUnread: room.hasUnread,
                         onTap: () => context.push('/chat/${room.id}', extra: room),
                       );
                     },

@@ -10,6 +10,7 @@ class ChatRoomCard extends StatelessWidget {
     required this.type,
     required this.onTap,
     this.participantCount = 1,
+    this.hasUnread = false,
   });
 
   final String title;
@@ -18,16 +19,20 @@ class ChatRoomCard extends StatelessWidget {
   final ChatRoomType type;
   final VoidCallback onTap;
   final int participantCount;
+  final bool hasUnread;
 
   Color get _backgroundColor =>
       type == ChatRoomType.upcoming ? const Color(0xFFFDFDFE) : const Color(0xFFF5F5F5);
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 20),
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        GestureDetector(
+          onTap: onTap,
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 20),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: _backgroundColor,
@@ -100,6 +105,25 @@ class ChatRoomCard extends StatelessWidget {
           ],
         ),
       ),
+    ),
+        if (hasUnread)
+          Positioned(
+            top: -5,
+            right: 14,
+            child: Container(
+              width: 23,
+              height: 23,
+              decoration: BoxDecoration(
+                color: const Color(0xFF6012DF),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: const Color(0xFFF8F7F9),
+                  width: 5,
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
