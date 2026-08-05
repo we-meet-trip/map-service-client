@@ -1,92 +1,97 @@
 import '../local/message_local_store.dart';
 import '../models/chat_message.dart';
 import '../models/chat_room.dart';
-import '../../core/state/trip_repository.dart' show mockCompletedTrip;
+import '../../core/state/trip_repository.dart' show mockCompletedTrip, mockPlannedTrip;
 import 'chat_repository.dart';
 
 class MockChatRepository implements ChatRepository {
   static final _now = DateTime.now();
-  static final _trip = _now.subtract(const Duration(days: 13));
 
-  static final List<ChatRoom> _rooms = [
+  static final List<ChatRoom> _seedRooms = [
+    ChatRoom(
+      id: mockPlannedTrip.id,
+      title: '성수동 나들이',
+      participantCount: 3,
+      type: ChatRoomType.upcoming,
+      hasUnread: true,
+      lastMessage: _seedMessages[mockPlannedTrip.id]!.last.text,
+      lastMessageAt: _seedMessages[mockPlannedTrip.id]!.last.sentAt,
+    ),
     ChatRoom(
       id: mockCompletedTrip.id,
       title: '여수 바다 여행',
       participantCount: 3,
       type: ChatRoomType.past,
       hasUnread: false,
-      lastMessage: '사진 나중에 공유해줘요!!',
-      lastMessageAt: _now.subtract(const Duration(days: 12, hours: 3)),
+      lastMessage: _seedMessages[mockCompletedTrip.id]!.last.text,
+      lastMessageAt: _seedMessages[mockCompletedTrip.id]!.last.sentAt,
     ),
   ];
 
+  static final List<ChatRoom> _dynamicRooms = [];
+
+  static List<ChatRoom> get _rooms => [..._seedRooms, ..._dynamicRooms];
+
   static final _seedMessages = <String, List<ChatMessage>>{
+    mockPlannedTrip.id: [
+      ChatMessage(
+        id: '${mockPlannedTrip.id}_1',
+        roomId: mockPlannedTrip.id,
+        senderId: 'user_jisoo',
+        senderName: '지수',
+        text: '성수 가는 날 확정됐나요?',
+        sentAt: _now.subtract(const Duration(hours: 5)),
+        isMe: false,
+      ),
+      ChatMessage(
+        id: '${mockPlannedTrip.id}_2',
+        roomId: mockPlannedTrip.id,
+        senderId: 'me',
+        senderName: '나',
+        text: '네 다음 주 토요일로 확정이에요!',
+        sentAt: _now.subtract(const Duration(hours: 4, minutes: 50)),
+        isMe: true,
+      ),
+      ChatMessage(
+        id: '${mockPlannedTrip.id}_3',
+        roomId: mockPlannedTrip.id,
+        senderId: 'user_hyunwoo',
+        senderName: '현우',
+        text: '안녕하세요~~',
+        sentAt: _now.subtract(const Duration(hours: 4, minutes: 30)),
+        isMe: false,
+      ),
+      ChatMessage(
+        id: '${mockPlannedTrip.id}_4',
+        roomId: mockPlannedTrip.id,
+        senderId: 'me',
+        senderName: '나',
+        text: '환영합니다 🎉🎉',
+        sentAt: _now.subtract(const Duration(hours: 4)),
+        isMe: true,
+      ),
+      ChatMessage(
+        id: '${mockPlannedTrip.id}_5',
+        roomId: mockPlannedTrip.id,
+        senderId: 'user_jisoo',
+        senderName: '지수',
+        text: '카페를 먼저 갈까요?',
+        sentAt: _now.subtract(const Duration(hours: 2)),
+        isMe: false,
+      ),
+    ],
     mockCompletedTrip.id: [
       ChatMessage(
         id: '${mockCompletedTrip.id}_1',
         roomId: mockCompletedTrip.id,
-        senderId: 'user_jiyeon',
-        senderName: '지연',
-        text: '오동도 너무 예쁘다 진짜',
-        sentAt: _trip.subtract(const Duration(hours: 2)),
-        isMe: false,
+        senderId: 'me',
+        senderName: '나',
+        text: '여수 너무 좋았다',
+        sentAt: _now.subtract(const Duration(days: 12, hours: 5)),
+        isMe: true,
       ),
       ChatMessage(
         id: '${mockCompletedTrip.id}_2',
-        roomId: mockCompletedTrip.id,
-        senderId: 'me',
-        senderName: '나',
-        text: '맞아요 바람도 시원하고 최고',
-        sentAt: _trip.subtract(const Duration(hours: 1, minutes: 55)),
-        isMe: true,
-      ),
-      ChatMessage(
-        id: '${mockCompletedTrip.id}_3',
-        roomId: mockCompletedTrip.id,
-        senderId: 'user_minsu',
-        senderName: '민수',
-        text: '케이블카 탈 때 뷰 실화냐고',
-        sentAt: _trip.subtract(const Duration(hours: 1, minutes: 30)),
-        isMe: false,
-      ),
-      ChatMessage(
-        id: '${mockCompletedTrip.id}_4',
-        roomId: mockCompletedTrip.id,
-        senderId: 'me',
-        senderName: '나',
-        text: '향일암 일출 보려면 내일 6시에 출발해야 할 것 같아요',
-        sentAt: _trip.subtract(const Duration(hours: 1)),
-        isMe: true,
-      ),
-      ChatMessage(
-        id: '${mockCompletedTrip.id}_5',
-        roomId: mockCompletedTrip.id,
-        senderId: 'user_jiyeon',
-        senderName: '지연',
-        text: '6시요?? 😭 알겠어요 일찍 자야겠다',
-        sentAt: _trip.subtract(const Duration(minutes: 50)),
-        isMe: false,
-      ),
-      ChatMessage(
-        id: '${mockCompletedTrip.id}_6',
-        roomId: mockCompletedTrip.id,
-        senderId: 'user_minsu',
-        senderName: '민수',
-        text: '수산시장에서 먹은 회 진짜 최고였는데',
-        sentAt: _now.subtract(const Duration(days: 12, hours: 5)),
-        isMe: false,
-      ),
-      ChatMessage(
-        id: '${mockCompletedTrip.id}_7',
-        roomId: mockCompletedTrip.id,
-        senderId: 'me',
-        senderName: '나',
-        text: '거기 또 가고 싶다 진짜로',
-        sentAt: _now.subtract(const Duration(days: 12, hours: 4)),
-        isMe: true,
-      ),
-      ChatMessage(
-        id: '${mockCompletedTrip.id}_8',
         roomId: mockCompletedTrip.id,
         senderId: 'user_jiyeon',
         senderName: '지연',
@@ -132,17 +137,23 @@ class MockChatRepository implements ChatRepository {
 
   @override
   Future<void> updateLastMessage(String roomId, String text, DateTime sentAt) async {
-    final index = _rooms.indexWhere((r) => r.id == roomId);
-    if (index != -1) {
-      _rooms[index] = _rooms[index].copyWith(lastMessage: text, lastMessageAt: sentAt);
-    }
+    _updateRoom(roomId, (r) => r.copyWith(lastMessage: text, lastMessageAt: sentAt));
   }
 
   @override
   Future<void> markAsRead(String roomId) async {
-    final index = _rooms.indexWhere((r) => r.id == roomId);
-    if (index != -1) {
-      _rooms[index] = _rooms[index].copyWith(hasUnread: false);
+    _updateRoom(roomId, (r) => r.copyWith(hasUnread: false));
+  }
+
+  static void _updateRoom(String roomId, ChatRoom Function(ChatRoom) update) {
+    final seedIndex = _seedRooms.indexWhere((r) => r.id == roomId);
+    if (seedIndex != -1) {
+      _seedRooms[seedIndex] = update(_seedRooms[seedIndex]);
+      return;
+    }
+    final dynIndex = _dynamicRooms.indexWhere((r) => r.id == roomId);
+    if (dynIndex != -1) {
+      _dynamicRooms[dynIndex] = update(_dynamicRooms[dynIndex]);
     }
   }
 
@@ -158,7 +169,7 @@ class MockChatRepository implements ChatRepository {
       lastMessage: '채팅방이 생성되었습니다.',
       lastMessageAt: DateTime.now(),
     );
-    _rooms.add(newRoom);
+    _dynamicRooms.add(newRoom);
     return newRoom;
   }
 }

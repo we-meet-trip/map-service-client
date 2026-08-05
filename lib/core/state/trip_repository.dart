@@ -5,7 +5,7 @@ class TripRepository {
   TripRepository._();
   static final TripRepository instance = TripRepository._();
 
-  final ValueNotifier<List<SavedTrip>> plannedTrips = ValueNotifier([_mockPlannedTrip]);
+  final ValueNotifier<List<SavedTrip>> plannedTrips = ValueNotifier([mockPlannedTrip]);
   final ValueNotifier<List<SavedTrip>> completedTrips = ValueNotifier([mockCompletedTrip]);
   // 저장 탭 열릴 때 보여줄 탭 인덱스 (0: 예정, 1: 완료)
   final ValueNotifier<int> requestedTab = ValueNotifier(0);
@@ -32,7 +32,9 @@ class TripRepository {
 
 /// 매번 일정을 직접 만들지 않고도 저장 페이지를 테스트할 수 있도록 넣어둔 목 데이터.
 /// 2일차까지 있어서 일차별 탭 UI도 이걸로 바로 확인 가능하다.
-final _mockPlannedTrip = SavedTrip(
+final mockPlannedTrip = SavedTrip(
+  id: DateTime(2025, 7, 1).microsecondsSinceEpoch.toString(),
+  chatRoomId: DateTime(2025, 7, 1).microsecondsSinceEpoch.toString(),
   name: '성수동 나들이',
   route: '서울숲 → 성수동 카페거리 → 서울숲 야시장',
   savedAt: DateTime.now(),
@@ -83,11 +85,11 @@ final mockCompletedTrip = SavedTrip(
   id: DateTime(2025, 6, 1).microsecondsSinceEpoch.toString(),
   chatRoomId: DateTime(2025, 6, 1).microsecondsSinceEpoch.toString(),
   name: '여수 바다 여행',
-  route: '오동도 → 해상케이블카 → 향일암 → 이순신광장 → 여수 밤바다',
+  route: '오동도 → 이순신광장 → 여수 밤바다',
   savedAt: DateTime.now().subtract(const Duration(days: 30)),
   tripStartDate: DateTime.now().subtract(const Duration(days: 14)),
-  tripEndDate: DateTime.now().subtract(const Duration(days: 13)),
-  totalDurationMinutes: 1080,
+  tripEndDate: DateTime.now().subtract(const Duration(days: 14)),
+  totalDurationMinutes: 360,
   stops: [
     TripStop(
       order: 1,
@@ -101,72 +103,18 @@ final mockCompletedTrip = SavedTrip(
     TripStop(
       order: 2,
       day: 1,
-      name: '여수 해상케이블카',
-      address: '전남 여수시 돌산읍 돌산로 3600-1',
-      time: '12:00',
-      latitude: 34.7282,
-      longitude: 127.7431,
-    ),
-    TripStop(
-      order: 3,
-      day: 1,
-      name: '돌산공원',
-      address: '전남 여수시 돌산읍 돌산로 3600',
-      time: '13:30',
-      latitude: 34.7279,
-      longitude: 127.7388,
-    ),
-    TripStop(
-      order: 4,
-      day: 1,
-      name: '여수 수산시장',
-      address: '전남 여수시 수정동 355-1',
-      time: '17:00',
-      latitude: 34.7436,
-      longitude: 127.7368,
-    ),
-    TripStop(
-      order: 5,
-      day: 1,
       name: '이순신광장',
       address: '전남 여수시 이순신광장로 61',
-      time: '19:00',
+      time: '14:00',
       latitude: 34.7378,
       longitude: 127.7447,
     ),
     TripStop(
-      order: 6,
-      day: 2,
-      name: '향일암',
-      address: '전남 여수시 돌산읍 향일암로 60',
-      time: '07:00',
-      latitude: 34.6369,
-      longitude: 127.7892,
-    ),
-    TripStop(
-      order: 7,
-      day: 2,
-      name: '아쿠아플라넷 여수',
-      address: '전남 여수시 오동도로 61-11',
-      time: '10:30',
-      latitude: 34.7452,
-      longitude: 127.7629,
-    ),
-    TripStop(
-      order: 8,
-      day: 2,
-      name: '고소동 벽화마을',
-      address: '전남 여수시 고소동 1가',
-      time: '14:00',
-      latitude: 34.7401,
-      longitude: 127.7431,
-    ),
-    TripStop(
-      order: 9,
-      day: 2,
+      order: 3,
+      day: 1,
       name: '여수 밤바다',
       address: '전남 여수시 수정동 해안로',
-      time: '19:30',
+      time: '19:00',
       latitude: 34.7365,
       longitude: 127.7452,
     ),
