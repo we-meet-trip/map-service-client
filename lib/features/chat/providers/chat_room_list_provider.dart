@@ -15,11 +15,21 @@ class ChatRoomListProvider extends ChangeNotifier {
   ChatRoomFilter get filter => _filter;
 
   List<ChatRoom> get filteredRooms {
-    if (_filter == ChatRoomFilter.all) return _rooms;
-    final target = _filter == ChatRoomFilter.upcoming
-        ? ChatRoomType.upcoming
-        : ChatRoomType.past;
-    return _rooms.where((r) => r.type == target).toList();
+    final source = _filter == ChatRoomFilter.all
+        ? _rooms
+        : _rooms.where((r) {
+            final target = _filter == ChatRoomFilter.upcoming
+                ? ChatRoomType.upcoming
+                : ChatRoomType.past;
+            return r.type == target;
+          }).toList();
+
+    return [...source]..sort((a, b) {
+        if (a.type != b.type) {
+          return a.type == ChatRoomType.upcoming ? -1 : 1;
+        }
+        return b.lastMessageAt.compareTo(a.lastMessageAt);
+      });
   }
 
   void setFilter(ChatRoomFilter filter) {

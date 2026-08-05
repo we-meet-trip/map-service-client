@@ -16,7 +16,7 @@ class ChatRoomFilterTabs extends StatefulWidget {
 }
 
 class _ChatRoomFilterTabsState extends State<ChatRoomFilterTabs> {
-  static const _labels = ['전체', '예정된 여행', '지난 여행'];
+  static const _labels = ['전체', '예정된 일정', '지난 일정'];
   static const _filters = [ChatRoomFilter.all, ChatRoomFilter.upcoming, ChatRoomFilter.past];
 
   final _stackKey = GlobalKey();
