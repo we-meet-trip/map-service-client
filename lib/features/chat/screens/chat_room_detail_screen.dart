@@ -44,7 +44,7 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
           _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
+          duration: const Duration(milliseconds: 150),
           curve: Curves.easeOut,
         );
       }
