@@ -7,9 +7,9 @@ import '../../data/repositories/chat_repository.dart';
 import '../../data/repositories/invite_link_repository.dart';
 import '../../features/home/screens/home_screen.dart';
 import '../../features/trip/screens/trip_regenerate_screen.dart';
-import '../../features/trip/screens/trip_step6_screen.dart';
-import '../../features/trip/screens/trip_step7_screen.dart';
 import '../../features/trip/screens/trip_created_screen.dart';
+import '../../features/place_explore/screens/place_explore_step1_screen.dart';
+import '../../features/place_explore/screens/place_explore_step2_screen.dart';
 import '../../features/trip/screens/trip_directions_screen.dart';
 import '../../features/trip/screens/search_step1_screen.dart';
 import '../../features/saved/screens/saved_screen.dart';
@@ -140,17 +140,17 @@ final appRouter = GoRouter(
                   builder: (context, state) => const SearchStep1Screen(),
                 ),
                 GoRoute(
-                  path: 'place-select',
-                  builder: (context, state) => TripStep6Screen(
-                    onNext: () => context.go('/trip/place-confirm'),
-                    onPrev: () => context.pop(),
+                  path: 'place-explore/step1',
+                  builder: (context, state) => PlaceExploreStep1Screen(
+                    onNext: () => context.go('/trip/place-explore/step2'),
+                    onPrev: () => context.go('/trip/search'),
                   ),
                 ),
                 GoRoute(
-                  path: 'place-confirm',
-                  builder: (context, state) => TripStep7Screen(
-                    onNext: () => context.pop(),
-                    onPrev: () => context.pop(),
+                  path: 'place-explore/step2',
+                  builder: (context, state) => PlaceExploreStep2Screen(
+                    onNext: () => context.go('/trip'),
+                    onPrev: () => context.go('/trip/place-explore/step1'),
                   ),
                 ),
               ],

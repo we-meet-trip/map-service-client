@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import '../../../common/theme/app_colors.dart';
-import '../widgets/trip_step_header.dart';
-import '../widgets/trip_step_scaffold.dart';
+import '../../trip/widgets/trip_step_header.dart';
+import '../../trip/widgets/trip_step_scaffold.dart';
 
-class TripStep7Screen extends StatelessWidget {
+class PlaceExploreStep2Screen extends StatelessWidget {
   final VoidCallback onNext;
   final VoidCallback onPrev;
 
-  const TripStep7Screen({
+  const PlaceExploreStep2Screen({
     super.key,
     required this.onNext,
     required this.onPrev,
@@ -20,7 +20,7 @@ class TripStep7Screen extends StatelessWidget {
       onPrev: onPrev,
       children: [
         TripStepHeader(
-          step: 7,
+          step: 2,
           title: '선택한 장소를 확인해요',
           subtitle: '선택하신 장소 목록을 확인해 주세요.',
         ),

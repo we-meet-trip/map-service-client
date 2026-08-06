@@ -104,8 +104,12 @@ class _SearchStep1ScreenState extends State<SearchStep1Screen> {
               NextButton(
                 label: '재탐색 시작하기  →',
                 onPressed: () {
-                  tripRetrialNotifier.value++;
-                  context.go('/trip');
+                  if (_selectedIndex == 1) {
+                    context.go('/trip/place-explore/step1');
+                  } else {
+                    tripRetrialNotifier.value++;
+                    context.go('/trip');
+                  }
                 },
               ),
               const SizedBox(height: 10),
