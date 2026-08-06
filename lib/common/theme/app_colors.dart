@@ -94,6 +94,7 @@ class AppColors {
   static const tripDirectionsPinkEnd = Color(0xFFFF87D3); // 가는 방법 알아보기 버튼 그라데이션 끝
   static const tripOriginChipBg = Color(0xBFF4EEFE); // 출발지 칩 배경 (rgba(244,238,254,0.75))
   static const tripOriginChipBorder = Color(0xFFCFBEFB); // 출발지 칩 테두리
+  static const reviewMoreButtonBg = Color(0xFFF4EEFE); // 블로그 리뷰 더보기 버튼 배경
 
   // mypage
   static const mypageAvatarAccent = Color(0xFF984CFF); // 프로필 아바타 배경/아이콘 색

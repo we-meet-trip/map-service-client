@@ -222,34 +222,43 @@ class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
   }
 
   Widget _buildMoreButton(int total) {
-    final remaining = total - _visibleCount;
-    final loadCount = remaining.clamp(0, _pageSize);
-
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 4),
-      child: GestureDetector(
-        onTap: () {
-          setState(() {
-            _visibleCount = (_visibleCount + _pageSize).clamp(0, total);
-          });
-        },
-        child: Container(
-          height: 44,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.neutralScale[200]!),
+      padding: const EdgeInsets.fromLTRB(24, 4, 24, 4),
+      child: Center(
+        child: GestureDetector(
+          onTap: () {
+            setState(() {
+              _visibleCount = (_visibleCount + _pageSize).clamp(0, total);
+            });
+          },
+          child: Container(
+            height: 38,
+            padding: const EdgeInsets.symmetric(horizontal: 28),
+            decoration: BoxDecoration(
+            color: AppColors.reviewMoreButtonBg,
+            borderRadius: BorderRadius.circular(100),
+            border: Border.all(color: AppColors.tripOriginChipBorder, width: 1),
           ),
-          child: Center(
-            child: Text(
-              '리뷰 $loadCount개 더 보기',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: AppColors.neutralScale[500],
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '블로그 리뷰 더보기',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.tripAccentPurple,
+                ),
               ),
-            ),
+              const SizedBox(width: 6),
+              Icon(
+                PhosphorIcons.caretDown(),
+                size: 16,
+                color: AppColors.tripAccentPurple,
+              ),
+            ],
           ),
+        ),
         ),
       ),
     );
