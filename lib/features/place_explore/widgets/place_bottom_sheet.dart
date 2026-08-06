@@ -25,6 +25,7 @@ class PlaceBottomSheet extends StatefulWidget {
 
 class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
   static const _initialCount = 2;
+  static const _firstPageSize = 3;
   static const _pageSize = 5;
 
   late bool _isAdded;
@@ -228,7 +229,8 @@ class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
         child: GestureDetector(
           onTap: () {
             setState(() {
-              _visibleCount = (_visibleCount + _pageSize).clamp(0, total);
+              final add = _visibleCount == _initialCount ? _firstPageSize : _pageSize;
+              _visibleCount = (_visibleCount + add).clamp(0, total);
             });
           },
           child: Container(
