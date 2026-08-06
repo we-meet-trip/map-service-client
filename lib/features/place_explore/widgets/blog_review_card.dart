@@ -100,7 +100,7 @@ class BlogReviewCard extends StatelessWidget {
                     '더보기 →',
                     style: TextStyle(
                       fontSize: 12,
-                      fontWeight: FontWeight.w500,
+                      fontWeight: FontWeight.w600,
                       color: AppColors.shareIcon,
                     ),
                   ),

@@ -27,7 +27,7 @@ class PlaceAiSummaryCard extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: AppColors.secondaryScale[100],
+            color: AppColors.secondaryScale[100]!.withValues(alpha: 0.99),
             borderRadius: BorderRadius.circular(12.5),
           ),
           child: Column(
