@@ -2,20 +2,25 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../core/naver_map/naver_map_adapter.dart';
+import '../models/place.dart';
+import '../widgets/place_pin.dart';
+import '../widgets/place_bottom_sheet.dart';
 import '../../trip/widgets/trip_step_header.dart';
 import '../../trip/widgets/trip_step_scaffold.dart';
 
 const _kInitialCamera = NCameraPosition(
   target: NLatLng(37.5666, 126.9784),
-  zoom: 13.0,
+  zoom: 12.0,
 );
 
 class PlaceExploreStep1Screen extends StatefulWidget {
+  final List<Place> places;
   final VoidCallback onNext;
   final VoidCallback onPrev;
 
   const PlaceExploreStep1Screen({
     super.key,
+    required this.places,
     required this.onNext,
     required this.onPrev,
   });
@@ -27,6 +32,37 @@ class PlaceExploreStep1Screen extends StatefulWidget {
 
 class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
   NaverMapController? _mapController;
+
+  Future<void> _initMarkers(NaverMapController controller) async {
+    for (int i = 0; i < widget.places.length; i++) {
+      if (!mounted) return;
+      final place = widget.places[i];
+      final icon = await NOverlayImage.fromWidget(
+        widget: PlacePin(number: i + 1),
+        size: const Size(36, 36),
+        context: context,
+      );
+      final marker = NMarker(
+        id: place.id,
+        position: NLatLng(place.latitude, place.longitude),
+        icon: icon,
+      );
+      marker.setOnTapListener((_) {
+        if (mounted) _showPlaceSheet(place);
+      });
+      await controller.addOverlay(marker);
+    }
+  }
+
+  void _showPlaceSheet(Place place) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      useSafeArea: true,
+      builder: (_) => PlaceBottomSheet(place: place),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -41,14 +77,6 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
         ),
         const SizedBox(height: 24),
         _buildMapArea(),
-        const SizedBox(height: 16),
-        Container(
-          height: 140,
-          decoration: BoxDecoration(
-            color: AppColors.neutralScale[100],
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ),
       ],
     );
   }
@@ -56,7 +84,7 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
   Widget _buildMapArea() {
     return Container(
       width: double.infinity,
-      height: 380,
+      height: 520,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
@@ -78,7 +106,10 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
               rotationGesturesEnable: false,
               mapType: NMapType.basic,
             ),
-            onMapReady: (controller) => _mapController = controller,
+            onMapReady: (controller) {
+              _mapController = controller;
+              _initMarkers(controller);
+            },
           ),
           Positioned(
             right: 14,
@@ -137,3 +168,4 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
     );
   }
 }
+
