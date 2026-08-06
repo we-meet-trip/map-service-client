@@ -98,7 +98,7 @@ class PlaceExploreStep2Screen extends StatelessWidget {
     PlaceExploreProvider provider,
     double bottomPad,
   ) {
-    final canProceed = provider.selectedIds.isNotEmpty;
+    final canProceed = provider.selectedIds.length >= 3;
 
     return Container(
       color: AppColors.neutralScale[0],
@@ -141,7 +141,7 @@ class PlaceExploreStep2Screen extends StatelessWidget {
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      '초기화하기',
+                      '되돌리기',
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w400,

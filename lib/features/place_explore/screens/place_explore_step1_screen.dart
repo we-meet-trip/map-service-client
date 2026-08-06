@@ -12,8 +12,6 @@ import '../widgets/place_bottom_sheet.dart';
 import '../widgets/glass_icon_button.dart';
 import '../../trip/widgets/trip_step_header.dart';
 
-const _kMinSelection = 3;
-
 const _kInitialCamera = NCameraPosition(
   target: NLatLng(37.5666, 126.9784),
   zoom: 12.0,
@@ -95,7 +93,6 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
   Widget build(BuildContext context) {
     final provider = context.watch<PlaceExploreProvider>();
     final selectedIds = provider.selectedIds;
-    final canProceed = selectedIds.length >= _kMinSelection;
     final topPad = MediaQuery.paddingOf(context).top;
     final bottomPad = MediaQuery.paddingOf(context).bottom;
 
@@ -161,7 +158,7 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
           left: 0,
           right: 0,
           bottom: 0,
-          child: _buildButtons(bottomPad, canProceed, selectedIds.length),
+          child: _buildButtons(bottomPad, selectedIds.length),
         ),
       ],
     );
@@ -191,10 +188,7 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
     );
   }
 
-  Widget _buildButtons(double bottomPad, bool canProceed, int count) {
-    final need = _kMinSelection - count;
-    final nextInfo = need > 0 ? '장소 $need개 더 선택하면 다음으로' : null;
-
+  Widget _buildButtons(double bottomPad, int count) {
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -212,8 +206,7 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           NextButton(
-            onPressed: canProceed ? widget.onNext : null,
-            info: nextInfo,
+            onPressed: count > 0 ? widget.onNext : null,
           ),
           const SizedBox(height: 10),
           PrevButton(onPressed: widget.onPrev),
