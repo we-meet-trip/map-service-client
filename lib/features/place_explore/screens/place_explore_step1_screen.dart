@@ -1,7 +1,14 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../common/theme/app_colors.dart';
+import '../../../core/naver_map/naver_map_adapter.dart';
 import '../../trip/widgets/trip_step_header.dart';
 import '../../trip/widgets/trip_step_scaffold.dart';
+
+const _kInitialCamera = NCameraPosition(
+  target: NLatLng(37.5666, 126.9784),
+  zoom: 13.0,
+);
 
 class PlaceExploreStep1Screen extends StatefulWidget {
   final VoidCallback onNext;
@@ -19,6 +26,8 @@ class PlaceExploreStep1Screen extends StatefulWidget {
 }
 
 class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
+  NaverMapController? _mapController;
+
   @override
   Widget build(BuildContext context) {
     return TripStepScaffold(
@@ -31,13 +40,7 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
           subtitle: '원하는 장소 최소 3곳을 선택해주세요.',
         ),
         const SizedBox(height: 24),
-        Container(
-          height: 380,
-          decoration: BoxDecoration(
-            color: AppColors.neutralScale[100],
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ),
+        _buildMapArea(),
         const SizedBox(height: 16),
         Container(
           height: 140,
@@ -47,6 +50,90 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildMapArea() {
+    return Container(
+      width: double.infinity,
+      height: 380,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.neutralScale[600]!.withAlpha(0x18),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.hardEdge,
+      child: Stack(
+        children: [
+          NaverMap(
+            options: const NaverMapViewOptions(
+              initialCameraPosition: _kInitialCamera,
+              scrollGesturesEnable: true,
+              zoomGesturesEnable: true,
+              rotationGesturesEnable: false,
+              mapType: NMapType.basic,
+            ),
+            onMapReady: (controller) => _mapController = controller,
+          ),
+          Positioned(
+            right: 14,
+            top: 0,
+            bottom: 0,
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildGlassButton(
+                    Icons.add,
+                    () => _mapController?.updateCamera(NCameraUpdate.zoomIn()),
+                  ),
+                  const SizedBox(height: 8),
+                  _buildGlassButton(
+                    Icons.remove,
+                    () => _mapController?.updateCamera(NCameraUpdate.zoomOut()),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGlassButton(IconData icon, VoidCallback onPressed) {
+    return GestureDetector(
+      onTap: onPressed,
+      child: ClipOval(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.75),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.9),
+                width: 1.2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primaryScale[600]!.withAlpha(0x1A),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Icon(icon, size: 22, color: AppColors.primaryScale[500]),
+          ),
+        ),
+      ),
     );
   }
 }
