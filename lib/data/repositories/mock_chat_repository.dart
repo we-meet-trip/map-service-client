@@ -1,29 +1,16 @@
 import '../local/message_local_store.dart';
 import '../models/chat_message.dart';
-import '../models/chat_participant.dart';
 import '../models/chat_room.dart';
-import '../../common/theme/app_colors.dart';
+import '../models/user.dart';
 import '../../core/state/trip_repository.dart' show mockCompletedTrip, mockPlannedTrip;
 import 'chat_repository.dart';
 
 class MockChatRepository implements ChatRepository {
   static final _now = DateTime.now();
 
-  static final _jisoo = ChatParticipant(
-    id: 'user_jisoo',
-    name: '지수',
-    avatarColor: AppColors.avatarColors[1],
-  );
-  static final _hyunwoo = ChatParticipant(
-    id: 'user_hyunwoo',
-    name: '현우',
-    avatarColor: AppColors.avatarColors[3],
-  );
-  static final _jiyeon = ChatParticipant(
-    id: 'user_jiyeon',
-    name: '지연',
-    avatarColor: AppColors.avatarColors[5],
-  );
+  static const _jisoo = User(id: 'user_jisoo', name: '지수');
+  static const _hyunwoo = User(id: 'user_hyunwoo', name: '현우');
+  static const _jiyeon = User(id: 'user_jiyeon', name: '지연');
 
   static final List<ChatRoom> _seedRooms = [
     ChatRoom(

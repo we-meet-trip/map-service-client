@@ -53,12 +53,7 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
     });
   }
 
-  Color _resolveColor(ChatMessage msg) {
-    final participant = widget.room.participants
-        .where((p) => p.id == msg.senderId)
-        .firstOrNull;
-    return participant?.avatarColor ?? AppColors.avatarColors[0];
-  }
+  Color _resolveColor(ChatMessage msg) => AppColors.avatarColorOf(msg.senderId);
 
   Future<void> _showInviteSheet() async {
     setState(() => _isSheetOpen = true);

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../common/theme/app_colors.dart';
-import '../../../data/models/chat_participant.dart';
+import '../../../data/models/user.dart';
 import '../../../data/models/chat_room.dart';
 import '../../mypage/widgets/profile_avatar.dart';
 
@@ -22,7 +22,7 @@ class ChatRoomCard extends StatelessWidget {
   final String timeLabel;
   final ChatRoomType type;
   final VoidCallback onTap;
-  final List<ChatParticipant> participants;
+  final List<User> participants;
   final int participantCount;
   final bool hasUnread;
 
@@ -136,7 +136,7 @@ class ChatRoomCard extends StatelessWidget {
 class _Avatar extends StatelessWidget {
   const _Avatar({required this.participants, required this.participantCount});
 
-  final List<ChatParticipant> participants;
+  final List<User> participants;
   final int participantCount;
 
   @override
@@ -151,12 +151,12 @@ class _Avatar extends StatelessWidget {
 class _SingleAvatar extends StatelessWidget {
   const _SingleAvatar({required this.participants});
 
-  final List<ChatParticipant> participants;
+  final List<User> participants;
 
   @override
   Widget build(BuildContext context) {
     final color = participants.isNotEmpty
-        ? participants[0].avatarColor
+        ? AppColors.avatarColorOf(participants[0].id)
         : AppColors.avatarColors[0];
     return ProfileAvatar(size: 52, color: color, showBorder: true);
   }
@@ -165,7 +165,7 @@ class _SingleAvatar extends StatelessWidget {
 class _GroupAvatar extends StatelessWidget {
   const _GroupAvatar({required this.participants});
 
-  final List<ChatParticipant> participants;
+  final List<User> participants;
 
   @override
   Widget build(BuildContext context) {
@@ -181,7 +181,7 @@ class _GroupAvatar extends StatelessWidget {
             top: 6,
             child: ProfileAvatar(
               size: 40,
-              color: participants[0].avatarColor,
+              color: AppColors.avatarColorOf(participants[0].id),
               showBorder: true,
             ),
           ),
@@ -190,7 +190,7 @@ class _GroupAvatar extends StatelessWidget {
             top: 6,
             child: ProfileAvatar(
               size: 40,
-              color: participants[1].avatarColor,
+              color: AppColors.avatarColorOf(participants[1].id),
               showBorder: true,
             ),
           ),

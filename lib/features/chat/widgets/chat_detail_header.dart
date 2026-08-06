@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../core/state/user_repository.dart';
-import '../../../data/models/chat_participant.dart';
+import '../../../data/models/user.dart';
 import '../../mypage/widgets/profile_avatar.dart';
 
 class ChatDetailHeader extends StatelessWidget {
@@ -15,14 +15,14 @@ class ChatDetailHeader extends StatelessWidget {
   });
 
   final String title;
-  final List<ChatParticipant> participants;
+  final List<User> participants;
   final VoidCallback onBack;
   final VoidCallback? onShare;
 
-  List<ChatParticipant> get _allParticipants {
+  List<User> get _allParticipants {
     final me = UserRepository.instance.profile.value;
     return [
-      ChatParticipant(id: 'me', name: me.nickname.isEmpty ? '나' : me.nickname, avatarColor: me.avatarColor),
+      User(id: me.id, name: me.nickname.isEmpty ? '나' : me.nickname),
       ...participants,
     ];
   }
@@ -96,7 +96,7 @@ class ChatDetailHeader extends StatelessWidget {
 
 class _ParticipantAvatars extends StatelessWidget {
   const _ParticipantAvatars({required this.participants});
-  final List<ChatParticipant> participants;
+  final List<User> participants;
 
   @override
   Widget build(BuildContext context) {
@@ -116,7 +116,7 @@ class _ParticipantAvatars extends StatelessWidget {
               left: i * (diameter - overlap),
               child: ProfileAvatar(
                 size: diameter,
-                color: participants[i].avatarColor,
+                color: AppColors.avatarColorOf(participants[i].id),
               ),
             ),
         ],

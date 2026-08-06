@@ -1,6 +1,4 @@
-import 'dart:math';
-import 'package:flutter/material.dart';
-import '../../common/theme/app_colors.dart';
+import 'package:flutter/foundation.dart';
 
 class UserRepository {
   UserRepository._();
@@ -73,6 +71,7 @@ class NamedAddress {
 }
 
 class UserProfile {
+  final String id;
   final String nickname;
   final DateTime? birthdate;
   final String? gender;
@@ -84,9 +83,9 @@ class UserProfile {
   final String? homeAddress;
   final List<NamedAddress> otherAddresses;
   final bool notificationsEnabled;
-  final Color avatarColor;
 
   const UserProfile({
+    required this.id,
     required this.nickname,
     this.birthdate,
     this.gender,
@@ -98,13 +97,12 @@ class UserProfile {
     this.homeAddress,
     this.otherAddresses = const [],
     this.notificationsEnabled = true,
-    this.avatarColor = AppColors.mypageAvatarAccent,
   });
 
-  factory UserProfile.empty() {
-    final color = AppColors.avatarColors[Random().nextInt(AppColors.avatarColors.length)];
-    return UserProfile(nickname: '', avatarColor: color);
-  }
+  factory UserProfile.empty() => UserProfile(
+        id: 'local_${DateTime.now().millisecondsSinceEpoch}',
+        nickname: '',
+      );
 
   UserProfile copyWith({
     String? nickname,
@@ -121,6 +119,7 @@ class UserProfile {
     bool? notificationsEnabled,
   }) {
     return UserProfile(
+      id: id,
       nickname: nickname ?? this.nickname,
       birthdate: birthdate ?? this.birthdate,
       gender: gender ?? this.gender,
@@ -132,7 +131,6 @@ class UserProfile {
       homeAddress: homeAddress ?? this.homeAddress,
       otherAddresses: otherAddresses ?? this.otherAddresses,
       notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
-      avatarColor: avatarColor,
     );
   }
 }

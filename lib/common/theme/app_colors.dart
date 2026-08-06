@@ -99,6 +99,9 @@ class AppColors {
   static const mypageAvatarAccent = Color(0xFF984CFF); // 프로필 아바타 배경/아이콘 색
   static const mypageDivider = Color(0xFFF2F2F3); // 마이페이지 섹션 구분 띠
 
+  static Color avatarColorOf(String id) =>
+      avatarColors[id.hashCode.abs() % avatarColors.length];
+
   static const List<Color> avatarColors = [
     Color(0xFFDDC5FB), // soft lavender
     Color(0xFFB6A5FF), // light purple
@@ -107,7 +110,6 @@ class AppColors {
     Color(0xFFFFCE6C), // soft yellow
     Color(0xFFFFC0E3), // soft pink
     Color(0xFFC8F3B7), // soft green
-    Color(0xFFD5D6D7), // soft gray
     Color(0xFFFBABAB), // soft red
   ];
 

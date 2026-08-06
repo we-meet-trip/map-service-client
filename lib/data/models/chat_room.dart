@@ -1,4 +1,4 @@
-import 'chat_participant.dart';
+import 'user.dart';
 
 enum ChatRoomType { upcoming, past }
 
@@ -16,7 +16,7 @@ class ChatRoom {
 
   final String id;
   final String title;
-  final List<ChatParticipant> participants;
+  final List<User> participants;
   final int participantCount;
   final ChatRoomType type;
   final bool hasUnread;
