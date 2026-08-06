@@ -3,10 +3,13 @@ import 'package:flutter/material.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../core/naver_map/naver_map_adapter.dart';
 import '../models/place.dart';
+import '../data/place_detail_mock.dart';
 import '../widgets/place_pin.dart';
 import '../widgets/place_bottom_sheet.dart';
 import '../../trip/widgets/trip_step_header.dart';
 import '../../trip/widgets/trip_step_scaffold.dart';
+
+const _kMinSelection = 3;
 
 const _kInitialCamera = NCameraPosition(
   target: NLatLng(37.5666, 126.9784),
@@ -32,6 +35,9 @@ class PlaceExploreStep1Screen extends StatefulWidget {
 
 class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
   NaverMapController? _mapController;
+  final Set<String> _selectedIds = {};
+
+  bool get _canProceed => _selectedIds.length >= _kMinSelection;
 
   Future<void> _initMarkers(NaverMapController controller) async {
     for (int i = 0; i < widget.places.length; i++) {
@@ -54,21 +60,46 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
     }
   }
 
+  void _togglePlace(String id) {
+    setState(() {
+      if (_selectedIds.contains(id)) {
+        _selectedIds.remove(id);
+      } else {
+        _selectedIds.add(id);
+      }
+    });
+  }
+
   void _showPlaceSheet(Place place) {
+    final detail = mockPlaceDetails[place.id];
+    if (detail == null) return;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       useSafeArea: true,
-      builder: (_) => PlaceBottomSheet(place: place),
+      builder: (_) => PlaceBottomSheet(
+        detail: detail,
+        isAdded: _selectedIds.contains(place.id),
+        onToggle: () => _togglePlace(place.id),
+      ),
     );
+  }
+
+  String? get _nextInfo {
+    final count = _selectedIds.length;
+    if (count >= _kMinSelection) return null;
+    final need = _kMinSelection - count;
+    return '장소 $need개 더 선택하면 다음으로';
   }
 
   @override
   Widget build(BuildContext context) {
     return TripStepScaffold(
-      onNext: widget.onNext,
+      onNext: _canProceed ? widget.onNext : null,
       onPrev: widget.onPrev,
+      nextInfo: _nextInfo,
       children: [
         TripStepHeader(
           step: 1,
@@ -132,7 +163,37 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
               ),
             ),
           ),
+          if (_selectedIds.isNotEmpty)
+            Positioned(
+              left: 14,
+              top: 14,
+              child: _buildSelectionBadge(),
+            ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSelectionBadge() {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: AppColors.primaryScale[500]!.withValues(alpha: 0.9),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            '${_selectedIds.length}곳 선택됨',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -168,4 +229,3 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
     );
   }
 }
-

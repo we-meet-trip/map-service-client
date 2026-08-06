@@ -110,6 +110,7 @@ class NMarker {
     required NLatLng position,
     NOverlayImage? icon,
   });
+  void setOnTapListener(void Function(NMarker marker) listener) {}
 }
 
 class NPolylineOverlay {
