@@ -1,13 +1,15 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../common/theme/app_colors.dart';
+import '../../../common/widgets/next_button.dart';
+import '../../../common/widgets/prev_button.dart';
 import '../../../core/naver_map/naver_map_adapter.dart';
 import '../models/place.dart';
 import '../data/place_detail_mock.dart';
 import '../widgets/place_pin.dart';
 import '../widgets/place_bottom_sheet.dart';
+import '../widgets/glass_icon_button.dart';
 import '../../trip/widgets/trip_step_header.dart';
-import '../../trip/widgets/trip_step_scaffold.dart';
 
 const _kMinSelection = 3;
 
@@ -38,6 +40,12 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
   final Set<String> _selectedIds = {};
 
   bool get _canProceed => _selectedIds.length >= _kMinSelection;
+
+  String? get _nextInfo {
+    final need = _kMinSelection - _selectedIds.length;
+    if (need <= 0) return null;
+    return '장소 $need개 더 선택하면 다음으로';
+  }
 
   Future<void> _initMarkers(NaverMapController controller) async {
     for (int i = 0; i < widget.places.length; i++) {
@@ -87,49 +95,16 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
     );
   }
 
-  String? get _nextInfo {
-    final count = _selectedIds.length;
-    if (count >= _kMinSelection) return null;
-    final need = _kMinSelection - count;
-    return '장소 $need개 더 선택하면 다음으로';
-  }
-
   @override
   Widget build(BuildContext context) {
-    return TripStepScaffold(
-      onNext: _canProceed ? widget.onNext : null,
-      onPrev: widget.onPrev,
-      nextInfo: _nextInfo,
-      children: [
-        TripStepHeader(
-          step: 1,
-          title: '어디로 떠나볼까요?',
-          subtitle: '원하는 장소 최소 3곳을 선택해주세요.',
-        ),
-        const SizedBox(height: 24),
-        _buildMapArea(),
-      ],
-    );
-  }
+    final topPad = MediaQuery.paddingOf(context).top;
+    final bottomPad = MediaQuery.paddingOf(context).bottom;
 
-  Widget _buildMapArea() {
-    return Container(
-      width: double.infinity,
-      height: 520,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.neutralScale[600]!.withAlpha(0x18),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      clipBehavior: Clip.hardEdge,
-      child: Stack(
-        children: [
-          NaverMap(
+    return Stack(
+      children: [
+        // ── 지도: 전체 배경 ────────────────────────────────────────
+        Positioned.fill(
+          child: NaverMap(
             options: const NaverMapViewOptions(
               initialCameraPosition: _kInitialCamera,
               scrollGesturesEnable: true,
@@ -142,33 +117,104 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
               _initMarkers(controller);
             },
           ),
-          Positioned(
-            right: 14,
-            top: 0,
-            bottom: 0,
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildGlassButton(
-                    Icons.add,
-                    () => _mapController?.updateCamera(NCameraUpdate.zoomIn()),
-                  ),
-                  const SizedBox(height: 8),
-                  _buildGlassButton(
-                    Icons.remove,
-                    () => _mapController?.updateCamera(NCameraUpdate.zoomOut()),
-                  ),
-                ],
-              ),
+        ),
+
+        // ── 헤더: 상단 그라데이션 오버레이 위 텍스트 ─────────────────
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: _buildHeader(topPad),
+        ),
+
+        // ── 줌 버튼 ───────────────────────────────────────────────
+        Positioned(
+          right: 14,
+          top: 0,
+          bottom: 0,
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                GlassIconButton(
+                  icon: Icons.add,
+                  onPressed: () => _mapController?.updateCamera(NCameraUpdate.zoomIn()),
+                ),
+                const SizedBox(height: 8),
+                GlassIconButton(
+                  icon: Icons.remove,
+                  onPressed: () => _mapController?.updateCamera(NCameraUpdate.zoomOut()),
+                ),
+              ],
             ),
           ),
-          if (_selectedIds.isNotEmpty)
-            Positioned(
-              left: 14,
-              top: 14,
-              child: _buildSelectionBadge(),
-            ),
+        ),
+
+        // ── 선택 배지 ─────────────────────────────────────────────
+        if (_selectedIds.isNotEmpty)
+          Positioned(
+            left: 14,
+            top: topPad + 160,
+            child: _buildSelectionBadge(),
+          ),
+
+        // ── 버튼: 하단 메뉴바 바로 위 고정 ───────────────────────────
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: _buildButtons(bottomPad),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHeader(double topPad) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.white,
+            Colors.white,
+            Colors.white.withValues(alpha: 0.0),
+          ],
+          stops: const [0.0, 0.72, 1.0],
+        ),
+      ),
+      padding: EdgeInsets.fromLTRB(24, topPad + 20, 24, 40),
+      child: TripStepHeader(
+        step: 1,
+        title: '어디로 떠나볼까요?',
+        subtitle: '원하는 장소 최소 3곳을 선택해주세요.',
+      ),
+    );
+  }
+
+  Widget _buildButtons(double bottomPad) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.bottomCenter,
+          end: Alignment.topCenter,
+          colors: [
+            Colors.white,
+            Colors.white.withValues(alpha: 0.0),
+          ],
+          stops: const [0.10, 1.0],
+        ),
+      ),
+      padding: EdgeInsets.fromLTRB(24, 40, 24, bottomPad + 10),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          NextButton(
+            onPressed: _canProceed ? widget.onNext : null,
+            info: _nextInfo,
+          ),
+          const SizedBox(height: 10),
+          PrevButton(onPressed: widget.onPrev),
         ],
       ),
     );
@@ -198,34 +244,4 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
     );
   }
 
-  Widget _buildGlassButton(IconData icon, VoidCallback onPressed) {
-    return GestureDetector(
-      onTap: onPressed,
-      child: ClipOval(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.75),
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.9),
-                width: 1.2,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.primaryScale[600]!.withAlpha(0x1A),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Icon(icon, size: 22, color: AppColors.primaryScale[500]),
-          ),
-        ),
-      ),
-    );
-  }
 }

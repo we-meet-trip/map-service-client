@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../../common/theme/app_colors.dart';
 import '../models/place_detail.dart';
+import 'blog_review_card.dart';
+import 'place_ai_summary_card.dart';
 
 class PlaceBottomSheet extends StatefulWidget {
   final PlaceDetail detail;
@@ -61,11 +63,11 @@ class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
               SliverToBoxAdapter(child: _buildInfo()),
               SliverToBoxAdapter(child: _buildToggleButton()),
               SliverToBoxAdapter(child: _buildDivider()),
-              SliverToBoxAdapter(child: _buildAiSummary()),
+              SliverToBoxAdapter(child: PlaceAiSummaryCard(summary: widget.detail.aiSummary)),
               SliverToBoxAdapter(child: _buildReviewsHeader()),
               SliverList(
                 delegate: SliverChildBuilderDelegate(
-                  (context, index) => _buildReviewCard(shown[index]),
+                  (context, index) => BlogReviewCard(review: shown[index]),
                   childCount: shown.length,
                 ),
               ),
@@ -243,52 +245,6 @@ class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
     );
   }
 
-  Widget _buildAiSummary() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.primaryScale[50],
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.primaryScale[100]!),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  PhosphorIcons.sparkle(PhosphorIconsStyle.fill),
-                  size: 16,
-                  color: AppColors.primaryScale[500],
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  'AI 요약',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.primaryScale[500],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(
-              widget.detail.aiSummary,
-              style: TextStyle(
-                fontSize: 14,
-                height: 1.6,
-                color: AppColors.neutralScale[600],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildReviewsHeader() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
@@ -313,67 +269,6 @@ class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildReviewCard(BlogReview review) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppColors.neutralScale[50],
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.neutralScale[100]!),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              review.title,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: AppColors.neutralScale[700],
-              ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 6),
-            Text(
-              review.snippet,
-              style: TextStyle(
-                fontSize: 13,
-                height: 1.5,
-                color: AppColors.neutralScale[500],
-              ),
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Text(
-                  review.blogName,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.primaryScale[400],
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  review.date,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.neutralScale[400],
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
       ),
     );
   }
