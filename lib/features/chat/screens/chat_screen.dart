@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -37,14 +38,36 @@ class _ChatRoomListScreenState extends State<ChatRoomListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF9F8FA),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => context.push('/chat/new'),
-        backgroundColor: AppColors.secondaryScale[500],
-        shape: const CircleBorder(),
-        child: Icon(
-          PhosphorIcons.plus(),
-          color: Colors.white,
-          size: 26,
+      floatingActionButton: GestureDetector(
+        onTap: () => context.push('/chat/new'),
+        child: ClipOval(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            child: Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFDFDFE).withValues(alpha: 0.75),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: const Color(0xFF6E6C70).withValues(alpha: 0.028),
+                  width: 2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF5C198A).withValues(alpha: 0.06),
+                    blurRadius: 13.33,
+                    offset: const Offset(0, 1.33),
+                  ),
+                ],
+              ),
+              child: Icon(
+                PhosphorIcons.plus(PhosphorIconsStyle.bold),
+                color: const Color(0xFF8D46ED),
+                size: 28,
+              ),
+            ),
+          ),
         ),
       ),
       body: SafeArea(
