@@ -2,7 +2,9 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import '../../../common/theme/app_colors.dart';
 import '../../../core/state/trip_repository.dart';
+import '../../../data/models/chat_message.dart';
 import '../../../data/models/chat_room.dart';
 import '../providers/chat_room_detail_provider.dart';
 import '../widgets/chat_bubble.dart';
@@ -51,6 +53,13 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
     });
   }
 
+  Color _resolveColor(ChatMessage msg) {
+    final participant = widget.room.participants
+        .where((p) => p.id == msg.senderId)
+        .firstOrNull;
+    return participant?.avatarColor ?? AppColors.avatarColors[0];
+  }
+
   Future<void> _showInviteSheet() async {
     setState(() => _isSheetOpen = true);
     await showModalBottomSheet<void>(
@@ -76,7 +85,7 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
           children: [
             ChatDetailHeader(
               title: widget.room.title,
-              participantCount: widget.room.participantCount,
+              participants: widget.room.participants,
               onBack: () => context.pop(),
               onShare: widget.room.type == ChatRoomType.upcoming
                   ? _showInviteSheet
@@ -109,9 +118,11 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
                                   itemCount: provider.messages.length,
                                   separatorBuilder: (_, _) =>
                                       const SizedBox(height: 12),
-                                  itemBuilder: (context, index) =>
-                                      ChatBubble(
-                                          message: provider.messages[index]),
+                                  itemBuilder: (context, index) {
+                                    final msg = provider.messages[index];
+                                    final color = _resolveColor(msg);
+                                    return ChatBubble(message: msg, senderColor: color);
+                                  },
                                 );
                               },
                             ),

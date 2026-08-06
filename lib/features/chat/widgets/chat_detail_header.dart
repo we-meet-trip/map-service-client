@@ -1,20 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../../common/theme/app_colors.dart';
+import '../../../core/state/user_repository.dart';
+import '../../../data/models/chat_participant.dart';
+import '../../mypage/widgets/profile_avatar.dart';
 
 class ChatDetailHeader extends StatelessWidget {
   const ChatDetailHeader({
     super.key,
     required this.title,
-    required this.participantCount,
+    required this.participants,
     required this.onBack,
     this.onShare,
   });
 
   final String title;
-  final int participantCount;
+  final List<ChatParticipant> participants;
   final VoidCallback onBack;
   final VoidCallback? onShare;
+
+  List<ChatParticipant> get _allParticipants {
+    final me = UserRepository.instance.profile.value;
+    return [
+      ChatParticipant(id: 'me', name: me.nickname.isEmpty ? '나' : me.nickname, avatarColor: me.avatarColor),
+      ...participants,
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -51,7 +62,7 @@ class ChatDetailHeader extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
-                    _ParticipantAvatars(count: participantCount),
+                    _ParticipantAvatars(participants: _allParticipants),
                   ],
                 ),
               ),
@@ -84,12 +95,13 @@ class ChatDetailHeader extends StatelessWidget {
 }
 
 class _ParticipantAvatars extends StatelessWidget {
-  const _ParticipantAvatars({required this.count});
-  final int count;
+  const _ParticipantAvatars({required this.participants});
+  final List<ChatParticipant> participants;
 
   @override
   Widget build(BuildContext context) {
-    final displayCount = count.clamp(1, 3);
+    if (participants.isEmpty) return const SizedBox.shrink();
+    final displayCount = participants.length.clamp(1, 3);
     const diameter = 20.0;
     const overlap = 8.0;
     final totalWidth = diameter + (displayCount - 1) * (diameter - overlap);
@@ -102,14 +114,9 @@ class _ParticipantAvatars extends StatelessWidget {
           for (int i = 0; i < displayCount; i++)
             Positioned(
               left: i * (diameter - overlap),
-              child: Container(
-                width: diameter,
-                height: diameter,
-                decoration: BoxDecoration(
-                  color: AppColors.primaryScale[100],
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 1.5),
-                ),
+              child: ProfileAvatar(
+                size: diameter,
+                color: participants[i].avatarColor,
               ),
             ),
         ],

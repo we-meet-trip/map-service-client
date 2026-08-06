@@ -99,6 +99,15 @@ class AppColors {
   static const mypageAvatarAccent = Color(0xFF984CFF); // 프로필 아바타 배경/아이콘 색
   static const mypageDivider = Color(0xFFF2F2F3); // 마이페이지 섹션 구분 띠
 
+  static const List<Color> avatarColors = [
+    Color(0xFFDDC5FB), // soft lavender
+    Color(0xFFB6A5FF), // light purple
+    Color(0xFFC98CFF), // medium lavender
+    Color(0xFF7FC2E0), // sky blue
+    Color(0xFFFFCE6C), // soft yellow
+    Color(0xFFFFC0E3), // soft pink
+  ];
+
   // chat
   static const inputBarBg      = Color(0xFFFFFFFF);
   static const shareIcon       = Color(0xFF8D46ED);

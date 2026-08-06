@@ -176,7 +176,7 @@ class ProfileEditScreen extends StatelessWidget {
                         const SizedBox(height: 12),
                         GestureDetector(
                           onTap: () => _pickImage(context),
-                          child: ProfileAvatar(imagePath: profile.profileImagePath, size: 110),
+                          child: ProfileAvatar(imagePath: profile.profileImagePath, size: 110, color: profile.avatarColor),
                         ),
                         const SizedBox(height: 12),
                         GestureDetector(

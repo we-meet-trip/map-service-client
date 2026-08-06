@@ -1,14 +1,22 @@
 import 'package:flutter/material.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../data/models/chat_message.dart';
+import '../../mypage/widgets/profile_avatar.dart';
 
 class ChatBubble extends StatelessWidget {
-  const ChatBubble({super.key, required this.message});
+  const ChatBubble({
+    super.key,
+    required this.message,
+    this.senderColor = AppColors.mypageAvatarAccent,
+  });
   final ChatMessage message;
+  final Color senderColor;
 
   @override
   Widget build(BuildContext context) =>
-      message.isMe ? _MyBubble(message: message) : _OtherBubble(message: message);
+      message.isMe
+          ? _MyBubble(message: message)
+          : _OtherBubble(message: message, senderColor: senderColor);
 }
 
 class _MyBubble extends StatelessWidget {
@@ -47,22 +55,16 @@ class _MyBubble extends StatelessWidget {
 }
 
 class _OtherBubble extends StatelessWidget {
-  const _OtherBubble({required this.message});
+  const _OtherBubble({required this.message, required this.senderColor});
   final ChatMessage message;
+  final Color senderColor;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            color: AppColors.primaryScale[100],
-            shape: BoxShape.circle,
-          ),
-        ),
+        ProfileAvatar(size: 32, color: senderColor),
         const SizedBox(width: 8),
         Flexible(
           child: Column(

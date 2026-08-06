@@ -1,4 +1,6 @@
-import 'package:flutter/foundation.dart';
+import 'dart:math';
+import 'package:flutter/material.dart';
+import '../../common/theme/app_colors.dart';
 
 class UserRepository {
   UserRepository._();
@@ -82,6 +84,7 @@ class UserProfile {
   final String? homeAddress;
   final List<NamedAddress> otherAddresses;
   final bool notificationsEnabled;
+  final Color avatarColor;
 
   const UserProfile({
     required this.nickname,
@@ -95,9 +98,13 @@ class UserProfile {
     this.homeAddress,
     this.otherAddresses = const [],
     this.notificationsEnabled = true,
+    this.avatarColor = AppColors.mypageAvatarAccent,
   });
 
-  factory UserProfile.empty() => const UserProfile(nickname: '');
+  factory UserProfile.empty() {
+    final color = AppColors.avatarColors[Random().nextInt(AppColors.avatarColors.length)];
+    return UserProfile(nickname: '', avatarColor: color);
+  }
 
   UserProfile copyWith({
     String? nickname,
@@ -125,6 +132,7 @@ class UserProfile {
       homeAddress: homeAddress ?? this.homeAddress,
       otherAddresses: otherAddresses ?? this.otherAddresses,
       notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
+      avatarColor: avatarColor,
     );
   }
 }
