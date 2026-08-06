@@ -21,7 +21,7 @@ class PlaceExploreStep2Screen extends StatelessWidget {
       children: [
         TripStepHeader(
           step: 2,
-          title: '선택한 장소를 확인해요',
+          title: '내가 선택한 장소',
           subtitle: '선택하신 장소 목록을 확인해 주세요.',
         ),
         const SizedBox(height: 24),

@@ -27,8 +27,8 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
       children: [
         TripStepHeader(
           step: 1,
-          title: '장소를 선택해 주세요',
-          subtitle: '지도에서 방문하고 싶은 장소를 골라보세요.',
+          title: '어디로 떠나볼까요?',
+          subtitle: '원하는 장소 최소 3곳을 선택해주세요.',
         ),
         const SizedBox(height: 24),
         Container(
