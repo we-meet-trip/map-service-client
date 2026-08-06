@@ -1,10 +1,22 @@
 import 'package:flutter/foundation.dart';
+import '../../data/local/profile_local_store.dart';
 
 class UserRepository {
-  UserRepository._();
+  UserRepository._() {
+    profile.addListener(_persist);
+  }
   static final UserRepository instance = UserRepository._();
 
   final ValueNotifier<UserProfile> profile = ValueNotifier(UserProfile.empty());
+
+  static Future<void> init() async {
+    final saved = ProfileLocalStore.instance.load();
+    if (saved != null) {
+      instance.profile.value = saved;
+    }
+  }
+
+  void _persist() => ProfileLocalStore.instance.save(profile.value);
 
   void updateNickname(String nickname) {
     profile.value = profile.value.copyWith(nickname: nickname);
