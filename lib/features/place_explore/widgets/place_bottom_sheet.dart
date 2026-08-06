@@ -212,16 +212,8 @@ class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
             '블로그 리뷰',
             style: TextStyle(
               fontSize: 15,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w500,
               color: AppColors.neutralScale[600],
-            ),
-          ),
-          const Spacer(),
-          Text(
-            '${widget.detail.blogReviews.length}개',
-            style: TextStyle(
-              fontSize: 13,
-              color: AppColors.neutralScale[400],
             ),
           ),
         ],
