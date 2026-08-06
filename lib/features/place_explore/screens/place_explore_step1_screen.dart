@@ -57,7 +57,7 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
       final place = places[i];
       final icon = await NOverlayImage.fromWidget(
         widget: PlacePin(number: i + 1),
-        size: const Size(36, 36),
+        size: const Size(32, 40),
         context: context,
       );
       final marker = NMarker(
