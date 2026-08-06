@@ -186,6 +186,7 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
       padding: EdgeInsets.fromLTRB(24, topPad + 20, 24, 40),
       child: TripStepHeader(
         step: 1,
+        totalSteps: 2,
         title: '어디로 떠나볼까요?',
         subtitle: '원하는 장소 최소 3곳을 선택해주세요.',
       ),
