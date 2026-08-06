@@ -158,13 +158,20 @@ class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
               color: AppColors.neutralScale[400],
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            widget.detail.category,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: AppColors.primaryScale[400],
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: AppColors.primaryScale[0],
+              borderRadius: BorderRadius.circular(100),
+            ),
+            child: Text(
+              widget.detail.category,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: AppColors.primaryScale[400],
+              ),
             ),
           ),
           const SizedBox(height: 14),

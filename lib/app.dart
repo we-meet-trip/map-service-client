@@ -11,6 +11,9 @@ import 'data/repositories/mock_chat_repository.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/chat/providers/chat_room_list_provider.dart';
 import 'features/invite/providers/invite_provider.dart';
+import 'features/place_explore/data/place_explore_repository.dart';
+import 'features/place_explore/data/mock_place_explore_repository.dart';
+import 'features/place_explore/providers/place_explore_provider.dart';
 
 class App extends StatelessWidget {
   const App({super.key});
@@ -22,12 +25,19 @@ class App extends StatelessWidget {
         Provider<ChatRepository>(create: (_) => MockChatRepository()),
         Provider<InviteLinkRepository>(create: (_) => MockInviteLinkRepository()),
         Provider<InviteRepository>(create: (_) => MockInviteRepository()),
+        Provider<PlaceExploreRepository>(
+          create: (_) => MockPlaceExploreRepository(),
+        ),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(
           create: (ctx) => ChatRoomListProvider(ctx.read<ChatRepository>()),
         ),
         ChangeNotifierProvider(
           create: (ctx) => InviteProvider(ctx.read<InviteRepository>()),
+        ),
+        ChangeNotifierProvider(
+          create: (ctx) =>
+              PlaceExploreProvider(ctx.read<PlaceExploreRepository>()),
         ),
       ],
       child: const _AppRoot(),

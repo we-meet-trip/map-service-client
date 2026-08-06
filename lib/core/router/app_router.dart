@@ -10,7 +10,7 @@ import '../../features/trip/screens/trip_regenerate_screen.dart';
 import '../../features/trip/screens/trip_created_screen.dart';
 import '../../features/place_explore/screens/place_explore_step1_screen.dart';
 import '../../features/place_explore/screens/place_explore_step2_screen.dart';
-import '../../features/place_explore/data/place_mock.dart';
+import '../../features/place_explore/providers/place_explore_provider.dart';
 import '../../features/trip/screens/trip_directions_screen.dart';
 import '../../features/trip/screens/search_step1_screen.dart';
 import '../../features/saved/screens/saved_screen.dart';
@@ -143,8 +143,13 @@ final appRouter = GoRouter(
                 GoRoute(
                   path: 'place-explore/step1',
                   builder: (context, state) => PlaceExploreStep1Screen(
-                    places: mockPlaces,
-                    onNext: () => context.go('/trip/place-explore/step2'),
+                    onNext: () {
+                      final provider =
+                          context.read<PlaceExploreProvider>();
+                      provider.commitSelection();
+                      provider.loadAllDetails();
+                      context.go('/trip/place-explore/step2');
+                    },
                     onPrev: () => context.go('/trip/search'),
                   ),
                 ),

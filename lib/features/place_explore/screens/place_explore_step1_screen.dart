@@ -1,11 +1,12 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../common/widgets/next_button.dart';
 import '../../../common/widgets/prev_button.dart';
 import '../../../core/naver_map/naver_map_adapter.dart';
 import '../models/place.dart';
-import '../data/place_detail_mock.dart';
+import '../providers/place_explore_provider.dart';
 import '../widgets/place_pin.dart';
 import '../widgets/place_bottom_sheet.dart';
 import '../widgets/glass_icon_button.dart';
@@ -19,13 +20,11 @@ const _kInitialCamera = NCameraPosition(
 );
 
 class PlaceExploreStep1Screen extends StatefulWidget {
-  final List<Place> places;
   final VoidCallback onNext;
   final VoidCallback onPrev;
 
   const PlaceExploreStep1Screen({
     super.key,
-    required this.places,
     required this.onNext,
     required this.onPrev,
   });
@@ -37,20 +36,27 @@ class PlaceExploreStep1Screen extends StatefulWidget {
 
 class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
   NaverMapController? _mapController;
-  final Set<String> _selectedIds = {};
+  bool _markersInitialized = false;
 
-  bool get _canProceed => _selectedIds.length >= _kMinSelection;
-
-  String? get _nextInfo {
-    final need = _kMinSelection - _selectedIds.length;
-    if (need <= 0) return null;
-    return '장소 $need개 더 선택하면 다음으로';
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<PlaceExploreProvider>().loadPlaces();
+    });
   }
 
-  Future<void> _initMarkers(NaverMapController controller) async {
-    for (int i = 0; i < widget.places.length; i++) {
+  Future<void> _tryInitMarkers() async {
+    final provider = context.read<PlaceExploreProvider>();
+    if (_mapController == null || provider.places.isEmpty || _markersInitialized) return;
+    _markersInitialized = true;
+    await _initMarkers(_mapController!, provider.places);
+  }
+
+  Future<void> _initMarkers(NaverMapController controller, List<Place> places) async {
+    for (int i = 0; i < places.length; i++) {
       if (!mounted) return;
-      final place = widget.places[i];
+      final place = places[i];
       final icon = await NOverlayImage.fromWidget(
         widget: PlacePin(number: i + 1),
         size: const Size(36, 36),
@@ -68,20 +74,10 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
     }
   }
 
-  void _togglePlace(String id) {
-    setState(() {
-      if (_selectedIds.contains(id)) {
-        _selectedIds.remove(id);
-      } else {
-        _selectedIds.add(id);
-      }
-    });
-  }
-
-  void _showPlaceSheet(Place place) {
-    final detail = mockPlaceDetails[place.id];
-    if (detail == null) return;
-
+  Future<void> _showPlaceSheet(Place place) async {
+    final provider = context.read<PlaceExploreProvider>();
+    final detail = await provider.loadDetail(place.id);
+    if (detail == null || !mounted) return;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -89,20 +85,28 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
       useSafeArea: true,
       builder: (_) => PlaceBottomSheet(
         detail: detail,
-        isAdded: _selectedIds.contains(place.id),
-        onToggle: () => _togglePlace(place.id),
+        isAdded: provider.selectedIds.contains(place.id),
+        onToggle: () => context.read<PlaceExploreProvider>().togglePlace(place.id),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final provider = context.watch<PlaceExploreProvider>();
+    final selectedIds = provider.selectedIds;
+    final canProceed = selectedIds.length >= _kMinSelection;
     final topPad = MediaQuery.paddingOf(context).top;
     final bottomPad = MediaQuery.paddingOf(context).bottom;
 
+    if (provider.status == PlaceExploreStatus.success && !_markersInitialized) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _tryInitMarkers();
+      });
+    }
+
     return Stack(
       children: [
-        // ── 지도: 전체 배경 ────────────────────────────────────────
         Positioned.fill(
           child: NaverMap(
             options: const NaverMapViewOptions(
@@ -114,20 +118,16 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
             ),
             onMapReady: (controller) {
               _mapController = controller;
-              _initMarkers(controller);
+              _tryInitMarkers();
             },
           ),
         ),
-
-        // ── 헤더: 상단 그라데이션 오버레이 위 텍스트 ─────────────────
         Positioned(
           top: 0,
           left: 0,
           right: 0,
           child: _buildHeader(topPad),
         ),
-
-        // ── 줌 버튼 ───────────────────────────────────────────────
         Positioned(
           right: 14,
           top: 0,
@@ -138,32 +138,30 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
               children: [
                 GlassIconButton(
                   icon: Icons.add,
-                  onPressed: () => _mapController?.updateCamera(NCameraUpdate.zoomIn()),
+                  onPressed: () =>
+                      _mapController?.updateCamera(NCameraUpdate.zoomIn()),
                 ),
                 const SizedBox(height: 8),
                 GlassIconButton(
                   icon: Icons.remove,
-                  onPressed: () => _mapController?.updateCamera(NCameraUpdate.zoomOut()),
+                  onPressed: () =>
+                      _mapController?.updateCamera(NCameraUpdate.zoomOut()),
                 ),
               ],
             ),
           ),
         ),
-
-        // ── 선택 배지 ─────────────────────────────────────────────
-        if (_selectedIds.isNotEmpty)
+        if (selectedIds.isNotEmpty)
           Positioned(
             left: 14,
             top: topPad + 160,
-            child: _buildSelectionBadge(),
+            child: _buildSelectionBadge(selectedIds.length),
           ),
-
-        // ── 버튼: 하단 메뉴바 바로 위 고정 ───────────────────────────
         Positioned(
           left: 0,
           right: 0,
           bottom: 0,
-          child: _buildButtons(bottomPad),
+          child: _buildButtons(bottomPad, canProceed, selectedIds.length),
         ),
       ],
     );
@@ -184,7 +182,7 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
         ),
       ),
       padding: EdgeInsets.fromLTRB(24, topPad + 20, 24, 40),
-      child: TripStepHeader(
+      child: const TripStepHeader(
         step: 1,
         totalSteps: 2,
         title: '어디로 떠나볼까요?',
@@ -193,7 +191,10 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
     );
   }
 
-  Widget _buildButtons(double bottomPad) {
+  Widget _buildButtons(double bottomPad, bool canProceed, int count) {
+    final need = _kMinSelection - count;
+    final nextInfo = need > 0 ? '장소 $need개 더 선택하면 다음으로' : null;
+
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -211,8 +212,8 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           NextButton(
-            onPressed: _canProceed ? widget.onNext : null,
-            info: _nextInfo,
+            onPressed: canProceed ? widget.onNext : null,
+            info: nextInfo,
           ),
           const SizedBox(height: 10),
           PrevButton(onPressed: widget.onPrev),
@@ -221,7 +222,7 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
     );
   }
 
-  Widget _buildSelectionBadge() {
+  Widget _buildSelectionBadge(int count) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(20),
       child: BackdropFilter(
@@ -233,7 +234,7 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
             borderRadius: BorderRadius.circular(20),
           ),
           child: Text(
-            '${_selectedIds.length}곳 선택됨',
+            '$count곳 선택됨',
             style: const TextStyle(
               color: Colors.white,
               fontSize: 13,
@@ -244,5 +245,4 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
       ),
     );
   }
-
 }
