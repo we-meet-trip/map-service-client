@@ -102,82 +102,94 @@ class PlaceExploreStep2Screen extends StatelessWidget {
 
     return Container(
       color: AppColors.neutralScale[0],
-      padding: EdgeInsets.fromLTRB(24, 12, 24, bottomPad + 10),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            children: [
-              RichText(
-                text: TextSpan(
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: AppColors.neutralScale[600],
-                  ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
                   children: [
-                    const TextSpan(text: '선택 장소 '),
-                    TextSpan(
-                      text: '${provider.selectedIds.length}',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.primaryScale[500],
+                    RichText(
+                      text: TextSpan(
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: AppColors.neutralScale[600],
+                        ),
+                        children: [
+                          const TextSpan(text: '선택 장소 '),
+                          TextSpan(
+                            text: '${provider.selectedIds.length}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.primaryScale[500],
+                            ),
+                          ),
+                          const TextSpan(text: '곳'),
+                        ],
                       ),
                     ),
-                    const TextSpan(text: '곳'),
+                    const Spacer(),
+                    GestureDetector(
+                      onTap: () =>
+                          context.read<PlaceExploreProvider>().resetToCommitted(),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.refresh_rounded,
+                            size: 15,
+                            color: AppColors.neutralScale[300],
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '되돌리기',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w400,
+                              color: AppColors.neutralScale[300],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
-              ),
-              const Spacer(),
-              GestureDetector(
-                onTap: () =>
-                    context.read<PlaceExploreProvider>().resetToCommitted(),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.refresh_rounded,
-                      size: 15,
+                const SizedBox(height: 4),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '최소 3곳 이상 선택',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w400,
                       color: AppColors.neutralScale[300],
                     ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '되돌리기',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w400,
-                        color: AppColors.neutralScale[300],
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              '최소 3곳 이상 선택',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w400,
-                color: AppColors.neutralScale[300],
-              ),
+                const SizedBox(height: 12),
+              ],
             ),
           ),
-          const SizedBox(height: 12),
-          NextButton(
-            onPressed: canProceed
-                ? () => ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('다음 화면 준비 중'),
-                        duration: Duration(seconds: 2),
-                      ),
-                    )
-                : null,
+          Padding(
+            padding: EdgeInsets.fromLTRB(24, 0, 24, 10 + bottomPad),
+            child: NextButton(
+              onPressed: canProceed
+                  ? () => ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('다음 화면 준비 중'),
+                          duration: Duration(seconds: 2),
+                        ),
+                      )
+                  : null,
+            ),
           ),
-          const SizedBox(height: 10),
-          PrevButton(onPressed: onPrev),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 20),
+            child: PrevButton(onPressed: onPrev),
+          ),
         ],
       ),
     );

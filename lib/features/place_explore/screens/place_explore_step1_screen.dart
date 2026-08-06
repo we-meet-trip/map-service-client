@@ -201,15 +201,19 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
           stops: const [0.10, 1.0],
         ),
       ),
-      padding: EdgeInsets.fromLTRB(24, 40, 24, bottomPad + 10),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          NextButton(
-            onPressed: count > 0 ? widget.onNext : null,
+          Padding(
+            padding: EdgeInsets.fromLTRB(24, 40, 24, 10 + bottomPad),
+            child: NextButton(
+              onPressed: count > 0 ? widget.onNext : null,
+            ),
           ),
-          const SizedBox(height: 10),
-          PrevButton(onPressed: widget.onPrev),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 20),
+            child: PrevButton(onPressed: widget.onPrev),
+          ),
         ],
       ),
     );
