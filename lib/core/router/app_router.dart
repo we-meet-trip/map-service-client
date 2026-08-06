@@ -7,6 +7,8 @@ import '../../data/repositories/chat_repository.dart';
 import '../../data/repositories/invite_link_repository.dart';
 import '../../features/home/screens/home_screen.dart';
 import '../../features/trip/screens/trip_regenerate_screen.dart';
+import '../../features/trip/screens/trip_step6_screen.dart';
+import '../../features/trip/screens/trip_step7_screen.dart';
 import '../../features/trip/screens/trip_created_screen.dart';
 import '../../features/trip/screens/trip_directions_screen.dart';
 import '../../features/trip/screens/search_step1_screen.dart';
@@ -136,6 +138,20 @@ final appRouter = GoRouter(
                 GoRoute(
                   path: 'search',
                   builder: (context, state) => const SearchStep1Screen(),
+                ),
+                GoRoute(
+                  path: 'place-select',
+                  builder: (context, state) => TripStep6Screen(
+                    onNext: () => context.go('/trip/place-confirm'),
+                    onPrev: () => context.pop(),
+                  ),
+                ),
+                GoRoute(
+                  path: 'place-confirm',
+                  builder: (context, state) => TripStep7Screen(
+                    onNext: () => context.pop(),
+                    onPrev: () => context.pop(),
+                  ),
                 ),
               ],
             ),

@@ -9,6 +9,8 @@ import 'trip_step2_screen.dart';
 import 'trip_step3_screen.dart';
 import 'trip_step4_screen.dart';
 import 'trip_step5_screen.dart';
+import 'trip_step6_screen.dart';
+import 'trip_step7_screen.dart';
 import 'trip_created_screen.dart';
 
 // trip_step3_screen.dart 테마 목록의 첫 항목(맛집 탐방) id와 동일해야 한다.
@@ -127,7 +129,7 @@ class _TripRegenerateScreenState extends State<TripRegenerateScreen> {
     });
   }
 
-  static const int _totalSteps = 6;
+  static const int _totalSteps = 7;
 
   // Step 1
   DateTime? _startDate;
@@ -154,8 +156,8 @@ class _TripRegenerateScreenState extends State<TripRegenerateScreen> {
   TripGenerateResponse? _tripResponse;
 
   void _next() {
-    if (_currentStep == 5) {
-      // step 5 → 로딩 + API 호출
+    if (_currentStep == 7) {
+      // step 7 → 로딩 + API 호출
       final request = TripGenerateRequest(
         startDate: _startDate!,
         endDate: _endDate!,
@@ -188,7 +190,7 @@ class _TripRegenerateScreenState extends State<TripRegenerateScreen> {
     setState(() {
       _isLoading = false;
       _generateFuture = null;
-      _currentStep = 6;
+      _currentStep = 8;
     });
   }
 
@@ -199,7 +201,7 @@ class _TripRegenerateScreenState extends State<TripRegenerateScreen> {
     setState(() {
       _isLoading = false;
       _generateFuture = null;
-      _currentStep = 5;
+      _currentStep = 7;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -279,6 +281,16 @@ class _TripRegenerateScreenState extends State<TripRegenerateScreen> {
           }),
         );
       case 6:
+        return TripStep6Screen(
+          onNext: _next,
+          onPrev: _prev,
+        );
+      case 7:
+        return TripStep7Screen(
+          onNext: _next,
+          onPrev: _prev,
+        );
+      case 8:
         return TripCreatedScreen(
           response: _tripResponse,
           startDate: _startDate,
