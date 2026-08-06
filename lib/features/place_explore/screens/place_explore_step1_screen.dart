@@ -176,9 +176,9 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            Colors.white,
-            Colors.white,
-            Colors.white.withValues(alpha: 0.0),
+            AppColors.background,
+            AppColors.background,
+            AppColors.background.withValues(alpha: 0.0),
           ],
           stops: const [0.0, 0.72, 1.0],
         ),
@@ -200,8 +200,8 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
           begin: Alignment.bottomCenter,
           end: Alignment.topCenter,
           colors: [
-            Colors.white,
-            Colors.white.withValues(alpha: 0.0),
+            AppColors.background,
+            AppColors.background.withValues(alpha: 0.0),
           ],
           stops: const [0.10, 1.0],
         ),

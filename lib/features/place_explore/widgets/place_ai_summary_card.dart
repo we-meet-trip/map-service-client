@@ -12,43 +12,56 @@ class PlaceAiSummaryCard extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
       child: Container(
-        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppColors.primaryScale[50],
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              AppColors.secondaryScale[500]!,
+              AppColors.primaryScale[500]!,
+            ],
+          ),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.primaryScale[100]!),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  PhosphorIcons.sparkle(PhosphorIconsStyle.fill),
-                  size: 16,
-                  color: AppColors.primaryScale[500],
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  'AI 요약',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
+        padding: const EdgeInsets.all(1.5),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.secondaryScale[100],
+            borderRadius: BorderRadius.circular(12.5),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    PhosphorIcons.sparkle(PhosphorIconsStyle.fill),
+                    size: 16,
                     color: AppColors.primaryScale[500],
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(
-              summary,
-              style: TextStyle(
-                fontSize: 14,
-                height: 1.6,
-                color: AppColors.neutralScale[600],
+                  const SizedBox(width: 6),
+                  Text(
+                    'AI 리뷰 요약',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primaryScale[500],
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
+              const SizedBox(height: 10),
+              Text(
+                summary,
+                style: TextStyle(
+                  fontSize: 14,
+                  height: 1.6,
+                  color: AppColors.neutralScale[600],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

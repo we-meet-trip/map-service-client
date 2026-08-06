@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../../common/theme/app_colors.dart';
 import '../models/place_detail.dart';
 import 'blog_review_card.dart';
 import 'place_ai_summary_card.dart';
+
 
 class PlaceBottomSheet extends StatefulWidget {
   final PlaceDetail detail;
@@ -60,8 +62,6 @@ class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
             controller: scrollController,
             slivers: [
               SliverToBoxAdapter(child: _buildHeader()),
-              SliverToBoxAdapter(child: _buildInfo()),
-              SliverToBoxAdapter(child: _buildToggleButton()),
               SliverToBoxAdapter(child: _buildDivider()),
               SliverToBoxAdapter(child: PlaceAiSummaryCard(summary: widget.detail.aiSummary)),
               SliverToBoxAdapter(child: _buildReviewsHeader()),
@@ -103,6 +103,7 @@ class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
           ),
           const SizedBox(height: 20),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: Text(
@@ -114,24 +115,58 @@ class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
                   ),
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryScale[50],
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  widget.detail.category,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.primaryScale[500],
+              const SizedBox(width: 12),
+              GestureDetector(
+                onTap: _handleToggle,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: _isAdded
+                          ? [AppColors.neutralScale[300]!, AppColors.neutralScale[400]!]
+                          : [const Color(0xFFCB2FFF), const Color(0xFFD864FF)],
+                      stops: _isAdded ? null : const [0.14, 1.0],
+                    ),
+                    borderRadius: BorderRadius.circular(100),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.neutralScale[600]!.withAlpha(0x0F),
+                        blurRadius: 5,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    _isAdded ? '추가됨 ✓' : '+ 내 경로에 추가하기',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 4),
+          Text(
+            widget.detail.address,
+            style: TextStyle(
+              fontSize: 13,
+              color: AppColors.neutralScale[400],
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            widget.detail.category,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AppColors.primaryScale[400],
+            ),
+          ),
+          const SizedBox(height: 14),
           _buildImagePlaceholder(),
         ],
       ),
@@ -155,89 +190,6 @@ class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
     );
   }
 
-  Widget _buildInfo() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 14, 24, 0),
-      child: Column(
-        children: [
-          _buildInfoRow(PhosphorIcons.mapPin(), widget.detail.address),
-          const SizedBox(height: 8),
-          _buildInfoRow(PhosphorIcons.clock(), widget.detail.openingHours),
-          const SizedBox(height: 8),
-          _buildInfoRow(
-            PhosphorIcons.star(PhosphorIconsStyle.fill),
-            '${widget.detail.rating}',
-            iconColor: const Color(0xFFFFC107),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoRow(
-    IconData icon,
-    String text, {
-    Color? iconColor,
-  }) {
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: iconColor ?? AppColors.neutralScale[400]),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            text,
-            style: TextStyle(
-              fontSize: 13,
-              color: AppColors.neutralScale[500],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildToggleButton() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-      child: GestureDetector(
-        onTap: _handleToggle,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          height: 52,
-          decoration: BoxDecoration(
-            color: _isAdded ? AppColors.primaryScale[500] : Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: AppColors.primaryScale[500]!,
-              width: 1.5,
-            ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                _isAdded
-                    ? PhosphorIcons.checkCircle(PhosphorIconsStyle.fill)
-                    : PhosphorIcons.plusCircle(),
-                size: 20,
-                color: _isAdded ? Colors.white : AppColors.primaryScale[500],
-              ),
-              const SizedBox(width: 8),
-              Text(
-                _isAdded ? '내 경로에 추가됨' : '+ 내 경로에 추가하기',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: _isAdded ? Colors.white : AppColors.primaryScale[500],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildDivider() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
@@ -250,7 +202,11 @@ class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
       padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
       child: Row(
         children: [
-          Icon(PhosphorIcons.newspaper(), size: 18, color: AppColors.neutralScale[500]),
+          SvgPicture.asset(
+            'assets/svg/icons/blog_logo.svg',
+            width: 22,
+            height: 22,
+          ),
           const SizedBox(width: 8),
           Text(
             '블로그 리뷰',
