@@ -4,7 +4,9 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key});
+  const SplashScreen({super.key, this.onComplete});
+
+  final VoidCallback? onComplete;
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
@@ -27,8 +29,13 @@ class _SplashScreenState extends State<SplashScreen>
     _ctrl.forward();
 
     _timer = Timer(const Duration(milliseconds: 1800), () {
-      // if (mounted) context.go('/auth');
-      if (mounted) context.go('/');
+      if (!mounted) return;
+      if (widget.onComplete != null) {
+        widget.onComplete!();
+      } else {
+        // if (mounted) context.go('/auth');
+        context.go('/');
+      }
     });
   }
 

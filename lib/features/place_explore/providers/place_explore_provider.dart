@@ -77,4 +77,14 @@ class PlaceExploreProvider extends ChangeNotifier {
       ..addAll(_committedIds);
     notifyListeners();
   }
+
+  void reset() {
+    status = PlaceExploreStatus.idle;
+    places = [];
+    errorMessage = null;
+    _detailCache.clear();
+    _selectedIds.clear();
+    _committedIds = {};
+    notifyListeners();
+  }
 }

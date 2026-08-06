@@ -176,14 +176,7 @@ class PlaceExploreStep2Screen extends StatelessWidget {
           Padding(
             padding: EdgeInsets.fromLTRB(24, 0, 24, 10 + bottomPad),
             child: NextButton(
-              onPressed: canProceed
-                  ? () => ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('다음 화면 준비 중'),
-                          duration: Duration(seconds: 2),
-                        ),
-                      )
-                  : null,
+              onPressed: canProceed ? onNext : null,
             ),
           ),
           Padding(

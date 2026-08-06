@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../common/widgets/next_button.dart';
 import '../../../common/widgets/prev_button.dart';
+import '../../place_explore/providers/place_explore_provider.dart';
 import 'trip_regenerate_screen.dart';
 
 class SearchStep1Screen extends StatefulWidget {
@@ -105,6 +107,7 @@ class _SearchStep1ScreenState extends State<SearchStep1Screen> {
                 label: '재탐색 시작하기  →',
                 onPressed: () {
                   if (_selectedIndex == 1) {
+                    context.read<PlaceExploreProvider>().reset();
                     context.go('/trip/place-explore/step1');
                   } else {
                     tripRetrialNotifier.value++;
