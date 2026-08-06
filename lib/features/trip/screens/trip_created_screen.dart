@@ -61,13 +61,12 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
       _stops = res.stops.map(_fromApiStop).toList();
       _totalDurationMinutes = res.totalDurationMinutes;
     } else {
-      // 저장된 일정 보기 등 response 없을 때 placeholder
       _stops = _placeholder;
       _totalDurationMinutes = 25;
     }
     // 로그인 후 복귀 시 자동으로 저장 바텀시트 열기
-      _days = _stops.map((s) => s.day).toSet().toList()..sort();                                                                                                    
-      _selectedDay = _days.isNotEmpty ? _days.first : 1; 
+      _days = _stops.map((s) => s.day).toSet().toList()..sort();
+      _selectedDay = _days.isNotEmpty ? _days.first : 1;
     if (TripRepository.instance.autoSaveOnNext && isAuthenticated.value) {
       TripRepository.instance.autoSaveOnNext = false;
       _shouldAutoSave = true;
@@ -934,7 +933,9 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
             ],
           ),
           child: ElevatedButton(
-            onPressed: () => context.push('/navigation', extra: widget.savedTrip),
+            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('즐거운 여행 되세요!')),
+            ),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.transparent,
               shadowColor: Colors.transparent,

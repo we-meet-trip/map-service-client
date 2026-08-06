@@ -99,4 +99,13 @@ class AppColors {
   static const mypageAvatarAccent = Color(0xFF984CFF); // 프로필 아바타 배경/아이콘 색
   static const mypageDivider = Color(0xFFF2F2F3); // 마이페이지 섹션 구분 띠
 
+  // chat
+  static const inputBarBg      = Color(0xFFFFFFFF);
+  static const shareIcon       = Color(0xFF8D46ED);
+  static const myBubbleBg      = Color(0xFF5000DA);
+  static const myBubbleText    = Color(0xFFFFFFFF);
+  static const otherBubbleBg   = Color(0xFFFFFFFF);
+  static const otherBubbleText = Color(0xFF000000);
+  static const senderName      = Color(0xFF8164B4);
+
 }
