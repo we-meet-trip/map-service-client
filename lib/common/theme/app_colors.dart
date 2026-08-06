@@ -106,6 +106,9 @@ class AppColors {
     Color(0xFF7FC2E0), // sky blue
     Color(0xFFFFCE6C), // soft yellow
     Color(0xFFFFC0E3), // soft pink
+    Color(0xFFC8F3B7), // soft green
+    Color(0xFFD5D6D7), // soft gray
+    Color(0xFFFBABAB), // soft red
   ];
 
   // chat
