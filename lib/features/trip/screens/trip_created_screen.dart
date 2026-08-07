@@ -231,6 +231,10 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
                     children: [
                       saved != null ? _buildSavedTripHeader(saved) : _buildTitle(),
                       const SizedBox(height: 16),
+                      if (_warnings.isNotEmpty) ...[
+                        _buildWarningsNotice(),
+                        const SizedBox(height: 16),
+                      ],
                       if (_days.length > 1) ...[
                         _buildDayTabs(),
                         const SizedBox(height: 16),
@@ -253,6 +257,48 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
         else if (!widget.showBackButton)
           _buildBottomButtons(context),
       ],
+    );
+  }
+
+  /// 추천에 반영하지 못한 조건 안내. 생성 응답과 저장 상세 어느 쪽으로
+  /// 열렸든 서버가 준 문장을 그대로 보여준다.
+  List<String> get _warnings =>
+      widget.response?.warnings ?? widget.savedTrip?.warnings ?? const [];
+
+  Widget _buildWarningsNotice() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7E8),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: _warnings
+            .map((line) => Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.only(top: 1),
+                      child: Icon(Icons.info_outline_rounded,
+                          size: 16, color: Color(0xFFB98A00)),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        line,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          height: 1.4,
+                          color: Color(0xFF7A5C00),
+                        ),
+                      ),
+                    ),
+                  ],
+                ))
+            .toList(),
+      ),
     );
   }
 

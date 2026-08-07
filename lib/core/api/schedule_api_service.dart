@@ -123,6 +123,10 @@ class ScheduleDetail {
   /// 이 일정을 처음 따라가기 시작한 시각. 시작한 적이 없으면 null.
   final DateTime? startedAt;
 
+  /// 추천 당시 반영하지 못한 조건 안내. 생성 화면과 같은 안내를 저장 후
+  /// 재열람에서도 보여준다. 없으면 빈 목록.
+  final List<String> warnings;
+
   const ScheduleDetail({
     required this.scheduleId,
     required this.title,
@@ -133,6 +137,7 @@ class ScheduleDetail {
     required this.stops,
     required this.createdAt,
     this.startedAt,
+    this.warnings = const [],
   });
 
   factory ScheduleDetail.fromJson(Map<String, dynamic> json) => ScheduleDetail(
@@ -148,6 +153,11 @@ class ScheduleDetail {
             .toList(),
         createdAt: _date(json['created_at']),
         startedAt: _date(json['started_at']),
+        warnings: (json['warnings'] as List<dynamic>?)
+                ?.whereType<String>()
+                .where((line) => line.trim().isNotEmpty)
+                .toList() ??
+            const [],
       );
 }
 

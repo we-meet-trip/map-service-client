@@ -197,6 +197,12 @@ class TripStop {
   /// 아예 오지 않으므로 카드에서 이 영역을 통째로 접어야 한다.
   final List<String>? bullets;
 
+  /// 이 장소를 떠나는 예정 시각(HH:mm). 타임라인 이전에 만든 일정에는 없다.
+  final String? endTime;
+
+  /// 이 장소에 머무는 예정 시간(분). endTime 과 같은 조건에서만 온다.
+  final int? stayMinutes;
+
   const TripStop({
     required this.order,
     this.day = 1,
@@ -211,6 +217,8 @@ class TripStop {
     this.reason,
     this.category,
     this.bullets,
+    this.endTime,
+    this.stayMinutes,
   });
 
   factory TripStop.fromJson(Map<String, dynamic> json) => TripStop(
@@ -237,6 +245,9 @@ class TripStop {
             .where((line) => line.trim().isNotEmpty)
             .take(2)
             .toList(),
+        endTime: json['end_time'] is String ? json['end_time'] as String : null,
+        stayMinutes:
+            json['stay_minutes'] is num ? (json['stay_minutes'] as num).toInt() : null,
       );
 }
 
@@ -270,11 +281,16 @@ class TripGenerateResponse {
   final List<TripStop> stops;
   final List<WeatherForecast> weatherForecast;
 
+  /// 추천 과정에서 반영하지 못한 조건 안내(예: 날씨 미확인). 사용자에게
+  /// 그대로 보여줄 문장 목록이며, 없으면 키 자체가 오지 않는다.
+  final List<String> warnings;
+
   const TripGenerateResponse({
     required this.tripId,
     required this.totalDurationMinutes,
     required this.stops,
     required this.weatherForecast,
+    this.warnings = const [],
   });
 
   factory TripGenerateResponse.fromJson(Map<String, dynamic> json) =>
@@ -287,6 +303,11 @@ class TripGenerateResponse {
         weatherForecast: (json['weather_forecast'] as List<dynamic>)
             .map((w) => WeatherForecast.fromJson(w as Map<String, dynamic>))
             .toList(),
+        warnings: (json['warnings'] as List<dynamic>?)
+                ?.whereType<String>()
+                .where((line) => line.trim().isNotEmpty)
+                .toList() ??
+            const [],
       );
 }
 

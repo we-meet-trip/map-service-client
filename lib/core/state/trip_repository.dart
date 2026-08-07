@@ -73,6 +73,10 @@ class SavedTrip {
   final int totalDurationMinutes;
   final String? chatRoomId;
 
+  /// 추천 당시 반영하지 못한 조건 안내. 생성 화면과 같은 안내를 재열람에서도
+  /// 보여준다. 없으면 빈 목록.
+  final List<String> warnings;
+
   SavedTrip({
     this.scheduleId,
     required this.name,
@@ -82,6 +86,7 @@ class SavedTrip {
     required this.tripEndDate,
     required this.stops,
     required this.totalDurationMinutes,
+    this.warnings = const [],
   });
 
   factory SavedTrip.fromDetail(ScheduleDetail d) {
@@ -95,6 +100,7 @@ class SavedTrip {
       tripEndDate: d.dateEnd ?? start,
       stops: d.stops,
       totalDurationMinutes: d.totalDurationMinutes,
+      warnings: d.warnings,
     );
   }
 }
