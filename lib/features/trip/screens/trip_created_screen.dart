@@ -1069,49 +1069,106 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => AppConfirmDialog(
-        content: RichText(
-          textAlign: TextAlign.center,
-          text: TextSpan(
-            style: TextStyle(
-              fontSize: 18,
-              color: AppColors.neutralScale[600],
-              height: 1.5,
-            ),
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        backgroundColor: Colors.white,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 32, 24, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              TextSpan(
-                text: '"$name"',
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.primaryScale[500],
+              RichText(
+                textAlign: TextAlign.center,
+                text: TextSpan(
+                  style: TextStyle(
+                    fontSize: 18,
+                    color: AppColors.neutralScale[600],
+                    height: 1.5,
+                  ),
+                  children: [
+                    TextSpan(
+                      text: '"$name"',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primaryScale[500],
+                      ),
+                    ),
+                    const TextSpan(
+                      text: '\n일정이 저장되었어요!',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ],
                 ),
               ),
-              const TextSpan(
-                text: '\n일정이 저장되었어요!',
-                style: TextStyle(fontWeight: FontWeight.w600),
+              const SizedBox(height: 28),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: [
+                      AppColors.gradientScale[200]!,
+                      AppColors.gradientScale[600]!,
+                    ]),
+                    borderRadius: BorderRadius.circular(50),
+                  ),
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (context.mounted) context.go('/chat');
+                      });
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      shadowColor: Colors.transparent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(50),
+                      ),
+                    ),
+                    child: const Text(
+                      '대화방 생성하기',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
               ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: OutlinedButton(
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                    TripRepository.instance.requestedTab.value = 0;
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (context.mounted) context.go('/saved');
+                    });
+                  },
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: AppColors.neutralScale[200]!),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(50),
+                    ),
+                  ),
+                  child: Text(
+                    '닫기',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.neutralScale[500],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
             ],
           ),
         ),
-        cancelLabel: '닫기',
-        confirmLabel: '대화방 생성하기',
-        onCancel: () {
-          Navigator.of(ctx).pop();
-          TripRepository.instance.requestedTab.value = 0;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (context.mounted) {
-              context.go('/saved');
-            }
-          });
-        },
-        onConfirm: () {
-          Navigator.of(ctx).pop();
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (context.mounted) {
-              context.go('/chat');
-            }
-          });
-        },
       ),
     );
   }
