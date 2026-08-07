@@ -6,7 +6,12 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../common/theme/app_icons.dart';
 import '../../../common/theme/app_text_styles.dart';
+import '../../../common/utils/d_day.dart';
 import '../../../common/widgets/app_loading_indicator.dart';
+import '../../../core/api/api_client.dart';
+import '../../../core/api/schedule_api_service.dart';
+import '../../../core/router/app_router.dart';
+import '../../saved/utils/open_schedule.dart';
 import '../../trip/widgets/trip_card.dart';
 import '../models/weather_data.dart';
 import '../services/weather_service.dart';
@@ -23,27 +28,103 @@ class _HomeScreenState extends State<HomeScreen> {
   WeatherData? _weather;
   bool _weatherLoading = true;
   String? _weatherError;
+  bool _weatherApproximate = false;
+
+  ScheduleSummary? _upcoming;
+  bool _tripLoading = false;
+  bool _tripFailed = false;
 
   @override
   void initState() {
     super.initState();
     _loadWeather();
+    // 홈은 하단 탭의 한 칸이라 로그인하고 돌아와도 다시 만들어지지 않는다.
+    // 로그인 여부를 직접 듣고 그때 다시 받는다.
+    isAuthenticated.addListener(_loadUpcomingTrip);
+    _loadUpcomingTrip();
+  }
+
+  @override
+  void dispose() {
+    isAuthenticated.removeListener(_loadUpcomingTrip);
+    super.dispose();
+  }
+
+  /// 저장된 일정 중 아직 지나지 않은 것 하나.
+  /// 카드가 한 칸뿐이라 가장 먼저 시작하는 것만 보여준다.
+  Future<void> _loadUpcomingTrip() async {
+    if (!isAuthenticated.value) {
+      if (mounted) {
+        setState(() {
+          _upcoming = null;
+          _tripLoading = false;
+          _tripFailed = false;
+        });
+      }
+      return;
+    }
+    if (mounted) setState(() { _tripLoading = true; _tripFailed = false; });
+    try {
+      final items = await ScheduleApiService.instance.list();
+      final upcoming = items
+          .where((s) => s.dateStart != null && daysUntil(s.dateStart!) >= 0)
+          .toList()
+        ..sort((a, b) => a.dateStart!.compareTo(b.dateStart!));
+      if (!mounted) return;
+      setState(() {
+        _upcoming = upcoming.isEmpty ? null : upcoming.first;
+        _tripLoading = false;
+      });
+    } on ApiException {
+      if (!mounted) return;
+      setState(() { _tripLoading = false; _tripFailed = true; });
+    }
+  }
+
+  void _onTripCardTap() {
+    final upcoming = _upcoming;
+    if (!isAuthenticated.value) {
+      context.go('/auth');
+    } else if (_tripFailed) {
+      _loadUpcomingTrip();
+    } else if (upcoming == null) {
+      context.go('/trip');
+    } else {
+      openSchedule(context, upcoming.scheduleId);
+    }
   }
 
   Future<void> _loadWeather() async {
+    // 다시 시도로 들어올 수도 있어 매번 처음 상태로 되돌린다. 그러지 않으면
+    // 오류 화면이 그대로 남아 아무 일도 안 하는 것처럼 보인다.
+    if (mounted) {
+      setState(() { _weatherLoading = true; _weatherError = null; });
+    }
+    var approximate = false;
     try {
       final permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied && mounted) {
-        final proceed = await _showLocationPermissionSheet();
-        if (!proceed) {
-          if (mounted) setState(() { _weatherLoading = false; });
-          return;
-        }
+        // 미루기를 골라도 조회는 한다. 여기서 멈추면 요청이 한 번도 안 나가
+        // 카드가 통째로 빈다 — 대표 지점 날씨가 그보다 낫다.
+        approximate = !await _showLocationPermissionSheet();
       }
-      final data = await WeatherService().fetchWeather();
-      if (mounted) setState(() { _weather = data; _weatherLoading = false; });
-    } catch (e) {
-      if (mounted) setState(() { _weatherError = e.toString(); _weatherLoading = false; });
+      final data = await WeatherService()
+          .fetchWeather(useApproximateLocation: approximate);
+      if (mounted) {
+        setState(() {
+          _weather = data;
+          _weatherApproximate = approximate;
+          _weatherLoading = false;
+        });
+      }
+    } catch (_) {
+      // 원인 문자열은 사용자에게 쓸모없다. 무엇을 하면 되는지만 남긴다.
+      if (mounted) {
+        setState(() {
+          _weatherError = '잠시 후 다시 시도해주세요.';
+          _weatherLoading = false;
+        });
+      }
     }
   }
 
@@ -141,7 +222,13 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               _Greeting(),
               const SizedBox(height: 24),
-              _TripCard(),
+              _TripCard(
+                trip: _upcoming,
+                loading: _tripLoading,
+                failed: _tripFailed,
+                loggedIn: isAuthenticated.value,
+                onTap: _onTripCardTap,
+              ),
               const SizedBox(height: 16),
               _WeekCalendar(
                 focusedDate: _focusedDate,
@@ -153,6 +240,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 weather: _weather,
                 loading: _weatherLoading,
                 error: _weatherError,
+                approximate: _weatherApproximate,
                 onRetry: _loadWeather,
               ),
               const SizedBox(height: 16),
@@ -305,41 +393,81 @@ class _SpeechBubblePainter extends CustomPainter {
 // ─── 여행 카드 ────────────────────────────────────────────────────────────────
 
 class _TripCard extends StatelessWidget {
-  const _TripCard();
+  const _TripCard({
+    required this.trip,
+    required this.loading,
+    required this.failed,
+    required this.loggedIn,
+    required this.onTap,
+  });
+
+  final ScheduleSummary? trip;
+  final bool loading;
+  final bool failed;
+  final bool loggedIn;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppColors.secondaryScale[900]!,
-            AppColors.secondaryScale[500]!,
-          ],
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
+    return GestureDetector(
+      onTap: loading ? null : onTap,
+      child: Container(
+        width: double.infinity,
+        constraints: const BoxConstraints(minHeight: 78),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              AppColors.secondaryScale[900]!,
+              AppColors.secondaryScale[500]!,
+            ],
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
         ),
-        borderRadius: BorderRadius.circular(20),
+        child: _buildContent(),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Column(
+    );
+  }
+
+  Widget _buildContent() {
+    if (loading) {
+      return const Center(child: AppLoadingIndicator());
+    }
+    if (!loggedIn) {
+      return _message('로그인하면 예정된 일정을 볼 수 있어요.', '로그인하러 가기');
+    }
+    if (failed) {
+      return _message('일정을 불러오지 못했어요', '다시 시도');
+    }
+    final upcoming = trip;
+    if (upcoming == null) {
+      return _message('예정된 일정이 없어요', '일정 만들기');
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  Text(
-                    '속초 우정여행',
-                    style: AppTextStyles.body4.copyWith(color: Colors.white),
+                  Flexible(
+                    child: Text(
+                      upcoming.title.isEmpty ? '이름 없는 일정' : upcoming.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.body4.copyWith(color: Colors.white),
+                    ),
                   ),
                   const SizedBox(width: 8),
                   Transform(
                     alignment: Alignment.center,
                     transform: Matrix4.rotationY(3.1415926535897932),
-                    child: AppIcon(SvgIcons.chevronLeft, size: 12, color: Colors.white),
+                    child: AppIcon(SvgIcons.chevronLeft,
+                        size: 12, color: Colors.white),
                   ),
                 ],
               ),
@@ -352,19 +480,45 @@ class _TripCard extends StatelessWidget {
               ),
             ],
           ),
-          const Spacer(),
-          Text(
-            'D-3',
-            style: AppTextStyles.title1.copyWith(
-              color: Colors.white,
-              fontSize: 32,
-              fontWeight: FontWeight.w700,
-            ),
+        ),
+        const SizedBox(width: 12),
+        Text(
+          dDayLabel(upcoming.dateStart!),
+          style: AppTextStyles.title1.copyWith(
+            color: Colors.white,
+            fontSize: 32,
+            fontWeight: FontWeight.w700,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
+
+  /// 보여줄 일정이 없을 때의 한 칸. 무엇을 하면 되는지까지 적는다.
+  Widget _message(String title, String action) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(title, style: AppTextStyles.body4.copyWith(color: Colors.white)),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Text(
+                action,
+                style: AppTextStyles.body9
+                    .copyWith(color: Colors.white.withAlpha(178)),
+              ),
+              const SizedBox(width: 6),
+              Transform(
+                alignment: Alignment.center,
+                transform: Matrix4.rotationY(3.1415926535897932),
+                child: AppIcon(SvgIcons.chevronLeft,
+                    size: 10, color: Colors.white.withAlpha(178)),
+              ),
+            ],
+          ),
+        ],
+      );
 }
 
 // ─── 자전거·킥보드 위치 배너 ──────────────────────────────────────────────────
@@ -609,12 +763,16 @@ class _WeatherCard extends StatelessWidget {
   final WeatherData? weather;
   final bool loading;
   final String? error;
+
+  /// 기기 위치 대신 대표 지점으로 받아온 값인지.
+  final bool approximate;
   final VoidCallback onRetry;
 
   const _WeatherCard({
     required this.weather,
     required this.loading,
     required this.error,
+    required this.approximate,
     required this.onRetry,
   });
 
@@ -640,7 +798,8 @@ class _WeatherCard extends StatelessWidget {
                 Text('날씨 정보를 불러올 수 없어요',
                     style: TextStyle(fontSize: 13, color: AppColors.neutralScale[300])),
                 const SizedBox(height: 4),
-                Text(error ?? '', style: TextStyle(fontSize: 11, color: AppColors.neutralScale[200])),
+                Text(error ?? '잠시 후 다시 시도해주세요.',
+                    style: TextStyle(fontSize: 11, color: AppColors.neutralScale[200])),
                 const SizedBox(height: 8),
                 GestureDetector(
                   onTap: onRetry,
@@ -678,9 +837,12 @@ class _WeatherCard extends StatelessWidget {
                           style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w600)),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  Text('어제보다 기온이 낮아요',
-                      style: TextStyle(fontSize: 16, color: AppColors.neutralScale[400])),
+                  // 어제 같은 시간대 기록이 있을 때만 비교 문구를 그린다.
+                  if (w.yesterdayLabel != null) ...[
+                    const SizedBox(height: 4),
+                    Text(w.yesterdayLabel!,
+                        style: TextStyle(fontSize: 16, color: AppColors.neutralScale[400])),
+                  ],
                 ],
               ),
               const Spacer(),
@@ -713,11 +875,14 @@ class _WeatherCard extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('최고  ${w.tempMax.round()}°C',
-                        style: TextStyle(fontSize: 13, color: AppColors.neutralScale[500])),
-                    const SizedBox(height: 6),
-                    Text('최저  ${w.tempMin.round()}°C',
-                        style: TextStyle(fontSize: 13, color: AppColors.neutralScale[500])),
+                    if (w.tempMax != null)
+                      Text('최고  ${w.tempMax}°C',
+                          style: TextStyle(fontSize: 13, color: AppColors.neutralScale[500])),
+                    if (w.tempMax != null && w.tempMin != null)
+                      const SizedBox(height: 6),
+                    if (w.tempMin != null)
+                      Text('최저  ${w.tempMin}°C',
+                          style: TextStyle(fontSize: 13, color: AppColors.neutralScale[500])),
                   ],
                 ),
                 const SizedBox(width: 16),
@@ -726,30 +891,46 @@ class _WeatherCard extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('강수확률  ${w.pop}%',
-                        style: TextStyle(fontSize: 13, color: AppColors.neutralScale[500])),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        Text('미세먼지 ',
-                            style: TextStyle(fontSize: 13, color: AppColors.neutralScale[500])),
-                        Text(w.pm10Label,
-                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
-                                color: _pmColor(w.pm10Label))),
-                        Text(' · 초미세먼지 ',
-                            style: TextStyle(fontSize: 13, color: AppColors.neutralScale[500])),
-                        Text(w.pm25Label,
-                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
-                                color: _pmColor(w.pm25Label))),
-                      ],
-                    ),
+                    if (w.pop != null)
+                      Text('강수확률  ${w.pop}%',
+                          style: TextStyle(fontSize: 13, color: AppColors.neutralScale[500])),
+                    if (w.pop != null && w.pm10Grade != null)
+                      const SizedBox(height: 6),
+                    // 등급은 서버가 매긴 값을 그대로 쓴다 — 기준을 양쪽에 두면
+                    // 서서히 갈라진다.
+                    if (w.pm10Grade != null)
+                      Row(
+                        children: [
+                          Text('미세먼지 ',
+                              style: TextStyle(fontSize: 13, color: AppColors.neutralScale[500])),
+                          Text(w.pm10Grade!,
+                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                                  color: _pmColor(w.pm10Grade!))),
+                          if (w.pm25Grade != null) ...[
+                            Text(' · 초미세먼지 ',
+                                style: TextStyle(fontSize: 13, color: AppColors.neutralScale[500])),
+                            Text(w.pm25Grade!,
+                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                                    color: _pmColor(w.pm25Grade!))),
+                          ],
+                        ],
+                      ),
                   ],
                 ),
               ],
             ),
           ),
           const SizedBox(height: 14),
-          Text('기상청·에어코리아 제공',
+          // 대표 지점으로 받아온 값이면 그 사실을 밝힌다. 밝히지 않으면
+          // 다른 지역 사용자가 왜 남의 동네 날씨인지 알 길이 없다.
+          if (approximate)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text('대략적인 위치 기준이에요',
+                  style: TextStyle(
+                      fontSize: 11, color: AppColors.neutralScale[300])),
+            ),
+          Text(w.attribution,
               style: TextStyle(fontSize: 11, color: AppColors.neutralScale[200])),
         ],
       ),

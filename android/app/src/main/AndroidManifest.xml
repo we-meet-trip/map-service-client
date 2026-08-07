@@ -6,7 +6,7 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <application
-        android:label="map_service_client"
+        android:label="MAP"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true">
@@ -31,7 +31,11 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-            <!-- 프로덕션: HTTPS App Link (도메인 확정 후 deepLinkHost 교체) -->
+            <!-- 대화방 초대 링크. 웹 주소로 받은 링크와 앱 전용 주소를 모두
+                 같은 화면으로 보낸다. 웹 주소는 자동 검증(autoVerify)을 켠다.
+                 /.well-known/assetlinks.json 에 패키지와 릴리스 서명 지문이
+                 올라가 있어야 검증이 통과하고, 그때부터 링크를 누르면 브라우저를
+                 거치지 않고 앱이 뜬다. -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -49,6 +53,13 @@
                 <data
                     android:scheme="wemeettrip"
                     android:host="invite" />
+            </intent-filter>
+            <!-- 카카오 로그인 복귀 주소 -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="mapauth" android:host="kakao" />
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.

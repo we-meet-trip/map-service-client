@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# 호스팅 배포 직전에 서버용 키가 산출물에 섞여 있는지 본다.
+#
+# 웹 빌드는 실행 설정 파일을 자산으로 그대로 싣는다. 그 파일에는 지도 식별자
+# 말고도 서버에서만 써야 할 키들이 함께 들어 있어서, 산출물을 통째로 올리면
+# 누구나 주소만 알면 내려받을 수 있다. 한 번 나간 값은 되돌릴 수 없으므로
+# 올리기 전에 막는다.
+#
+# 두 겹으로 본다.
+#   1) 값 대조 — 실행 설정 파일에서 서버용 키의 실제 값을 읽어 산출물 전체에서
+#      찾는다. 어느 경로로 새든(자산이든 코드에 박혔든) 걸린다.
+#   2) 이름 대조 — 실행 설정 파일을 못 읽는 환경에서 쓰는 보조 수단. 산출물
+#      안의 설정 자산에 서버용 키 이름이 값과 함께 있으면 막는다.
+#
+# 지도 식별자는 검사 대상이 아니다. 웹 지도는 그 값을 스크립트 주소에 실어
+# 보내므로 원래 공개되며, 방어는 발급처에 등록한 도메인 목록이 한다.
+#
+# 판정 대상 경로는 배포 도구가 환경변수로 알려 준다. 검사 내용을 배포 설정에
+# 문자열로 적지 않고 이 파일로 뺀 이유는 옆의 check_app_config.sh 와 같다.
+set -uo pipefail
+
+dir="${RESOURCE_DIR:-hosting}"
+env_file="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/.env"
+
+# 서버에서만 써야 하는 키. 이 목록에 없는 값은 검사하지 않는다.
+SERVER_KEYS=(KAKAO_REST_API_KEY ODSAY_API_KEY_IOS ODSAY_API_KEY_ANDROID VISION_SERVER_HOST)
+
+[ -d "$dir" ] || exit 0
+
+found=0
+
+# 1) 값 대조
+if [ -f "$env_file" ]; then
+  for key in "${SERVER_KEYS[@]}"; do
+    value="$(grep -E "^$key=" "$env_file" | head -1 | cut -d= -f2- | tr -d '\r')"
+    # 너무 짧은 값은 우연히 일치할 수 있어 건너뛴다. 비어 있으면 검사할 것이 없다.
+    [ "${#value}" -ge 8 ] || continue
+    if grep -rqF -- "$value" "$dir" 2>/dev/null; then
+      echo "✗ $key 의 값이 $dir 안에 들어 있다."
+      grep -rlF -- "$value" "$dir" 2>/dev/null | sed 's/^/    /'
+      found=1
+    fi
+  done
+fi
+
+# 2) 이름 대조
+asset_env="$dir/assets/.env"
+if [ -f "$asset_env" ]; then
+  for key in "${SERVER_KEYS[@]}"; do
+    if grep -qE "^$key=.+" "$asset_env" 2>/dev/null; then
+      echo "✗ $asset_env 에 $key 가 값과 함께 들어 있다."
+      found=1
+    fi
+  done
+fi
+
+if [ "$found" -eq 0 ]; then
+  exit 0
+fi
+
+echo ""
+echo "  이대로 올리면 서버용 키가 공개된다. 배포를 중단한다."
+echo "  웹 빌드는 tool/build_web.sh 로 한다(지도 식별자만 남긴 설정으로 빌드한다)."
+exit 1

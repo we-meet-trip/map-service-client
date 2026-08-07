@@ -87,9 +87,15 @@ class _VisionScreenState extends State<VisionScreen> {
   }
 
   Future<void> _initStt() async {
-    final available = await _stt.initialize(
-      onStatus: _onSttStatus,
-    );
+    // 음성 인식이 없는 환경이 있다. 그런 곳에서는 준비 단계가 실패를 던지는데,
+    // 그대로 두면 카메라까지 함께 못 쓰게 된다. 마이크만 꺼진 채로 화면이
+    // 열리게 한다(아래 입력 버튼이 _sttReady 를 보고 스스로 비활성된다).
+    var available = false;
+    try {
+      available = await _stt.initialize(onStatus: _onSttStatus);
+    } catch (_) {
+      available = false;
+    }
     if (mounted) setState(() => _sttReady = available);
   }
 

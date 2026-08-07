@@ -12,9 +12,13 @@ import '../../../common/widgets/prev_button.dart';
 import '../../../common/widgets/app_confirm_dialog.dart';
 import '../../../core/state/trip_repository.dart';
 import '../../../common/widgets/text_field.dart';
+import '../../../core/api/api_client.dart';
+import '../../../core/api/schedule_api_service.dart';
 import '../../../core/api/trip_api_service.dart';
 import '../../../core/router/app_router.dart';
 import '../../auth/widgets/kakao_login_button.dart';
+import '../../../common/widgets/draggable_vision_button.dart';
+import '../widgets/place_detail_sheet.dart';
 
 class TripCreatedScreen extends StatefulWidget {
   const TripCreatedScreen({
@@ -41,6 +45,13 @@ class TripCreatedScreen extends StatefulWidget {
 class _TripCreatedScreenState extends State<TripCreatedScreen> {
   late bool _isSaved = widget.showBackButton;
   bool _shouldAutoSave = false;
+
+  /// 이 화면이 가리키는 저장된 일정 — 「일정 시작하기」가 넘겨줄 대상.
+  ///
+  /// 저장 목록에서 열었으면 처음부터 채워져 있고, 방금 만든 일정을 여기서
+  /// 저장하면 그때 채워진다. 생성자 필드를 그대로 쓰면 저장에 성공해도
+  /// 값이 계속 비어 있어, 저장을 마친 사용자에게 시작할 방법이 없어진다.
+  late SavedTrip? _startTarget = widget.savedTrip;
 
   late final List<_ScheduleStop> _stops;
   late final int _totalDurationMinutes;
@@ -81,11 +92,16 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
         address: s.address,
         time: s.time,
         latLng: NLatLng(s.latitude, s.longitude),
+        category: s.category,
+        placeId: s.placeId,
         transport: s.transportToNext != null
             ? _TransportInfo(
                 label: s.transportToNext!.label,
                 duration: '${s.transportToNext!.durationMinutes}분',
                 distance: '${s.transportToNext!.distanceKm}km',
+                path: s.transportToNext!.path
+                    ?.map((p) => NLatLng(p[0], p[1]))
+                    .toList(),
               )
             : null,
       );
@@ -208,6 +224,10 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
                     children: [
                       saved != null ? _buildSavedTripHeader(saved) : _buildTitle(),
                       const SizedBox(height: 16),
+                      if (_warnings.isNotEmpty) ...[
+                        _buildWarningsNotice(),
+                        const SizedBox(height: 16),
+                      ],
                       if (_days.length > 1) ...[
                         _buildDayTabs(),
                         const SizedBox(height: 16),
@@ -230,6 +250,48 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
         else if (!widget.showBackButton)
           _buildBottomButtons(context),
       ],
+    );
+  }
+
+  /// 추천에 반영하지 못한 조건 안내. 생성 응답과 저장 상세 어느 쪽으로
+  /// 열렸든 서버가 준 문장을 그대로 보여준다.
+  List<String> get _warnings =>
+      widget.response?.warnings ?? widget.savedTrip?.warnings ?? const [];
+
+  Widget _buildWarningsNotice() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7E8),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: _warnings
+            .map((line) => Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.only(top: 1),
+                      child: Icon(Icons.info_outline_rounded,
+                          size: 16, color: Color(0xFFB98A00)),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        line,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          height: 1.4,
+                          color: Color(0xFF7A5C00),
+                        ),
+                      ),
+                    ),
+                  ],
+                ))
+            .toList(),
+      ),
     );
   }
 
@@ -347,17 +409,47 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
       ));
     }
 
-    // 경로 폴리라인 추가
-    await controller.addOverlay(NPolylineOverlay(
-      id: 'route',
-      coords: stops.map((s) => s.latLng).toList(),
-      color: AppColors.primaryScale[400]!,
-      width: 4,
-    ));
+    // 경로 폴리라인 추가 — 구간마다 도로 추종 path 가 있으면 그 좌표를,
+    // 없으면 두 stop 을 잇는 직선을 이어 붙여 하나의 경로로 그린다.
+    // 선택된 일차 안에서만 잇는다. 마지막 stop 의 이동 정보는 다음 날 첫
+    // 장소로 이어지므로 여기서 쓰지 않는다(서버도 그 자리를 비워 보낸다).
+    final routeCoords = <NLatLng>[];
+    void addPoint(NLatLng p) {
+      // 구간 접점의 중복 좌표는 값 비교로 걸러 낸다(NLatLng == 에 의존하지 않음).
+      if (routeCoords.isEmpty ||
+          routeCoords.last.latitude != p.latitude ||
+          routeCoords.last.longitude != p.longitude) {
+        routeCoords.add(p);
+      }
+    }
 
-    // 해당 일차 정류장이 모두 보이도록 fitBounds
-    final lats = stops.map((s) => s.latLng.latitude);
-    final lngs = stops.map((s) => s.latLng.longitude);
+    for (int i = 0; i < stops.length - 1; i++) {
+      final legPath = stops[i].transport?.path;
+      final seg = (legPath != null && legPath.length >= 2)
+          ? legPath
+          : [stops[i].latLng, stops[i + 1].latLng];
+      for (final p in seg) {
+        addPoint(p);
+      }
+    }
+
+    if (routeCoords.length >= 2) {
+      await controller.addOverlay(NPathOverlay(
+        id: 'route',
+        coords: routeCoords,
+        color: AppColors.primaryScale[400]!,
+        width: 6,
+        outlineColor: Colors.white,
+        outlineWidth: 2,
+      ));
+    }
+
+    // 경로 전체(마커+도로 굴곡 포함)가 보이도록 fitBounds. 경로가 없으면 stop 기준.
+    final boundsPoints = routeCoords.isNotEmpty
+        ? routeCoords
+        : stops.map((s) => s.latLng).toList();
+    final lats = boundsPoints.map((p) => p.latitude);
+    final lngs = boundsPoints.map((p) => p.longitude);
     final bounds = NLatLngBounds(
       southWest: NLatLng(lats.reduce(min), lngs.reduce(min)),
       northEast: NLatLng(lats.reduce(max), lngs.reduce(max)),
@@ -637,31 +729,48 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      stop.name,
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.neutralScale[600],
+                // 장소를 누르면 후기와 요약을 담은 상세 시트를 연다.
+                InkWell(
+                  onTap: () => showPlaceDetailSheet(
+                    context,
+                    name: stop.name,
+                    address: stop.address,
+                    category: stop.category,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              stop.name,
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.neutralScale[600],
+                              ),
+                            ),
+                          ),
+                          Text(
+                            stop.time,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.primaryScale[500],
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                    Text(
-                      stop.time,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.primaryScale[500],
+                      const SizedBox(height: 4),
+                      Text(
+                        stop.address,
+                        style: TextStyle(
+                            fontSize: 12, color: AppColors.neutralScale[300]),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  stop.address,
-                  style: TextStyle(fontSize: 12, color: AppColors.neutralScale[300]),
+                    ],
+                  ),
                 ),
                 if (stop.transport != null) ...[
                   const SizedBox(height: 14),
@@ -751,12 +860,9 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
 
   Widget _buildStartButton(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(
-        24,
-        12,
-        24,
-        MediaQuery.paddingOf(context).bottom + 16,
-      ),
+      // 저장 버튼이 있던 자리를 그대로 잇는다. 아래 여백은 형제인
+      // '재탐색하러 가기' 버튼이 이미 갖고 있어 여기서 또 주면 겹친다.
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 10),
       child: SizedBox(
         width: double.infinity,
         height: 56,
@@ -774,7 +880,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
           ),
           child: ElevatedButton(
             onPressed: () =>
-                context.push('/navigation', extra: widget.savedTrip),
+                context.push('/navigation', extra: _startTarget),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.transparent,
               shadowColor: Colors.transparent,
@@ -814,7 +920,12 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
                 }
               },
             ),
-          ),
+          )
+        // 저장을 마치면 저장 버튼 자리를 시작 버튼이 잇는다. 이게 없으면
+        // 저장한 사용자에게 남는 선택지가 '재탐색' 하나뿐이라, 방금 만든
+        // 일정을 시작하려면 저장 탭으로 돌아가 다시 열어야 했다.
+        else if (_startTarget != null)
+          _buildStartButton(context),
         Padding(
           padding: const EdgeInsets.only(bottom: 20),
           child: PrevButton(
@@ -926,7 +1037,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
             ],
           ),
           child: ElevatedButton(
-            onPressed: () => context.push('/navigation', extra: widget.savedTrip),
+            onPressed: () => context.push('/navigation', extra: _startTarget),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.transparent,
               shadowColor: Colors.transparent,
@@ -991,28 +1102,88 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
     );
   }
 
+  /// 저장한 일정을 서버에도 남긴다.
+  ///
+  /// 서버에 남아야 다른 기기에서 열리고, 이 일정으로 대화방을 만들 수 있다
+  /// (대화방은 자기가 소유한 일정에만 만들 수 있다).
+  ///
+  /// 방금 만든 일정이 아니거나 로그인하지 않았으면 건너뛴다 — 토큰 없이
+  /// 보내면 주인 없는 일정으로 남아 다시 꺼내 볼 수 없다.
+  /// 반환: 저장된 일정 식별자. 저장하지 못했으면 null.
+  /// 방금 저장한 일정을 시작 화면이 받는 형태로 접는다.
+  ///
+  /// 서버에서 다시 받아 오지 않는 이유는, 방금 화면에 그린 그 방문지가 이미
+  /// 손에 있고 상세 조회는 도로 경로를 다시 받아 오느라 왕복이 길기 때문이다.
+  /// 서버에서 다시 열면 그때 상세 조회가 돈다.
+  SavedTrip? _asSavedTrip(
+      int scheduleId, String name, DateTime start, DateTime end) {
+    final response = widget.response;
+    if (response == null) return null;
+    return SavedTrip(
+      scheduleId: scheduleId,
+      name: name,
+      route: response.stops.map((s) => s.name).join(' → '),
+      savedAt: DateTime.now(),
+      tripStartDate: start,
+      tripEndDate: end,
+      stops: response.stops,
+      totalDurationMinutes: response.totalDurationMinutes,
+    );
+  }
+
+  Future<int?> _persistToServer(
+      String name, DateTime start, DateTime end) async {
+    final response = widget.response;
+    final plan = TripRepository.instance.lastPlan;
+    if (response == null || plan == null) return null;
+    if (!isAuthenticated.value) {
+      _toast('로그인해야 일정을 저장할 수 있어요.');
+      return null;
+    }
+    try {
+      return await ScheduleApiService.instance.save(
+        jobId: response.tripId,
+        title: name,
+        dateStart: start,
+        dateEnd: end,
+        transport: plan.transport,
+        activeStartHour: plan.activeStartHour,
+        activeEndHour: plan.activeEndHour,
+      );
+    } on ApiException catch (e) {
+      _toast('저장하지 못했어요: ${e.message}');
+      return null;
+    }
+  }
+
+  void _toast(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
+
   // ── 저장 바텀시트 ─────────────────────────────────────────────
 
   void _showSaveBottomSheet(BuildContext context) {
-    final route = _stops.map((s) => s.name).join(' → ');
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       useSafeArea: true,
       builder: (sheetContext) => _SaveBottomSheet(
-        onSaved: (name) {
-          TripRepository.instance.addTrip(SavedTrip(
-            name: name,
-            route: route,
-            savedAt: DateTime.now(),
-            tripStartDate: widget.startDate ?? DateTime.now(),
-            tripEndDate: widget.endDate ?? DateTime.now(),
-            stops: widget.response?.stops ?? const [],
-            totalDurationMinutes: widget.response?.totalDurationMinutes ?? _totalDurationMinutes,
-          ));
-          setState(() => _isSaved = true);
-          _showSavedDialog(context, name);
+        onSaved: (name) async {
+          final start = widget.startDate ?? DateTime.now();
+          final end = widget.endDate ?? start;
+          // 저장 탭이 서버 목록을 보므로, 서버에 남은 뒤에야 저장됐다고 말한다.
+          // 순서를 뒤집으면 실패한 저장을 성공으로 알리게 된다.
+          final scheduleId = await _persistToServer(name, start, end);
+          if (!mounted || scheduleId == null) return;
+          setState(() {
+            _isSaved = true;
+            _startTarget = _asSavedTrip(scheduleId, name, start, end);
+          });
+          TripRepository.instance.markSavedChanged();
+          _showSavedDialog(this.context, name);
         },
       ),
     );
@@ -1199,6 +1370,13 @@ class _ScheduleStop {
   final NLatLng latLng;
   final _TransportInfo? transport;
 
+  /// 장소 분류. 상세 시트의 분류 칩에 쓴다. 서버가 못 채우면 비어 있고,
+  /// 그때는 칩이 아예 나오지 않는다.
+  final String? category;
+
+  /// 서버가 부여한 장소 식별자. 이 장소를 지목해 다시 요청할 때 쓴다.
+  final int? placeId;
+
   const _ScheduleStop({
     required this.day,
     required this.name,
@@ -1206,6 +1384,8 @@ class _ScheduleStop {
     required this.time,
     required this.latLng,
     required this.transport,
+    this.category,
+    this.placeId,
   });
 }
 
@@ -1214,9 +1394,13 @@ class _TransportInfo {
   final String duration;
   final String distance;
 
+  /// 이 stop 에서 다음 stop 까지의 도로 추종 경로. 없으면 지도는 직선으로 잇는다.
+  final List<NLatLng>? path;
+
   const _TransportInfo({
     required this.label,
     required this.duration,
     required this.distance,
+    this.path,
   });
 }

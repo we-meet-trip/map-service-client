@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' show min, max, pi;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_compass/flutter_compass.dart';
 import 'package:geolocator/geolocator.dart';
@@ -8,6 +9,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../common/theme/app_colors.dart';
 import '../../../common/theme/app_icons.dart';
+import '../../../core/api/schedule_api_service.dart';
+import '../../../core/api/trip_api_service.dart';
 import '../../../core/naver_map/naver_map_adapter.dart';
 import '../../../core/state/trip_repository.dart';
 import '../../trip/widgets/transport_theme.dart';
@@ -54,9 +57,22 @@ class _NavigationScreenState extends State<NavigationScreen>
 
 
   // ── 일정 데이터 ─────────────────────────────────────────────────────────
-  late final List<_Stop> _stops;
-  late final int _totalMinutes;
-  final int _currentTransitIndex = 0;
+  /// 전 일차의 방문지. 화면은 여기서 고른 일차만 그린다.
+  List<_Stop> _allStops = const [];
+  List<int> _days = const [1];
+  int _selectedDay = 1;
+  int _totalMinutes = 0;
+
+  /// 지금 이동 중인 구간. 고른 일차 안에서의 순번이다.
+  ///
+  /// 위치가 갱신될 때마다 가장 가까운 방문지를 찾아 다시 정한다. 고정값으로
+  /// 두면 첫 구간이 계속 '현재'로 강조되어, 실제로 어디쯤 왔는지와 화면이
+  /// 어긋난 채로 남는다.
+  int _currentTransitIndex = 0;
+
+  /// 고른 일차의 방문지만 순서대로.
+  List<_Stop> get _stops =>
+      _allStops.where((s) => s.day == _selectedDay).toList();
 
   // ── 사용자 현재 구간 (하단 시트 타임라인 표시용) ───────────────────────────
   int _currentSegmentIndex = 0;   // 현재 위치가 속한 구간 (0 = stop[0]→stop[1])
@@ -66,8 +82,31 @@ class _NavigationScreenState extends State<NavigationScreen>
   void initState() {
     super.initState();
     _initStops();
+    _markStarted();
     _startLocationTracking();
     _startCompass();
+  }
+
+  /// 이 일정을 따라가기 시작했다고 서버에 알리고, 최신 상세로 갈아 끼운다.
+  ///
+  /// 저장하지 않은 일정(식별자 없음)은 알릴 대상이 없으므로 건너뛴다.
+  /// 실패해도 화면은 이미 들고 온 방문지로 그대로 돌아간다 — 시작 기록이
+  /// 안 됐다고 길 안내를 막을 이유가 없다.
+  Future<void> _markStarted() async {
+    final scheduleId = widget.trip.scheduleId;
+    if (scheduleId == null) return;
+    try {
+      final detail = await ScheduleApiService.instance.start(scheduleId);
+      if (!mounted) return;
+      if (detail.stops.isNotEmpty) {
+        setState(() => _applyStops(detail.stops));
+        final controller = _mapController;
+        if (controller != null) await _renderDay(controller);
+        return;
+      }
+    } catch (_) {
+      // 시작 기록은 부가 동작이라 실패를 화면에 세우지 않는다.
+    }
   }
 
   @override
@@ -82,26 +121,71 @@ class _NavigationScreenState extends State<NavigationScreen>
   void _initStops() {
     final stops = widget.trip.stops;
     if (stops.isNotEmpty) {
-      _stops = stops
-          .map((s) => _Stop(
-                name: s.name,
-                address: s.address,
-                time: s.time,
-                latLng: NLatLng(s.latitude, s.longitude),
-                transport: s.transportToNext != null
-                    ? _Transport(
-                        label: s.transportToNext!.label,
-                        duration: '${s.transportToNext!.durationMinutes}분',
-                        distance: '${s.transportToNext!.distanceKm}km',
-                      )
-                    : null,
-              ))
-          .toList();
+      _applyStops(stops);
       _totalMinutes = widget.trip.totalDurationMinutes;
     } else {
-      _stops = _kPlaceholder;
+      _allStops = _kPlaceholder;
+      _days = const [1];
+      _selectedDay = 1;
       _totalMinutes = 25;
     }
+  }
+
+  /// 서버 방문지를 화면 모델로 옮기고 일차 목록을 다시 세운다.
+  ///
+  /// 고르고 있던 일차가 새 목록에도 있으면 그대로 둔다 — 시작 기록 응답으로
+  /// 목록이 갱신될 때 보고 있던 날이 1일차로 튀지 않게 한다.
+  void _applyStops(List<TripStop> stops) {
+    _allStops = stops
+        .map((s) => _Stop(
+              day: s.day,
+              name: s.name,
+              address: s.address,
+              time: s.time,
+              latLng: NLatLng(s.latitude, s.longitude),
+              transport: s.transportToNext != null
+                  ? _Transport(
+                      label: s.transportToNext!.label,
+                      duration: '${s.transportToNext!.durationMinutes}분',
+                      distance: '${s.transportToNext!.distanceKm}km',
+                      path: s.transportToNext!.path
+                          ?.map((p) => NLatLng(p[0], p[1]))
+                          .toList(),
+                    )
+                  : null,
+            ))
+        .toList();
+    _days = _allStops.map((s) => s.day).toSet().toList()..sort();
+    if (_days.isEmpty) {
+      _days = const [1];
+    }
+    if (!_days.contains(_selectedDay)) {
+      _selectedDay = _days.first;
+    }
+    _currentTransitIndex = 0;
+  }
+
+  /// 고른 일차의 이동 시간 합. 여러 날이면 그날 것만 센다.
+  int get _dayMinutes {
+    final dayStops = _stops;
+    if (_days.length <= 1) return _totalMinutes;
+    var sum = 0;
+    for (var i = 0; i < dayStops.length; i++) {
+      final t = dayStops[i].transport;
+      if (t == null) continue;
+      sum += int.tryParse(t.duration.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+    }
+    return sum;
+  }
+
+  Future<void> _onDaySelected(int day) async {
+    if (day == _selectedDay) return;
+    setState(() {
+      _selectedDay = day;
+      _currentTransitIndex = 0;
+    });
+    final controller = _mapController;
+    if (controller != null) await _renderDay(controller);
   }
 
   static final _kPlaceholder = [
@@ -131,9 +215,12 @@ class _NavigationScreenState extends State<NavigationScreen>
   ];
 
   String get _totalTimeLabel {
-    if (_totalMinutes < 60) return '약 $_totalMinutes분';
-    final h = _totalMinutes ~/ 60;
-    final m = _totalMinutes % 60;
+    // 여러 날 일정은 그날 것만 센다. 전 일차 합을 보여주면 오늘 얼마나
+    // 움직이는지와 화면 숫자가 어긋난다.
+    final minutes = _dayMinutes;
+    if (minutes < 60) return '약 $minutes분';
+    final h = minutes ~/ 60;
+    final m = minutes % 60;
     return m == 0 ? '약 $h시간' : '약 $h시간 $m분';
   }
 
@@ -169,6 +256,9 @@ class _NavigationScreenState extends State<NavigationScreen>
   }
 
   void _startCompass() {
+    // 브라우저에는 나침반을 읽는 수단이 없다. 그대로 두면 구독을 거는 순간
+    // 죽는다. 방향 표시만 빠지고 위치 추적과 경로 안내는 그대로 동작한다.
+    if (kIsWeb) return;
     _compassSub = FlutterCompass.events?.listen((CompassEvent event) {
       if (!mounted) return;
       final heading = event.heading;
@@ -192,9 +282,48 @@ class _NavigationScreenState extends State<NavigationScreen>
     return _smoothedBearing;
   }
 
+  /// 지금 어느 구간을 가고 있는지 위치로 다시 정한다.
+  ///
+  /// 가장 가까운 방문지를 찾아, 아직 그곳에 닿지 않았으면 그 앞 구간을,
+  /// 이미 닿았으면 그 다음 구간을 현재로 본다. 도착 판정 반경은 도시에서
+  /// 위치 오차가 흔히 수십 미터인 점을 감안해 넉넉히 잡았다.
+  ///
+  /// 구간이 실제로 바뀔 때만 화면을 다시 그린다 — 위치는 3m마다 들어오므로
+  /// 매번 setState 하면 목록이 쉬지 않고 흔들린다.
+  void _updateCurrentLeg(Position pos) {
+    final dayStops = _stops;
+    if (dayStops.length < 2) return;
+
+    const arrivedMeters = 80.0;
+    var nearest = 0;
+    var nearestMeters = double.infinity;
+    for (var i = 0; i < dayStops.length; i++) {
+      final d = Geolocator.distanceBetween(
+        pos.latitude,
+        pos.longitude,
+        dayStops[i].latLng.latitude,
+        dayStops[i].latLng.longitude,
+      );
+      if (d < nearestMeters) {
+        nearestMeters = d;
+        nearest = i;
+      }
+    }
+
+    // 마지막 방문지에 닿았으면 더 갈 구간이 없다 — 마지막 구간을 유지한다.
+    final next = nearestMeters <= arrivedMeters
+        ? (nearest >= dayStops.length - 1 ? dayStops.length - 2 : nearest)
+        : (nearest == 0 ? 0 : nearest - 1);
+
+    if (next != _currentTransitIndex) {
+      setState(() => _currentTransitIndex = next);
+    }
+  }
+
   Future<void> _onPositionUpdate(Position pos) async {
     if (!mounted) return;
     _lastPosition = pos;
+    _updateCurrentLeg(pos);
 
     final latLng = NLatLng(pos.latitude, pos.longitude);
 
@@ -344,9 +473,36 @@ class _NavigationScreenState extends State<NavigationScreen>
 
   Future<void> _onMapReady(NaverMapController controller) async {
     _mapController = controller;
+    await _renderDay(controller);
 
-    // 번호 마커
-    for (int i = 0; i < _stops.length; i++) {
+    // ── NLocationOverlay: 파란 점
+    final overlay = controller.getLocationOverlay();
+
+    // 맵 준비 전 수신된 GPS 위치가 있으면 즉시 반영
+    if (_lastPosition != null) {
+      final latLng = NLatLng(_lastPosition!.latitude, _lastPosition!.longitude);
+      overlay.setPosition(latLng);
+      overlay.setIsVisible(true);
+    } else {
+      overlay.setIsVisible(false);
+    }
+  }
+
+  /// 고른 일차의 마커·경로를 다시 그린다.
+  ///
+  /// 전 일차를 한 줄로 이으면 하루의 마지막 방문지에서 다음 날 첫 방문지까지가
+  /// 하나의 이동 구간처럼 보인다. 그 둘 사이에는 잠자리와 하룻밤이 있어서
+  /// 길 안내로 이을 구간이 아니다. 그래서 일차마다 따로 그린다.
+  Future<void> _renderDay(NaverMapController controller) async {
+    final dayStops = _stops;
+    if (dayStops.isEmpty) return;
+
+    // 이 화면이 얹는 것은 마커와 경로뿐이라 통째로 지운다. 내 위치 표시는
+    // 오버레이 목록이 아니라 컨트롤러가 따로 들고 있어 여기서 지워지지 않는다.
+    await controller.clearOverlays();
+
+    // 번호 마커 — 번호는 그날 안에서 다시 1부터 센다.
+    for (int i = 0; i < dayStops.length; i++) {
       if (!mounted) return;
       final icon = await NOverlayImage.fromWidget(
         widget: _buildMarkerWidget('${i + 1}'),
@@ -354,23 +510,51 @@ class _NavigationScreenState extends State<NavigationScreen>
         context: context,
       );
       await controller.addOverlay(NMarker(
-        id: 'nav_stop_$i',
-        position: _stops[i].latLng,
+        id: 'nav_stop_${_selectedDay}_$i',
+        position: dayStops[i].latLng,
         icon: icon,
       ));
     }
 
-    // 경로 폴리라인
-    await controller.addOverlay(NPolylineOverlay(
-      id: 'nav_route',
-      coords: _stops.map((s) => s.latLng).toList(),
-      color: AppColors.primaryScale[400]!,
-      width: 5,
-    ));
+    // 경로 폴리라인 — 구간마다 도로 좌표가 있으면 그것을, 없으면 두 방문지를
+    // 잇는 직선을 이어 붙인다.
+    final routeCoords = <NLatLng>[];
+    void addPoint(NLatLng p) {
+      // 구간 접점의 중복 좌표는 값 비교로 걸러 낸다.
+      if (routeCoords.isEmpty ||
+          routeCoords.last.latitude != p.latitude ||
+          routeCoords.last.longitude != p.longitude) {
+        routeCoords.add(p);
+      }
+    }
 
-    // 모든 정류장이 보이도록 fitBounds (하단 시트 공간 확보)
-    final lats = _stops.map((s) => s.latLng.latitude);
-    final lngs = _stops.map((s) => s.latLng.longitude);
+    for (int i = 0; i < dayStops.length - 1; i++) {
+      final legPath = dayStops[i].transport?.path;
+      final seg = (legPath != null && legPath.length >= 2)
+          ? legPath
+          : [dayStops[i].latLng, dayStops[i + 1].latLng];
+      for (final p in seg) {
+        addPoint(p);
+      }
+    }
+
+    if (routeCoords.length >= 2) {
+      await controller.addOverlay(NPathOverlay(
+        id: 'nav_route_$_selectedDay',
+        coords: routeCoords,
+        color: AppColors.primaryScale[400]!,
+        width: 6,
+        outlineColor: Colors.white,
+        outlineWidth: 2,
+      ));
+    }
+
+    // 경로 전체가 보이도록 fitBounds (하단 시트 공간 확보)
+    final boundsPoints = routeCoords.isNotEmpty
+        ? routeCoords
+        : dayStops.map((s) => s.latLng).toList();
+    final lats = boundsPoints.map((p) => p.latitude);
+    final lngs = boundsPoints.map((p) => p.longitude);
     await controller.updateCamera(
       NCameraUpdate.fitBounds(
         NLatLngBounds(
@@ -612,6 +796,10 @@ class _NavigationScreenState extends State<NavigationScreen>
             padding: const EdgeInsets.fromLTRB(22, 0, 22, 48),
             children: [
               _buildDragHandle(),
+              if (_days.length > 1) ...[
+                _buildDayTabs(),
+                const SizedBox(height: 16),
+              ],
               _buildTotalTime(),
               const SizedBox(height: 4),
               ..._stops.asMap().entries.map((e) => _buildStopItem(
@@ -623,6 +811,43 @@ class _NavigationScreenState extends State<NavigationScreen>
           ),
         );
       },
+    );
+  }
+
+  /// 일차 선택 탭. 하루짜리 일정에는 그리지 않는다.
+  Widget _buildDayTabs() {
+    return SizedBox(
+      height: 36,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: _days.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, i) {
+          final day = _days[i];
+          final selected = day == _selectedDay;
+          return GestureDetector(
+            onTap: () => _onDaySelected(day),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: selected
+                    ? AppColors.primaryScale[500]
+                    : AppColors.neutralScale[100],
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Text(
+                '$day일차',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: selected ? Colors.white : AppColors.neutralScale[400],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -1127,6 +1352,8 @@ class _SegmentLinePainter extends CustomPainter {
 // ─── 내부 데이터 모델 ──────────────────────────────────────────────────────────
 
 class _Stop {
+  /// 이 방문지가 속한 여행 일차(1부터). 하루짜리 일정은 전부 1이다.
+  final int day;
   final String name;
   final String address;
   final String time;
@@ -1134,6 +1361,7 @@ class _Stop {
   final _Transport? transport;
 
   const _Stop({
+    this.day = 1,
     required this.name,
     required this.address,
     required this.time,
@@ -1147,9 +1375,13 @@ class _Transport {
   final String duration;
   final String distance;
 
+  /// 서버가 내려준 도로 좌표. 없으면 두 방문지를 직선으로 잇는다.
+  final List<NLatLng>? path;
+
   const _Transport({
     required this.label,
     required this.duration,
     required this.distance,
+    this.path,
   });
 }

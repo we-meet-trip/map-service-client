@@ -24,12 +24,16 @@ class ChatRoomDetailScreen extends StatefulWidget {
 class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
   final _scrollController = ScrollController();
   bool _isSheetOpen = false;
+  ChatRoomDetailProvider? _provider;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<ChatRoomDetailProvider>().loadMessages().then((_) {
+      final provider = context.read<ChatRoomDetailProvider>();
+      _provider = provider;
+      provider.addListener(_showSendErrorIfAny);
+      provider.loadMessages().then((_) {
         _scrollToBottom();
       });
     });
@@ -37,8 +41,17 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
 
   @override
   void dispose() {
+    _provider?.removeListener(_showSendErrorIfAny);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  /// 전송이 서버에서 거절되면 사유를 스낵바로 한 번 보여준다. 보낸 메시지는
+  /// 방송이 돌아와야 그려지므로, 이 안내가 없으면 실패를 알 길이 없다.
+  void _showSendErrorIfAny() {
+    final error = _provider?.consumeSendError();
+    if (error == null || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
   }
 
   void _scrollToBottom() {
