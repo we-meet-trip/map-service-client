@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import '../../../common/theme/app_colors.dart';
+import '../../../data/models/user.dart';
 import '../../../data/models/chat_room.dart';
+import '../../mypage/widgets/profile_avatar.dart';
 
 class ChatRoomCard extends StatelessWidget {
   const ChatRoomCard({
@@ -9,6 +12,7 @@ class ChatRoomCard extends StatelessWidget {
     required this.timeLabel,
     required this.type,
     required this.onTap,
+    this.participants = const [],
     this.participantCount = 1,
     this.hasUnread = false,
   });
@@ -18,6 +22,7 @@ class ChatRoomCard extends StatelessWidget {
   final String timeLabel;
   final ChatRoomType type;
   final VoidCallback onTap;
+  final List<User> participants;
   final int participantCount;
   final bool hasUnread;
 
@@ -48,7 +53,7 @@ class ChatRoomCard extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            _Avatar(participantCount: participantCount),
+            _Avatar(participants: participants, participantCount: participantCount),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -129,43 +134,42 @@ class ChatRoomCard extends StatelessWidget {
 }
 
 class _Avatar extends StatelessWidget {
-  const _Avatar({required this.participantCount});
+  const _Avatar({required this.participants, required this.participantCount});
 
+  final List<User> participants;
   final int participantCount;
 
   @override
   Widget build(BuildContext context) {
-    if (participantCount >= 3) {
-      return _GroupAvatar(participantCount: participantCount);
+    if (participants.length >= 2) {
+      return _GroupAvatar(participants: participants);
     }
-    return const _SingleAvatar();
+    return _SingleAvatar(participants: participants);
   }
 }
 
 class _SingleAvatar extends StatelessWidget {
-  const _SingleAvatar();
+  const _SingleAvatar({required this.participants});
+
+  final List<User> participants;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 52,
-      height: 52,
-      decoration: const BoxDecoration(
-        color: Color(0xFFE5E1F5),
-        shape: BoxShape.circle,
-      ),
-    );
+    final color = participants.isNotEmpty
+        ? AppColors.avatarColorOf(participants[0].id)
+        : AppColors.avatarColors[0];
+    return ProfileAvatar(size: 52, color: color, showBorder: true);
   }
 }
 
 class _GroupAvatar extends StatelessWidget {
-  const _GroupAvatar({required this.participantCount});
+  const _GroupAvatar({required this.participants});
 
-  final int participantCount;
+  final List<User> participants;
 
   @override
   Widget build(BuildContext context) {
-    final extra = participantCount - 2;
+    final extra = participants.length - 2;
     return SizedBox(
       width: 66,
       height: 52,
@@ -175,48 +179,43 @@ class _GroupAvatar extends StatelessWidget {
           Positioned(
             left: 0,
             top: 6,
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: const BoxDecoration(
-                color: Color(0xFFD4CDEE),
-                shape: BoxShape.circle,
-              ),
+            child: ProfileAvatar(
+              size: 40,
+              color: AppColors.avatarColorOf(participants[0].id),
+              showBorder: true,
             ),
           ),
           Positioned(
             left: 18,
             top: 6,
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: const BoxDecoration(
-                color: Color(0xFFE5E1F5),
-                shape: BoxShape.circle,
-              ),
+            child: ProfileAvatar(
+              size: 40,
+              color: AppColors.avatarColorOf(participants[1].id),
+              showBorder: true,
             ),
           ),
-          Positioned(
-            right: 0,
-            bottom: 0,
-            child: Container(
-              width: 20,
-              height: 20,
-              decoration: const BoxDecoration(
-                color: Color(0xFF4A4A55),
-                shape: BoxShape.circle,
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                '+$extra',
-                style: const TextStyle(
-                  fontSize: 9,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
+          if (extra > 0)
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: Container(
+                width: 20,
+                height: 20,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF4A4A55),
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  '+$extra',
+                  style: const TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
                 ),
               ),
             ),
-          ),
         ],
       ),
     );

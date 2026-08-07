@@ -26,7 +26,7 @@ class MypageScreen extends StatelessWidget {
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  ProfileAvatar(imagePath: profile.profileImagePath, size: 60),
+                  ProfileAvatar(imagePath: profile.profileImagePath, size: 60, color: AppColors.avatarColorOf(profile.id)),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Column(

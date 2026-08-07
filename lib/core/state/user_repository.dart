@@ -1,10 +1,22 @@
 import 'package:flutter/foundation.dart';
+import '../../data/local/profile_local_store.dart';
 
 class UserRepository {
-  UserRepository._();
+  UserRepository._() {
+    profile.addListener(_persist);
+  }
   static final UserRepository instance = UserRepository._();
 
   final ValueNotifier<UserProfile> profile = ValueNotifier(UserProfile.empty());
+
+  static Future<void> init() async {
+    final saved = ProfileLocalStore.instance.load();
+    if (saved != null) {
+      instance.profile.value = saved;
+    }
+  }
+
+  void _persist() => ProfileLocalStore.instance.save(profile.value);
 
   void updateNickname(String nickname) {
     profile.value = profile.value.copyWith(nickname: nickname);
@@ -71,6 +83,7 @@ class NamedAddress {
 }
 
 class UserProfile {
+  final String id;
   final String nickname;
   final DateTime? birthdate;
   final String? gender;
@@ -84,6 +97,7 @@ class UserProfile {
   final bool notificationsEnabled;
 
   const UserProfile({
+    required this.id,
     required this.nickname,
     this.birthdate,
     this.gender,
@@ -97,7 +111,10 @@ class UserProfile {
     this.notificationsEnabled = true,
   });
 
-  factory UserProfile.empty() => const UserProfile(nickname: '');
+  factory UserProfile.empty() => UserProfile(
+        id: 'local_${DateTime.now().millisecondsSinceEpoch}',
+        nickname: '',
+      );
 
   UserProfile copyWith({
     String? nickname,
@@ -114,6 +131,7 @@ class UserProfile {
     bool? notificationsEnabled,
   }) {
     return UserProfile(
+      id: id,
       nickname: nickname ?? this.nickname,
       birthdate: birthdate ?? this.birthdate,
       gender: gender ?? this.gender,

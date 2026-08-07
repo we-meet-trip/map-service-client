@@ -1,10 +1,12 @@
+import 'user.dart';
+
 enum ChatRoomType { upcoming, past }
 
 class ChatRoom {
   const ChatRoom({
     required this.id,
     required this.title,
-    this.avatarUrls = const [],
+    this.participants = const [],
     this.participantCount = 1,
     required this.type,
     this.hasUnread = false,
@@ -14,16 +16,17 @@ class ChatRoom {
 
   final String id;
   final String title;
-  final List<String> avatarUrls;
+  final List<User> participants;
   final int participantCount;
   final ChatRoomType type;
   final bool hasUnread;
   final String lastMessage;
   final DateTime lastMessageAt;
+
   ChatRoom copyWith({bool? hasUnread, String? lastMessage, DateTime? lastMessageAt}) => ChatRoom(
         id: id,
         title: title,
-        avatarUrls: avatarUrls,
+        participants: participants,
         participantCount: participantCount,
         type: type,
         hasUnread: hasUnread ?? this.hasUnread,
