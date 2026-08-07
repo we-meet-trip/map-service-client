@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
@@ -88,7 +88,13 @@ class OdsaySubwayService {
   }) async {
     // ODsay는 앱 등록 시 iOS/Android 번들 식별자별로 키를 따로 발급하므로
     // 실행 중인 OS에 맞는 키를 골라 써야 한다.
-    final envKey = Platform.isIOS ? 'ODSAY_API_KEY_IOS' : 'ODSAY_API_KEY_ANDROID';
+    //
+    // 운영체제를 dart:io 로 묻지 않는다. 그 방법은 브라우저에서 값을 얻지
+    // 못해 여기서 곧바로 죽는데, 이 화면은 키가 없으면 아래에서 안내로
+    // 접히도록 되어 있다. 죽는 대신 그 길로 가게 둔다.
+    final envKey = defaultTargetPlatform == TargetPlatform.iOS
+        ? 'ODSAY_API_KEY_IOS'
+        : 'ODSAY_API_KEY_ANDROID';
     final apiKey = dotenv.env[envKey] ?? '';
     if (apiKey.isEmpty) {
       throw Exception('$envKey가 설정되지 않았습니다.');

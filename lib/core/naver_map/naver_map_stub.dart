@@ -1,17 +1,49 @@
-// Web stub for flutter_naver_map — mirrors flutter_naver_map 1.4.4 API
-// ignore_for_file: avoid_unused_constructor_parameters
+// Web implementation of the flutter_naver_map API surface used by the app.
+//
+// The adapter (naver_map_adapter.dart) exports THIS file only on web
+// (`if (dart.library.io)` selects the real plugin on Android/iOS). Everything
+// reachable from here therefore compiles solely for the web target, so it may
+// freely use dart:ui_web / dart:js_interop / package:web with no platform
+// guards, and the mobile build is untouched.
+//
+// It renders a real Naver Maps JavaScript API v3 map inside an HtmlElementView
+// while keeping the exact public types/constructors that the two map screens
+// (trip_created_screen.dart, trip_step5_screen.dart) and main.dart already use,
+// so those files need no changes.
+import 'dart:async';
+import 'dart:js_interop';
+import 'dart:ui_web' as ui_web;
 
 import 'package:flutter/material.dart';
+import 'package:web/web.dart' as web;
 
-// ── Init ──────────────────────────────────────────────────────────────────────
+import 'web/naver_loader.dart';
+import 'web/naver_web_controller.dart';
+
+export 'web/naver_web_controller.dart' show NaverMapController;
+
+// ── SDK init ──────────────────────────────────────────────────────────────────
+
 class FlutterNaverMap {
   Future<void> init({
     required String clientId,
     Function(dynamic)? onAuthFailed,
-  }) async {}
+  }) async {
+    if (clientId.isEmpty) {
+      naverLoadFailed.value = true;
+      return;
+    }
+    unawaited(
+      loadNaverMaps(
+        clientId: clientId,
+        onAuthFailed: (e) => onAuthFailed?.call(e),
+      ).catchError((Object _) {}),
+    );
+  }
 }
 
-// ── Basic types ───────────────────────────────────────────────────────────────
+// ── Value types ───────────────────────────────────────────────────────────────
+
 class NLatLng {
   final double latitude;
   final double longitude;
@@ -31,7 +63,6 @@ class NPoint {
   static const NPoint relativeCenter = NPoint(0.5, 0.5);
 }
 
-// ── Camera ────────────────────────────────────────────────────────────────────
 class NCameraPosition {
   final NLatLng target;
   final double zoom;
@@ -45,20 +76,64 @@ class NCameraPosition {
   });
 }
 
+class NMapType {
+  static const NMapType basic = NMapType._();
+  const NMapType._();
+}
+
+class NaverMapViewOptions {
+  final NCameraPosition? initialCameraPosition;
+  final bool scrollGesturesEnable;
+  final bool zoomGesturesEnable;
+  final bool rotationGesturesEnable;
+  final NMapType mapType;
+  const NaverMapViewOptions({
+    this.initialCameraPosition,
+    this.scrollGesturesEnable = true,
+    this.zoomGesturesEnable = true,
+    this.rotationGesturesEnable = true,
+    this.mapType = const NMapType._(),
+  });
+}
+
+class NLocationOverlay {
+  Future<void> setIsVisible(bool isVisible) async {}
+  Future<void> setPosition(NLatLng position) async {}
+  Future<void> setBearing(double bearing) async {}
+}
+
+enum NCameraUpdateKind { fitBounds, fromPosition, zoomIn, zoomOut }
+
 class NCameraUpdate {
-  static NCameraUpdate fitBounds(NLatLngBounds bounds,
-          {EdgeInsets? padding}) =>
-      NCameraUpdate._();
+  final NCameraUpdateKind kind;
+  final NLatLngBounds? bounds;
+  final EdgeInsets? padding;
+  final NCameraPosition? position;
+  NCameraAnimation? animation;
+  Duration? duration;
+
+  NCameraUpdate._(this.kind, {this.bounds, this.padding, this.position});
+
+  static NCameraUpdate fitBounds(NLatLngBounds bounds, {EdgeInsets? padding}) =>
+      NCameraUpdate._(NCameraUpdateKind.fitBounds, bounds: bounds, padding: padding);
   static NCameraUpdate fromCameraPosition(NCameraPosition position) =>
-      NCameraUpdate._();
+      NCameraUpdate._(NCameraUpdateKind.fromPosition, position: position);
   static NCameraUpdate scrollAndZoomTo({NLatLng? target, double? zoom}) =>
-      NCameraUpdate._();
-  static NCameraUpdate zoomIn() => NCameraUpdate._();
-  static NCameraUpdate zoomOut() => NCameraUpdate._();
-  NCameraUpdate._();
-  NCameraUpdate setAnimation(
-          {NCameraAnimation? animation, Duration? duration}) =>
-      this;
+      NCameraUpdate._(
+        NCameraUpdateKind.fromPosition,
+        position: NCameraPosition(
+          target: target ?? const NLatLng(0, 0),
+          zoom: zoom ?? 15,
+        ),
+      );
+  static NCameraUpdate zoomIn() => NCameraUpdate._(NCameraUpdateKind.zoomIn);
+  static NCameraUpdate zoomOut() => NCameraUpdate._(NCameraUpdateKind.zoomOut);
+
+  NCameraUpdate setAnimation({NCameraAnimation? animation, Duration? duration}) {
+    this.animation = animation;
+    this.duration = duration;
+    return this;
+  }
 }
 
 class NCameraAnimation {
@@ -71,60 +146,29 @@ class NCameraAnimation {
 
 enum NCameraUpdateReason { developer, gesture, control, location }
 
-// ── Map types ─────────────────────────────────────────────────────────────────
-class NMapType {
-  static const NMapType basic = NMapType._();
-  static const NMapType navi = NMapType._();
-  static const NMapType satellite = NMapType._();
-  static const NMapType hybrid = NMapType._();
-  const NMapType._();
-}
-
-class NLogoAlign {
-  static const NLogoAlign leftBottom = NLogoAlign._();
-  static const NLogoAlign rightBottom = NLogoAlign._();
-  static const NLogoAlign leftTop = NLogoAlign._();
-  static const NLogoAlign rightTop = NLogoAlign._();
-  const NLogoAlign._();
-}
-
-class NaverMapViewOptions {
-  final NCameraPosition? initialCameraPosition;
-  final bool scrollGesturesEnable;
-  final bool zoomGesturesEnable;
-  final bool rotationGesturesEnable;
-  final NMapType mapType;
-  final NLogoAlign? logoAlign;
-  const NaverMapViewOptions({
-    this.initialCameraPosition,
-    this.scrollGesturesEnable = true,
-    this.zoomGesturesEnable = true,
-    this.rotationGesturesEnable = true,
-    this.mapType = const NMapType._(),
-    this.logoAlign,
-  });
-}
-
-// ── Overlay image ─────────────────────────────────────────────────────────────
 class NOverlayImage {
+  const NOverlayImage._();
   static Future<NOverlayImage> fromWidget({
     required Widget widget,
     required Size size,
     required BuildContext context,
   }) async =>
-      NOverlayImage._();
-
-  const factory NOverlayImage.fromAssetImage(String assetName) =
-      _AssetNOverlayImage;
-  NOverlayImage._();
+      const NOverlayImage._();
 }
 
-class _AssetNOverlayImage implements NOverlayImage {
-  final String assetName;
-  const _AssetNOverlayImage(this.assetName);
+class NMarker {
+  final String id;
+  final NLatLng position;
+  final NOverlayImage? icon;
+  void Function(NMarker overlay)? onTap;
+
+  NMarker({required this.id, required this.position, this.icon});
+
+  void setOnTapListener(void Function(NMarker overlay) listener) {
+    onTap = listener;
+  }
 }
 
-// ── Overlay info ──────────────────────────────────────────────────────────────
 enum NOverlayType {
   marker,
   infoWindow,
@@ -144,133 +188,56 @@ class NOverlayInfo {
   const NOverlayInfo({required this.type, required this.id});
 }
 
-// ── Location overlay ──────────────────────────────────────────────────────────
-class NLocationOverlay {
-  void setIsVisible(bool isVisible) {}
-  void setPosition(NLatLng position) {}
-  void setBearing(double bearing) {}
-  void setAnchor(NPoint anchor) {}
-  void setIcon(NOverlayImage icon) {}
-  void setIconSize(Size size) {}
-  void setCircleColor(Color color) {}
-  void setCircleRadius(double radius) {}
-  void setSubIcon(NOverlayImage? icon) {}
-}
-
-// ── Marker caption ────────────────────────────────────────────────────────────
-class NOverlayCaption {
-  final String text;
-  final double textSize;
-  final Color? color;
-  final Color? haloColor;
-  const NOverlayCaption({
-    required this.text,
-    this.textSize = 14,
-    this.color,
-    this.haloColor,
-  });
-  void setOnTapListener(void Function(NMarker marker) listener) {}
-}
-
-enum NAlign { center, left, right, top, bottom, topLeft, topRight, bottomLeft, bottomRight }
-
-// ── NMarker ───────────────────────────────────────────────────────────────────
-class NMarker {
-  final String id;
-  final NOverlayInfo info;
-
-  NMarker({
-    required this.id,
-    required NLatLng position,
-    NOverlayImage? icon,
-    Color? iconTintColor,
-    double alpha = 1.0,
-    double angle = 0,
-    NPoint anchor = const NPoint(0.5, 1.0),
-    Size size = const Size(0, 0),
-    NOverlayCaption? caption,
-    NOverlayCaption? subCaption,
-    List<NAlign> captionAligns = const [NAlign.bottom],
-    double captionOffset = 0,
-    bool isCaptionPerspectiveEnabled = false,
-    bool isIconPerspectiveEnabled = false,
-    bool isFlat = false,
-    bool isForceShowCaption = false,
-    bool isForceShowIcon = false,
-    bool isHideCollidedCaptions = false,
-    bool isHideCollidedMarkers = false,
-    bool isHideCollidedSymbols = false,
-    bool isVisible = true,
-    int zIndex = 0,
-  }) : info = NOverlayInfo(type: NOverlayType.marker, id: id);
-
-  // 메서드 (1.4.4 방식)
-  void setPosition(NLatLng value) {}
-  void setIcon(NOverlayImage? value) {}
-  void setIconTintColor(Color value) {}
-  void setAlpha(double value) {}
-  void setAngle(double value) {}
-  void setAnchor(NPoint value) {}
-  void setSize(Size value) {}
-  void setCaption(NOverlayCaption? value) {}
-  void setSubCaption(NOverlayCaption? value) {}
-  void setCaptionAligns(Iterable<NAlign> value) {}
-  void setCaptionOffset(double value) {}
-  void setIsCaptionPerspectiveEnabled(bool value) {}
-  void setIsIconPerspectiveEnabled(bool value) {}
-  void setIsFlat(bool value) {}
-  void setIsForceShowCaption(bool value) {}
-  void setIsForceShowIcon(bool value) {}
-  void setIsHideCollidedCaptions(bool value) {}
-  void setIsHideCollidedMarkers(bool value) {}
-  void setHideCollidedSymbols(bool value) {}
-  void setIsVisible(bool value) {}
-  void setOnTapListener(Function(NMarker) listener) {}
-  void setMap(dynamic map) {}
-}
-
-// ── Polyline / Polygon ────────────────────────────────────────────────────────
 class NPolylineOverlay {
-  final NOverlayInfo info;
-  NPolylineOverlay({
-    required String id,
-    required List<NLatLng> coords,
-    Color? color,
-    double? width,
-  }) : info = NOverlayInfo(type: NOverlayType.polylineOverlay, id: id);
+  final String id;
+  final List<NLatLng> coords;
+  final Color? color;
+  final double? width;
+  const NPolylineOverlay({
+    required this.id,
+    required this.coords,
+    this.color,
+    this.width,
+  });
+}
 
-  void setCoords(Iterable<NLatLng> coords) {}
-  void setColor(Color color) {}
-  void setWidth(double width) {}
-  void setIsVisible(bool value) {}
+class NPathOverlay {
+  final String id;
+  final List<NLatLng> coords;
+  final Color? color;
+  final double? width;
+  final Color? outlineColor;
+  final double? outlineWidth;
+  const NPathOverlay({
+    required this.id,
+    required this.coords,
+    this.color,
+    this.width,
+    this.outlineColor,
+    this.outlineWidth,
+  });
 }
 
 class NPolygonOverlay {
-  final NOverlayInfo info;
-  NPolygonOverlay({
-    required String id,
-    required List<NLatLng> coords,
-    List<List<NLatLng>>? holes,
-    Color? color,
-    Color? outlineColor,
-    double? outlineWidth,
-  }) : info = NOverlayInfo(type: NOverlayType.polygonOverlay, id: id);
+  final String id;
+  final List<NLatLng> coords;
+  final List<List<NLatLng>>? holes;
+  final Color? color;
+  final Color? outlineColor;
+  final double? outlineWidth;
+  const NPolygonOverlay({
+    required this.id,
+    required this.coords,
+    this.holes,
+    this.color,
+    this.outlineColor,
+    this.outlineWidth,
+  });
 }
 
-// ── Controller ────────────────────────────────────────────────────────────────
-class NaverMapController {
-  Future<void> addOverlay(dynamic overlay) async {}
-  Future<void> addOverlayAll(Iterable<dynamic> overlays) async {}
-  Future<void> deleteOverlay(NOverlayInfo info) async {}
-  Future<void> updateCamera(NCameraUpdate update) async {}
-  Future<void> clearOverlays({NOverlayType? type}) async {}
-  Future<NCameraPosition> getCameraPosition() async =>
-      const NCameraPosition(target: NLatLng(0, 0));
-  NLocationOverlay getLocationOverlay() => NLocationOverlay();
-}
+// ── The map widget (real Naver JS map via a platform view) ───────────────────
 
-// ── NaverMap widget ───────────────────────────────────────────────────────────
-class NaverMap extends StatelessWidget {
+class NaverMap extends StatefulWidget {
   final NaverMapViewOptions options;
   final void Function(NaverMapController)? onMapReady;
   final void Function(NCameraUpdateReason, bool)? onCameraChange;
@@ -285,12 +252,93 @@ class NaverMap extends StatelessWidget {
   });
 
   @override
+  State<NaverMap> createState() => _NaverMapState();
+}
+
+class _NaverMapState extends State<NaverMap> {
+  static int _seq = 0;
+  final String _viewType = 'naver-map-web-${_seq++}';
+  web.HTMLDivElement? _host;
+  web.ResizeObserver? _resizeObserver;
+  NaverMapController? _controller;
+  JSFunction? _gestureHandler;
+
+  @override
+  void initState() {
+    super.initState();
+    ui_web.platformViewRegistry.registerViewFactory(_viewType, (int _) {
+      final div = web.HTMLDivElement()
+        ..style.width = '100%'
+        ..style.height = '100%';
+      _host = div;
+      return div;
+    });
+  }
+
+  @override
+  void dispose() {
+    _resizeObserver?.disconnect();
+    // 붙일 때와 같은 함수 객체·같은 캡처 값으로 떼야 실제로 떨어진다.
+    final gesture = _gestureHandler;
+    final host = _host;
+    if (gesture != null && host != null) {
+      host.removeEventListener('pointerdown', gesture, true.toJS);
+      host.removeEventListener('wheel', gesture, true.toJS);
+      _gestureHandler = null;
+    }
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _onPlatformViewCreated(int id) async {
+    try {
+      await naverReady;
+    } catch (_) {
+      return;
+    }
+    final host = _host;
+    if (!mounted || host == null) return;
+    final controller = NaverMapController.create(host, widget.options);
+    _controller = controller;
+    widget.onMapReady?.call(controller);
+
+    final gesture = ((web.Event _) => controller.markUserMoved()).toJS;
+    _gestureHandler = gesture;
+    host.addEventListener('pointerdown', gesture, true.toJS);
+    host.addEventListener('wheel', gesture, true.toJS);
+
+    _resizeObserver = web.ResizeObserver(
+      ((JSArray<JSAny?> _, web.ResizeObserver _) =>
+          controller.handleHostResize()).toJS,
+    );
+    _resizeObserver!.observe(host);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: naverLoadFailed,
+      builder: (context, failed, _) {
+        if (failed) return const _MapFallback();
+        return HtmlElementView(
+          viewType: _viewType,
+          onPlatformViewCreated: _onPlatformViewCreated,
+        );
+      },
+    );
+  }
+}
+
+class _MapFallback extends StatelessWidget {
+  const _MapFallback();
+
+  @override
   Widget build(BuildContext context) {
     return const ColoredBox(
       color: Color(0xFFE8EAF0),
       child: Center(
         child: Text(
-          '지도는 모바일에서 확인하세요',
+          '지도를 표시할 수 없습니다',
           style: TextStyle(color: Color(0xFF888888)),
         ),
       ),

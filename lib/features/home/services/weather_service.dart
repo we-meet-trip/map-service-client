@@ -1,303 +1,99 @@
 import 'dart:convert';
-import 'dart:math';
+
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
+
+import '../../../core/config/app_config.dart';
 import '../models/weather_data.dart';
 
+/// 홈 화면 날씨 카드의 데이터 공급자.
+///
+/// 기기 위치만 서버에 넘기고, 실황·예보·대기오염을 합친 결과를 받는다.
+/// 예전에는 앱이 기상 기관 세 곳을 직접 불러 격자 변환과 발표 시각 계산까지
+/// 했는데, 그러려면 인증키를 앱에 넣어야 했고 같은 계산이 서버와 앱 양쪽에
+/// 중복으로 존재했다.
 class WeatherService {
+  /// 서버 주소는 시작할 때 정해진다. 상수로 잡아 두면 그 시점의 값이
+  /// 굳어져, 원격에서 받은 주소가 반영되지 않는다.
+  static String get _baseUrl => kApiBaseUrl;
+
+  /// 화면을 오갈 때마다 다시 부르지 않도록 잠시 들고 있는다. 실황이 매시
+  /// 갱신이라 이보다 자주 물어도 대체로 같은 값이 온다.
   static const _cacheDuration = Duration(minutes: 30);
+
+  /// 위치를 못 얻었을 때 대신 쓰는 좌표(서울 시청). 카드가 통째로 비는 것보다
+  /// 대표 지점이라도 보여 주는 편이 낫다.
+  static const _fallbackLat = 37.5665;
+  static const _fallbackLng = 126.9780;
+
   static WeatherData? _cache;
   static DateTime? _cacheTime;
 
-  Future<WeatherData> fetchWeather() async {
+  /// 담아 둔 값이 대표 지점 기준인지. 정확한 위치로 다시 물을 때는 쓰지 않는다.
+  static bool _cacheApproximate = false;
+
+  /// [useApproximateLocation] 이 참이면 기기 위치를 묻지 않고 대표 좌표로
+  /// 조회한다. 위치 제공을 미룬 사용자에게 카드를 통째로 비우는 대신
+  /// 대표 지점 날씨라도 보여주기 위한 길.
+  Future<WeatherData> fetchWeather({
+    bool useApproximateLocation = false,
+  }) async {
     final now = DateTime.now();
-    if (_cache != null &&
-        _cacheTime != null &&
-        now.difference(_cacheTime!) < _cacheDuration) {
-      return _cache!;
+    final cached = _cache;
+    final cachedAt = _cacheTime;
+    if (cached != null &&
+        cachedAt != null &&
+        now.difference(cachedAt) < _cacheDuration &&
+        (useApproximateLocation || !_cacheApproximate)) {
+      return cached;
     }
 
-    // data.go.kr 인증키 (디코딩 후 Uri 빌더에 전달)
-    const key = String.fromEnvironment('KMA_API_KEY');
-    final pos = await _location();
-    var grid = _latLonToGrid(pos.latitude, pos.longitude);
-    // 한국 격자 범위(nx: 1~149, ny: 1~253) 벗어나면 서울 기본값 사용
-    if ((grid['nx']! < 1 || grid['nx']! > 149) ||
-        (grid['ny']! < 1 || grid['ny']! > 253)) {
-      debugPrint('[WeatherAPI] 좌표 범위 초과 (lat=${pos.latitude}, lon=${pos.longitude}) → 서울 기본값 사용');
-      grid = {'nx': 60, 'ny': 127};
-    }
-    final sido = _sidoFromLatLon(pos.latitude, pos.longitude);
-
-    final nowDt = _ultraNowBaseDateTime(now);
-    final fcstDt = _forecastBaseDateTime(now);
-
-    final results = await Future.wait([
-      // 1. 초단기실황: 현재 기온(T1H), 강수형태(PTY)
-      http.get(_kmaUri('getUltraSrtNcst', {
-        'base_date': nowDt.date,
-        'base_time': nowDt.time,
-        'nx': '${grid['nx']}',
-        'ny': '${grid['ny']}',
-        'numOfRows': '20',
-        'pageNo': '1',
-      }, key)),
-      // 2. 단기예보: 최고/최저기온(TMX/TMN), 하늘상태(SKY), 강수확률(POP)
-      http.get(_kmaUri('getVilageFcst', {
-        'base_date': fcstDt.date,
-        'base_time': fcstDt.time,
-        'nx': '${grid['nx']}',
-        'ny': '${grid['ny']}',
-        'numOfRows': '500',
-        'pageNo': '1',
-      }, key)),
-      // 3. 에어코리아: 미세먼지(PM10/PM25) — 실패 시 기본값으로 대체
-      http.get(_airUri(sido, key)).catchError((_) => http.Response('', 0)),
-    ]);
-
-    debugPrint('[WeatherAPI 0 URL] ${_kmaUri('getUltraSrtNcst', {
-      'base_date': nowDt.date, 'base_time': nowDt.time,
-      'nx': '${grid['nx']}', 'ny': '${grid['ny']}', 'numOfRows': '20', 'pageNo': '1',
-    }, key)}');
-    for (var i = 0; i < results.length; i++) {
-      debugPrint('[WeatherAPI $i] ${results[i].statusCode} ${results[i].body}');
-    }
-
-    if (results[0].statusCode == 429 || results[1].statusCode == 429) {
-      throw Exception('기상청 API 호출 한도 초과 — 잠시 후 다시 시도해주세요.');
-    }
-    if (results[0].statusCode != 200) {
-      throw Exception('초단기실황 API 오류 (${results[0].statusCode})');
-    }
-    if (results[1].statusCode != 200) {
-      throw Exception('단기예보 API 오류 (${results[1].statusCode})');
-    }
-    // ── 초단기실황 파싱 ──────────────────────────────────────────────────────
-    final nowJson = jsonDecode(results[0].body);
-    if (nowJson is! Map<String, dynamic>) throw Exception('초단기실황 응답 형식 오류');
-    _checkKmaResult(nowJson, '초단기실황');
-    final rawNowItems = (nowJson['response'] as Map?)?['body']?['items']?['item'];
-    final nowItems = rawNowItems is List
-        ? rawNowItems.whereType<Map<String, dynamic>>().toList()
-        : <Map<String, dynamic>>[];
-    final nowMap = {
-      for (final i in nowItems)
-        if (i['category'] != null) i['category'].toString(): i['obsrValue']?.toString() ?? ''
-    };
-
-    final t1h = double.tryParse(nowMap['T1H'] ?? '') ?? 0.0;
-    final pty = int.tryParse(nowMap['PTY'] ?? '') ?? 0;
-
-    // ── 단기예보 파싱 ────────────────────────────────────────────────────────
-    final fcstJson = jsonDecode(results[1].body);
-    if (fcstJson is! Map<String, dynamic>) throw Exception('단기예보 응답 형식 오류');
-    _checkKmaResult(fcstJson, '단기예보');
-    final rawFcstItems = (fcstJson['response'] as Map?)?['body']?['items']?['item'];
-    final fcstItems = rawFcstItems is List
-        ? rawFcstItems.whereType<Map<String, dynamic>>().toList()
-        : <Map<String, dynamic>>[];
-
-    final todayStr = _fmtDate(now);
-    final todayItems = fcstItems
-        .where((item) => item['fcstDate']?.toString() == todayStr)
-        .toList();
-
-    double? tmx, tmn;
-    int? sky, pop;
-
-    // 현재 시각 기준 가장 가까운 3시간 단위 슬롯
-    final targetTimeInt = (now.hour ~/ 3) * 3 * 100;
-
-    for (final item in todayItems) {
-      final cat = item['category']?.toString() ?? '';
-      final val = item['fcstValue']?.toString() ?? '';
-      final fcstTimeInt = int.tryParse(item['fcstTime']?.toString() ?? '') ?? 0;
-
-      if (cat == 'TMX') tmx ??= double.tryParse(val);
-      if (cat == 'TMN') tmn ??= double.tryParse(val);
-      if (cat == 'SKY' && sky == null && fcstTimeInt >= targetTimeInt) {
-        sky = int.tryParse(val);
-      }
-      if (cat == 'POP' && pop == null && fcstTimeInt >= targetTimeInt) {
-        pop = int.tryParse(val);
-      }
-    }
-
-    // 당일 데이터가 없을 때 폴백 (늦은 밤 등)
-    if (sky == null) {
-      final anysky = todayItems.where((i) => i['category'] == 'SKY');
-      sky = anysky.isNotEmpty ? int.tryParse(anysky.first['fcstValue']?.toString() ?? '') ?? 1 : 1;
-    }
-
-    // ── 에어코리아 파싱 ──────────────────────────────────────────────────────
-    double pm10 = 0, pm25 = 0;
-    if (results[2].statusCode == 200) {
-      try {
-        final airJson = jsonDecode(results[2].body) as Map<String, dynamic>;
-        final rawItems = airJson['response']['body']['items'];
-        final List<Map<String, dynamic>> airList;
-        if (rawItems is List) {
-          airList = rawItems.cast<Map<String, dynamic>>();
-        } else if (rawItems is Map) {
-          final itemData = rawItems['item'];
-          if (itemData is List) {
-            airList = itemData.cast<Map<String, dynamic>>();
-          } else if (itemData is Map) {
-            airList = [itemData.cast<String, dynamic>()];
-          } else {
-            airList = [];
-          }
-        } else {
-          airList = [];
-        }
-        for (final item in airList) {
-          final v10 = double.tryParse(item['pm10Value'] as String? ?? '');
-          final v25 = double.tryParse(item['pm25Value'] as String? ?? '');
-          if (v10 != null && v25 != null) {
-            pm10 = v10;
-            pm25 = v25;
-            break;
-          }
-        }
-      } catch (_) {
-        debugPrint('[WeatherAPI] 에어코리아 파싱 실패 — 미세먼지 기본값 사용');
-      }
-    } else {
-      debugPrint('[WeatherAPI] 에어코리아 API 실패 (${results[2].statusCode}) — 미세먼지 기본값 사용');
-    }
-
-    final data = WeatherData(
-      temp: t1h,
-      tempMax: tmx ?? t1h,
-      tempMin: tmn ?? t1h,
-      sky: sky,
-      pty: pty,
-      pop: pop ?? 0,
-      pm10: pm10,
-      pm25: pm25,
+    final position = useApproximateLocation
+        ? (_fallbackLat, _fallbackLng)
+        : await _resolvePosition();
+    final uri = Uri.parse('$_baseUrl/api/v1/weather/home').replace(
+      queryParameters: {
+        'lat': position.$1.toString(),
+        'lng': position.$2.toString(),
+      },
     );
+
+    final response =
+        await http.get(uri).timeout(const Duration(seconds: 15));
+    if (response.statusCode != 200) {
+      throw Exception('날씨 정보를 가져오지 못했어요.');
+    }
+    final body =
+        jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+    final data = WeatherData.fromJson(body);
+
     _cache = data;
-    _cacheTime = DateTime.now();
+    _cacheTime = now;
+    _cacheApproximate = useApproximateLocation;
     return data;
   }
 
-  // ── 헬퍼 ─────────────────────────────────────────────────────────────────
-
-  void _checkKmaResult(Map<String, dynamic> json, String name) {
-    final header = json['response']?['header'] as Map<String, dynamic>?;
-    final code = header?['resultCode'] as String?;
-    if (code != null && code != '00') {
-      throw Exception('$name 오류 ($code): ${header?['resultMsg']}');
-    }
-  }
-
-  Uri _kmaUri(String endpoint, Map<String, String> params, String key) {
-    return Uri.https(
-      'apis.data.go.kr',
-      '/1360000/VilageFcstInfoService_2.0/$endpoint',
-      {'serviceKey': key, 'dataType': 'JSON', ...params},
-    );
-  }
-
-  Uri _airUri(String sido, String key) {
-    return Uri.https(
-      'apis.data.go.kr',
-      '/B552584/ArpltnInforInqireSvc/getCtprvnRltmMesureDnsty',
-      {
-        'serviceKey': key,
-        'returnType': 'json',
-        'numOfRows': '5',
-        'pageNo': '1',
-        'sidoName': sido,
-        'ver': '1.0',
-      },
-    );
-  }
-
-  // 위경도 → 기상청 격자 좌표 (LCC 도법)
-  Map<String, int> _latLonToGrid(double lat, double lon) {
-    const double re = 6371.00877 / 5.0;
-    const double slat1 = 30.0 * pi / 180;
-    const double slat2 = 60.0 * pi / 180;
-    const double olon = 126.0 * pi / 180;
-    const double olat = 38.0 * pi / 180;
-    const double xo = 43.0;
-    const double yo = 136.0;
-
-    final double sn = log(cos(slat1) / cos(slat2)) /
-        log(tan(pi * 0.25 + slat2 * 0.5) / tan(pi * 0.25 + slat1 * 0.5));
-    final double sf =
-        pow(tan(pi * 0.25 + slat1 * 0.5), sn).toDouble() * cos(slat1) / sn;
-    final double ro =
-        re * sf / pow(tan(pi * 0.25 + olat * 0.5), sn).toDouble();
-
-    final double ra =
-        re * sf / pow(tan(pi * 0.25 + lat * pi / 180 * 0.5), sn).toDouble();
-    double theta = lon * pi / 180 - olon;
-    if (theta > pi) theta -= 2 * pi;
-    if (theta < -pi) theta += 2 * pi;
-    theta *= sn;
-
-    return {
-      'nx': (ra * sin(theta) + xo + 0.5).floor(),
-      'ny': (ro - ra * cos(theta) + yo + 0.5).floor(),
-    };
-  }
-
-  // 위경도 → 시도명 (에어코리아 조회용)
-  String _sidoFromLatLon(double lat, double lon) {
-    if (lat >= 33.1 && lat <= 33.6 && lon >= 126.1 && lon <= 127.0) return '제주';
-    if (lat >= 36.4 && lat <= 36.6 && lon >= 127.2 && lon <= 127.4) return '세종';
-    if (lat >= 35.1 && lat <= 35.3 && lon >= 126.7 && lon <= 127.0) return '광주';
-    if (lat >= 35.4 && lat <= 35.6 && lon >= 129.1 && lon <= 129.5) return '울산';
-    if (lat >= 35.0 && lat <= 35.4 && lon >= 128.8 && lon <= 129.3) return '부산';
-    if (lat >= 35.8 && lat <= 36.0 && lon >= 128.4 && lon <= 128.8) return '대구';
-    if (lat >= 36.2 && lat <= 36.5 && lon >= 127.3 && lon <= 127.5) return '대전';
-    if (lat >= 37.3 && lat <= 37.6 && lon >= 126.4 && lon <= 126.8) return '인천';
-    if (lat >= 37.4 && lat <= 37.7 && lon >= 126.8 && lon <= 127.2) return '서울';
-    if (lat >= 37.1 && lat <= 38.3 && lon >= 126.4 && lon <= 128.0) return '경기';
-    if (lat >= 37.1 && lat <= 38.6 && lon >= 127.7 && lon <= 129.4) return '강원';
-    if (lat >= 36.5 && lat <= 37.1 && lon >= 127.3 && lon <= 128.5) return '충북';
-    if (lat >= 36.0 && lat <= 37.1 && lon >= 125.8 && lon <= 127.7) return '충남';
-    if (lat >= 35.5 && lat <= 36.1 && lon >= 126.4 && lon <= 127.8) return '전북';
-    if (lat >= 34.2 && lat <= 35.5 && lon >= 125.8 && lon <= 127.9) return '전남';
-    if (lat >= 35.5 && lat <= 37.2 && lon >= 128.0 && lon <= 130.0) return '경북';
-    if (lat >= 34.8 && lat <= 35.8 && lon >= 127.6 && lon <= 129.5) return '경남';
-    return '서울';
-  }
-
-  // 초단기실황 기준시각 (매시 40분 발표, 45분 후 제공)
-  ({String date, String time}) _ultraNowBaseDateTime(DateTime now) {
-    if (now.minute >= 45) {
-      return (date: _fmtDate(now), time: '${now.hour.toString().padLeft(2, '0')}40');
-    }
-    final prev = now.subtract(const Duration(hours: 1));
-    return (date: _fmtDate(prev), time: '${prev.hour.toString().padLeft(2, '0')}40');
-  }
-
-  // 단기예보 기준시각 (0200/0500/0800/1100/1400/1700/2000/2300, 10분 후 제공)
-  ({String date, String time}) _forecastBaseDateTime(DateTime now) {
-    const issueTimes = [2, 5, 8, 11, 14, 17, 20, 23];
-    int? foundHour;
-    for (final h in issueTimes) {
-      if (now.hour > h || (now.hour == h && now.minute >= 10)) {
-        foundHour = h;
+  /// 조회에 쓸 좌표를 정한다.
+  ///
+  /// 위치를 못 얻거나 국내 범위를 벗어나면 대표 좌표로 갈음한다. 서버가 국내
+  /// 밖 좌표를 거절하므로, 해외에서 앱을 열었을 때 카드가 오류로 비는 대신
+  /// 서울 날씨라도 보이게 한다.
+  Future<(double, double)> _resolvePosition() async {
+    try {
+      final pos = await _location();
+      if (_inKorea(pos.latitude, pos.longitude)) {
+        return (pos.latitude, pos.longitude);
       }
+      debugPrint('[Weather] 국내 범위 밖 위치 → 기본 좌표 사용');
+    } catch (_) {
+      debugPrint('[Weather] 위치 확인 실패 → 기본 좌표 사용');
     }
-    if (foundHour != null) {
-      return (
-        date: _fmtDate(now),
-        time: '${foundHour.toString().padLeft(2, '0')}00',
-      );
-    }
-    // 오전 2시 10분 이전 → 전날 2300 발표
-    final yesterday = now.subtract(const Duration(days: 1));
-    return (date: _fmtDate(yesterday), time: '2300');
+    return (_fallbackLat, _fallbackLng);
   }
 
-  String _fmtDate(DateTime dt) =>
-      '${dt.year}${dt.month.toString().padLeft(2, '0')}${dt.day.toString().padLeft(2, '0')}';
+  static bool _inKorea(double lat, double lng) =>
+      lat >= 33.0 && lat <= 43.0 && lng >= 124.0 && lng <= 132.0;
 
   Future<Position> _location() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();

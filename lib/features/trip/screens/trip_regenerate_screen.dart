@@ -27,8 +27,9 @@ class TripRegenerateScreen extends StatefulWidget {
   State<TripRegenerateScreen> createState() => _TripRegenerateScreenState();
 }
 
-//API 사용시 false로 변경하면 됩니다.
-const bool _useMock = true;
+// 서버 없이 화면만 확인할 때 true 로 되돌린다. 평소에는 실제 일정 생성을
+// 호출하므로 false 다.
+const bool _useMock = false;
 
 Future<TripGenerateResponse> _mockGenerateTrip() async {
   await Future.delayed(const Duration(seconds: 2));
@@ -173,7 +174,21 @@ class _TripRegenerateScreenState extends State<TripRegenerateScreen> {
         _generateFuture = (_useMock
                 ? _mockGenerateTrip()
                 : TripApiService.instance.generateTrip(request))
-            .then((res) => _tripResponse = res);
+            .then((res) {
+          _tripResponse = res;
+          // 장소를 골라 동선만 다시 만들 때 이 조건을 그대로 다시 보낸다.
+          // 결과 화면에는 장소만 있고 기간·이동수단·지역이 없어 여기서 남긴다.
+          TripRepository.instance.setLastPlan(TripPlanContext(
+            startDate: request.startDate,
+            endDate: request.endDate,
+            activeStartHour: request.activeStartHour,
+            activeEndHour: request.activeEndHour,
+            transport: request.transport,
+            province: request.province,
+            city: request.city,
+            stops: res.stops,
+          ));
+        });
       });
     } else if (_currentStep < _totalSteps) {
       setState(() => _currentStep++);

@@ -12,6 +12,7 @@ import '../../features/place_explore/screens/place_explore_step1_screen.dart';
 import '../../features/place_explore/screens/place_explore_step2_screen.dart';
 import '../../features/place_explore/providers/place_explore_provider.dart';
 import '../../features/trip/screens/trip_directions_screen.dart';
+import '../../features/trip/screens/place_pick_screen.dart';
 import '../../features/trip/screens/search_step1_screen.dart';
 import '../../features/saved/screens/saved_screen.dart';
 import '../../features/chat/providers/chat_room_detail_provider.dart';
@@ -28,6 +29,8 @@ import '../../features/auth/screens/email_login_screen.dart';
 import '../../features/auth/screens/signup_step1_screen.dart';
 import '../../features/auth/screens/signup_step2_screen.dart';
 import '../../features/auth/screens/signup_step3_screen.dart';
+import '../../features/auth/screens/signup_step4_screen.dart';
+import '../../features/auth/screens/interests_onboarding_screen.dart';
 import '../../features/auth/screens/signup_complete_screen.dart';
 import '../../features/chat/screens/trip_selection_for_chat_screen.dart';
 import '../../features/invite/screens/invite_handler_screen.dart';
@@ -38,8 +41,13 @@ import '../../features/vision/screens/vision_screen.dart';
 import '../../features/saved/screens/navigation_screen.dart';
 import '../../features/trip/screens/subway_route_screen.dart';
 import '../../common/widgets/address_search_screen.dart';
+import '../state/auth_store.dart';
 
-final isAuthenticated = ValueNotifier<bool>(false);
+/// 로그인 여부 — 화면들이 오래 전부터 이 값을 보고 그린다.
+///
+/// 실제 판단은 토큰 보관소가 한다. 여기는 그 값을 그대로 비추는 창이라,
+/// 두 곳이 어긋나 로그인한 사용자가 로그인 화면으로 튕기는 일이 없다.
+final isAuthenticated = AuthStore.instance.isLoggedIn;
 
 const _publicPrefixes = ['/splash', '/auth', '/signup'];
 
@@ -109,6 +117,14 @@ final appRouter = GoRouter(
       builder: (context, state) => const SignupStep3Screen(),
     ),
     GoRoute(
+      path: '/signup/step4',
+      builder: (context, state) => const SignupStep4Screen(),
+    ),
+    GoRoute(
+      path: '/signup/interests',
+      builder: (context, state) => const InterestsOnboardingScreen(),
+    ),
+    GoRoute(
       path: '/signup/complete',
       builder: (context, state) => const SignupCompleteScreen(),
     ),
@@ -141,6 +157,12 @@ final appRouter = GoRouter(
                 GoRoute(
                   path: 'search',
                   builder: (context, state) => const SearchStep1Screen(),
+                  routes: [
+                    GoRoute(
+                      path: 'places',
+                      builder: (context, state) => const PlacePickScreen(),
+                    ),
+                  ],
                 ),
                 GoRoute(
                   path: 'place-explore/step1',

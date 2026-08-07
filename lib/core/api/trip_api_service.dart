@@ -1,6 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
+
+import '../config/app_config.dart';
 
 // ─── Request ──────────────────────────────────────────────────
 
@@ -52,27 +55,118 @@ class TripGenerateRequest {
       };
 }
 
+/// 사용자가 고른 장소 한 곳 — 동선만 다시 만들 때 서버로 보낸다.
+///
+/// 서버가 부여했던 장소 식별자는 이 요청에 싣지 않는다. 서버는 이름과 좌표로
+/// 장소를 다시 세우므로, 식별자는 화면 안에서 무엇을 골랐는지 기억하는 데만
+/// 쓰인다.
+class SelectedPlace {
+  final String name;
+  final String address;
+  final double latitude;
+  final double longitude;
+  final int day;
+
+  const SelectedPlace({
+    required this.name,
+    required this.address,
+    required this.latitude,
+    required this.longitude,
+    required this.day,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        'address': address,
+        'lat': latitude,
+        'lng': longitude,
+        'day': day,
+      };
+}
+
+/// 고른 장소로 동선만 다시 만드는 요청.
+///
+/// 예산·테마를 담지 않는다. 후보를 고를 때 쓰는 조건인데 장소가 이미
+/// 정해져 있어 쓸 곳이 없다.
+class TripRouteRequest {
+  final DateTime startDate;
+  final DateTime endDate;
+  final int activeStartHour;
+  final int activeEndHour;
+  final String transport;
+  final String province;
+  final String city;
+  final List<SelectedPlace> places;
+
+  const TripRouteRequest({
+    required this.startDate,
+    required this.endDate,
+    required this.activeStartHour,
+    required this.activeEndHour,
+    required this.transport,
+    required this.province,
+    required this.city,
+    required this.places,
+  });
+
+  String _fmtDate(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  Map<String, dynamic> toJson() => {
+        'schedule': {
+          'start_date': _fmtDate(startDate),
+          'end_date': _fmtDate(endDate),
+          'active_start_hour': activeStartHour,
+          'active_end_hour': activeEndHour,
+        },
+        'transport': transport,
+        'location': {
+          'province': province,
+          'city': city,
+        },
+        'places': places.map((p) => p.toJson()).toList(),
+      };
+}
+
 // ─── Response ─────────────────────────────────────────────────
 
 class TripTransportToNext {
-  final String type;
+  /// 이동수단 코드. 일정을 저장할 때 이동수단을 함께 남기기 전에 만들어진
+  /// 일정에는 이 값이 없다. 화면은 이동수단을 label 로 판별하므로 없어도
+  /// 카드는 그대로 그려진다.
+  final String? type;
   final String label;
   final int durationMinutes;
   final double distanceKm;
 
+  /// 다음 stop 까지의 도로 추종 폴리라인 [[lat, lng], ...].
+  /// 경로 조회가 성공한 구간에만 채워지며(없으면 null), 없을 때 지도는 직선 폴백.
+  final List<List<double>>? path;
+
   const TripTransportToNext({
-    required this.type,
+    this.type,
     required this.label,
     required this.durationMinutes,
     required this.distanceKm,
+    this.path,
   });
 
+  /// 값이 빠져 있어도 카드를 만든다.
+  ///
+  /// 예전에 저장된 일정에는 이동수단이 없어 서버가 그 자리를 비워 보낸다.
+  /// 여기서 형을 단정해 읽으면 그런 일정은 화면 전체가 예외로 죽는데,
+  /// 이동 카드 하나 때문에 일정을 못 여는 것은 과한 대가다.
   factory TripTransportToNext.fromJson(Map<String, dynamic> json) =>
       TripTransportToNext(
-        type: json['type'] as String,
-        label: json['label'] as String,
-        durationMinutes: json['duration_minutes'] as int,
-        distanceKm: (json['distance_km'] as num).toDouble(),
+        type: json['type'] as String?,
+        label: json['label'] as String? ?? '이동',
+        durationMinutes: (json['duration_minutes'] as num?)?.toInt() ?? 0,
+        distanceKm: (json['distance_km'] as num?)?.toDouble() ?? 0,
+        path: (json['path'] as List<dynamic>?)
+            ?.map((p) => (p as List<dynamic>)
+                .map((v) => (v as num).toDouble())
+                .toList())
+            .toList(),
       );
 }
 
@@ -86,6 +180,29 @@ class TripStop {
   final double longitude;
   final TripTransportToNext? transportToNext;
 
+  /// 서버가 부여한 장소 식별자. 장소 상세를 다시 물어보거나, 고른 장소로
+  /// 동선을 다시 요청할 때 이 장소를 지목하는 키다.
+  final int? placeId;
+
+  /// 출처 서비스의 장소 페이지 링크.
+  final String? placeUrl;
+
+  /// 이 장소를 추천한 이유 한 문장.
+  final String? reason;
+
+  /// 장소 분류(예: 해변, 카페). 상세 시트의 분류 칩에 쓴다.
+  final String? category;
+
+  /// 블로그 후기를 종합한 요약 두 줄. 근거가 될 후기를 못 구한 장소는
+  /// 아예 오지 않으므로 카드에서 이 영역을 통째로 접어야 한다.
+  final List<String>? bullets;
+
+  /// 이 장소를 떠나는 예정 시각(HH:mm). 타임라인 이전에 만든 일정에는 없다.
+  final String? endTime;
+
+  /// 이 장소에 머무는 예정 시간(분). endTime 과 같은 조건에서만 온다.
+  final int? stayMinutes;
+
   const TripStop({
     required this.order,
     this.day = 1,
@@ -95,6 +212,13 @@ class TripStop {
     required this.latitude,
     required this.longitude,
     this.transportToNext,
+    this.placeId,
+    this.placeUrl,
+    this.reason,
+    this.category,
+    this.bullets,
+    this.endTime,
+    this.stayMinutes,
   });
 
   factory TripStop.fromJson(Map<String, dynamic> json) => TripStop(
@@ -109,6 +233,21 @@ class TripStop {
             ? TripTransportToNext.fromJson(
                 json['transport_to_next'] as Map<String, dynamic>)
             : null,
+        // 아래 값들은 서버가 못 채우면 키 자체가 없다. 필수 필드처럼
+        // 캐스팅하면 요약이 없는 장소 하나 때문에 화면 전체가 죽으므로,
+        // 타입이 어긋나는 값은 조용히 버리고 없는 것으로 취급한다.
+        placeId: json['place_id'] is int ? json['place_id'] as int : null,
+        placeUrl: json['place_url'] is String ? json['place_url'] as String : null,
+        reason: json['reason'] is String ? json['reason'] as String : null,
+        category: json['category'] is String ? json['category'] as String : null,
+        bullets: (json['bullets'] as List<dynamic>?)
+            ?.whereType<String>()
+            .where((line) => line.trim().isNotEmpty)
+            .take(2)
+            .toList(),
+        endTime: json['end_time'] is String ? json['end_time'] as String : null,
+        stayMinutes:
+            json['stay_minutes'] is num ? (json['stay_minutes'] as num).toInt() : null,
       );
 }
 
@@ -142,11 +281,16 @@ class TripGenerateResponse {
   final List<TripStop> stops;
   final List<WeatherForecast> weatherForecast;
 
+  /// 추천 과정에서 반영하지 못한 조건 안내(예: 날씨 미확인). 사용자에게
+  /// 그대로 보여줄 문장 목록이며, 없으면 키 자체가 오지 않는다.
+  final List<String> warnings;
+
   const TripGenerateResponse({
     required this.tripId,
     required this.totalDurationMinutes,
     required this.stops,
     required this.weatherForecast,
+    this.warnings = const [],
   });
 
   factory TripGenerateResponse.fromJson(Map<String, dynamic> json) =>
@@ -159,6 +303,11 @@ class TripGenerateResponse {
         weatherForecast: (json['weather_forecast'] as List<dynamic>)
             .map((w) => WeatherForecast.fromJson(w as Map<String, dynamic>))
             .toList(),
+        warnings: (json['warnings'] as List<dynamic>?)
+                ?.whereType<String>()
+                .where((line) => line.trim().isNotEmpty)
+                .toList() ??
+            const [],
       );
 }
 
@@ -185,29 +334,72 @@ class TripApiService {
   TripApiService._();
   static final TripApiService instance = TripApiService._();
 
-  static String get _baseUrl =>
-      dotenv.env['API_BASE_URL'] ?? 'http://localhost:8080';
+  static String get _baseUrl => kApiBaseUrl;
 
-  Future<TripGenerateResponse> generateTrip(TripGenerateRequest request) async {
-    final uri = Uri.parse('$_baseUrl/api/v1/trip/generate');
-    final response = await http.post(
-      uri,
-      headers: {
-        'Content-Type': 'application/json',
-        'ngrok-skip-browser-warning': 'true',
-      },
-      body: jsonEncode(request.toJson()),
-    );
+  // 여행 생성은 LLM 여러 번 호출로 수 초~2분 소요된다. 무한 대기를 막되,
+  // 서버가 먼저 끊고 사유를 담은 응답을 줄 수 있도록 서버 대기 상한보다
+  // 길게 잡는다(서버 150초). 이 값이 서버보다 짧으면 서버가 아직 살아 있는
+  // 요청을 클라이언트가 먼저 버려, 곧 도착할 결과를 못 받고 실패로 표시한다.
+  static const _requestTimeout = Duration(seconds: 180);
 
-    final body = jsonDecode(response.body) as Map<String, dynamic>;
+  Future<TripGenerateResponse> generateTrip(TripGenerateRequest request) =>
+      _postTrip('/api/v1/trip/generate', request.toJson());
+
+  /// 고른 장소로 동선만 다시 만든다.
+  ///
+  /// 응답 형태가 일정 생성과 같아서 결과 화면을 그대로 재사용한다.
+  Future<TripGenerateResponse> routeTrip(TripRouteRequest request) =>
+      _postTrip('/api/v1/trip/route', request.toJson());
+
+  /// 일정 응답을 돌려주는 두 경로가 공유하는 전송부.
+  ///
+  /// 오류 본문 형태가 서버 계층마다 달라, 알아볼 수 있는 키를 순서대로
+  /// 찾아본다. 어느 것도 없으면 상태 코드만 남긴다.
+  Future<TripGenerateResponse> _postTrip(
+    String path,
+    Map<String, dynamic> body,
+  ) async {
+    final uri = Uri.parse('$_baseUrl$path');
+    final http.Response response;
+    try {
+      response = await http
+          .post(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(body),
+          )
+          .timeout(_requestTimeout);
+    } on TimeoutException {
+      throw TripApiException(
+        error: 'REQUEST_TIMEOUT',
+        message: '여행 생성이 지연되고 있어요. 잠시 후 다시 시도해주세요.',
+        statusCode: 408,
+      );
+    }
+
+    Map<String, dynamic> parsed;
+    try {
+      parsed = jsonDecode(response.body) as Map<String, dynamic>;
+    } on FormatException {
+      // 본문이 비었거나 JSON 이 아닌 응답(게이트웨이 오류 등).
+      throw TripApiException(
+        error: 'INVALID_RESPONSE',
+        message: '서버 응답을 읽지 못했어요. 잠시 후 다시 시도해주세요.',
+        statusCode: response.statusCode,
+      );
+    }
 
     if (response.statusCode == 200) {
-      return TripGenerateResponse.fromJson(body);
+      return TripGenerateResponse.fromJson(parsed);
     }
 
     throw TripApiException(
-      error: body['error'] as String? ?? 'UNKNOWN_ERROR',
-      message: body['message'] as String? ?? '알 수 없는 오류가 발생했습니다.',
+      error: parsed['error'] as String? ??
+          parsed['code'] as String? ??
+          'UNKNOWN_ERROR',
+      message: parsed['message'] as String? ??
+          parsed['detail'] as String? ??
+          '알 수 없는 오류가 발생했습니다.',
       statusCode: response.statusCode,
     );
   }

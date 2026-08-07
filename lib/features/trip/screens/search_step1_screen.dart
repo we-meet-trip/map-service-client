@@ -24,6 +24,7 @@ class _SearchStep1ScreenState extends State<SearchStep1Screen> {
       iconData: Icons.refresh_rounded,
       iconBg: AppColors.secondaryScale[200]!,
       iconColor: AppColors.secondaryScale[500]!,
+      ctaLabel: '재탐색 시작하기  →',
     ),
     _SearchOption(
       title: 'AI 추천 장소 선택하기',
@@ -31,6 +32,7 @@ class _SearchStep1ScreenState extends State<SearchStep1Screen> {
       iconData: Icons.place_outlined,
       iconBg: const Color(0xFFFFEDD5),
       iconColor: const Color(0xFFF97316),
+      ctaLabel: '장소 고르러 가기  →',
     ),
     _SearchOption(
       title: '직접 수정하기',
@@ -39,8 +41,19 @@ class _SearchStep1ScreenState extends State<SearchStep1Screen> {
       iconBg: const Color(0xFFDBEAFE),
       iconColor: const Color(0xFF3B82F6),
       disabled: true,
+      ctaLabel: '준비 중',
     ),
   ];
+
+  void _start() {
+    if (_selectedIndex == 1) {
+      context.read<PlaceExploreProvider>().reset();
+      context.go('/trip/place-explore/step1');
+      return;
+    }
+    tripRetrialNotifier.value++;
+    context.go('/trip');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -104,16 +117,8 @@ class _SearchStep1ScreenState extends State<SearchStep1Screen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               NextButton(
-                label: '재탐색 시작하기  →',
-                onPressed: () {
-                  if (_selectedIndex == 1) {
-                    context.read<PlaceExploreProvider>().reset();
-                    context.go('/trip/place-explore/step1');
-                  } else {
-                    tripRetrialNotifier.value++;
-                    context.go('/trip');
-                  }
-                },
+                label: _options[_selectedIndex].ctaLabel,
+                onPressed: _start,
               ),
               const SizedBox(height: 10),
               PrevButton(
@@ -270,8 +275,6 @@ class _SearchStep1ScreenState extends State<SearchStep1Screen> {
       ),
     );
   }
-
-
 }
 
 class _SearchOption {
@@ -281,6 +284,7 @@ class _SearchOption {
   final Color iconBg;
   final Color iconColor;
   final bool disabled;
+  final String ctaLabel;
 
   const _SearchOption({
     required this.title,
@@ -288,6 +292,7 @@ class _SearchOption {
     required this.iconData,
     required this.iconBg,
     required this.iconColor,
+    required this.ctaLabel,
     this.disabled = false,
   });
 }

@@ -3,11 +3,44 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../common/widgets/starry_background.dart';
+import '../../../core/api/api_client.dart';
+import '../../../core/api/kakao_login_flow.dart';
 import '../widgets/kakao_login_button.dart';
 import '../widgets/email_login_button.dart';
 
-class AuthScreen extends StatelessWidget {
+class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
+
+  @override
+  State<AuthScreen> createState() => _AuthScreenState();
+}
+
+class _AuthScreenState extends State<AuthScreen> {
+  bool _kakaoBusy = false;
+
+  /// 이번 카카오 요청을 가리키는 값. 되돌아온 주소가 이 값을 그대로 달고
+  /// 와야 내가 시작한 로그인으로 인정한다.
+  String _newState() =>
+      DateTime.now().microsecondsSinceEpoch.toRadixString(36);
+
+  Future<void> _kakaoLogin() async {
+    if (_kakaoBusy) return;
+    setState(() => _kakaoBusy = true);
+    try {
+      await KakaoLoginFlow.instance.run(_newState());
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _kakaoBusy = false);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.message)));
+      return;
+    }
+    if (!mounted) return;
+    setState(() => _kakaoBusy = false);
+    // 카카오로 처음 들어온 사용자는 취향을 고르는 단계를 거치지 않는다.
+    // 그 자리를 한 번 채우게 하고, 이미 고른 사용자는 곧장 넘긴다.
+    context.go('/signup/interests');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -83,9 +116,13 @@ class AuthScreen extends StatelessWidget {
                 padding: EdgeInsets.symmetric(horizontal: width * 55 / 402),
                 child: Column(
                   children: [
-                    KakaoLoginButton(onPressed: () {}),
+                    KakaoLoginButton(
+                      onPressed: _kakaoBusy ? () {} : _kakaoLogin,
+                    ),
                     const SizedBox(height: 12),
-                    EmailLoginButton(onPressed: () {}),
+                    EmailLoginButton(
+                      onPressed: () => context.push('/auth/email'),
+                    ),
                     const SizedBox(height: 16),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,

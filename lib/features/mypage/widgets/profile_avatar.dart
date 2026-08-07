@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import '../../../common/theme/app_colors.dart';
 
@@ -38,9 +39,11 @@ class ProfileAvatar extends StatelessWidget {
             : null,
       ),
       clipBehavior: Clip.antiAlias,
-      child: imagePath != null
-          ? Image.file(File(imagePath!), fit: BoxFit.cover)
-          : Icon(Icons.person_rounded, color: Colors.white, size: size * 0.55),
+      child: imagePath == null
+          ? Icon(Icons.person_rounded, color: AppColors.mypageAvatarAccent, size: size * 0.55)
+          : kIsWeb
+              ? Image.network(imagePath!, fit: BoxFit.cover)
+              : Image.file(File(imagePath!), fit: BoxFit.cover),
     );
   }
 }
