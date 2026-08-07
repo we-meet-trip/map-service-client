@@ -158,15 +158,32 @@ class NOverlayImage {
 
 class NMarker {
   final String id;
-  final NLatLng position;
+  NLatLng _position;
   final NOverlayImage? icon;
+  final NPoint? anchor;
+  final Size? size;
+  double _angle;
+  bool _isVisible;
   void Function(NMarker overlay)? onTap;
 
-  NMarker({required this.id, required this.position, this.icon});
+  NMarker({
+    required this.id,
+    required NLatLng position,
+    this.icon,
+    this.anchor,
+    this.size,
+    double angle = 0,
+  })  : _position = position,
+        _angle = angle,
+        _isVisible = true;
 
   void setOnTapListener(void Function(NMarker overlay) listener) {
     onTap = listener;
   }
+
+  void setPosition(NLatLng position) { _position = position; }
+  void setIsVisible(bool isVisible) { _isVisible = isVisible; }
+  void setAngle(double angle) { _angle = angle; }
 }
 
 enum NOverlayType {

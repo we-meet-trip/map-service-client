@@ -239,7 +239,9 @@ class _NavigationScreenState extends State<NavigationScreen>
     // 화면 진입 즉시 현재 위치로 구간 dot 초기화
     try {
       final initPos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
       if (mounted) {
         _updateSegmentProgress(initPos);
@@ -1248,7 +1250,6 @@ class _RingPainter extends CustomPainter {
 class _TriangleArrowPainter extends CustomPainter {
   const _TriangleArrowPainter();
 
-  static const _strokeW = 2.5;
 
   @override
   void paint(Canvas canvas, Size size) {
