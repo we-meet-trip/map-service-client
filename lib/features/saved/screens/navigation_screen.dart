@@ -32,8 +32,20 @@ class _NavigationScreenState extends State<NavigationScreen>
   /// 사용자 이동 방향 (GPS heading, 카메라 재센터링용)
   double _userHeading = 0.0;
 
+  /// 카메라 베어링 부드러운 보간용 (low-pass filter)
+  double _smoothedBearing = -1;
+
   /// true = 지도가 사용자 위치를 자동으로 따라감
   bool _isFollowing = true;
+
+  // ── 사용자 위치 마커 (파란 점 대체) ──────────────────────────────────────
+  NMarker? _fovMarker;
+  NMarker? _ringMarker;
+  NMarker? _triangleMarker;
+  static const _kFovConeSize  = Size(80, 80);
+  static const _kRingSize     = Size(22, 22);
+  // 아래쪽 ~9px 간격
+  static const _kTriangleSize = Size(22, 26);
 
   // ── 위치 스트림 / 나침반 스트림 ──────────────────────────────────────────
   StreamSubscription<Position>? _locationSub;
@@ -45,6 +57,10 @@ class _NavigationScreenState extends State<NavigationScreen>
   late final List<_Stop> _stops;
   late final int _totalMinutes;
   final int _currentTransitIndex = 0;
+
+  // ── 사용자 현재 구간 (하단 시트 타임라인 표시용) ───────────────────────────
+  int _currentSegmentIndex = 0;   // 현재 위치가 속한 구간 (0 = stop[0]→stop[1])
+  double _segmentProgress = 0.0;  // 구간 내 진행도 (0.0 = 출발지, 1.0 = 목적지)
 
   @override
   void initState() {
@@ -133,6 +149,17 @@ class _NavigationScreenState extends State<NavigationScreen>
       return;
     }
 
+    // 화면 진입 즉시 현재 위치로 구간 dot 초기화
+    try {
+      final initPos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+      if (mounted) {
+        _updateSegmentProgress(initPos);
+        setState(() {});
+      }
+    } catch (_) {}
+
     _locationSub = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.bestForNavigation,
@@ -147,8 +174,22 @@ class _NavigationScreenState extends State<NavigationScreen>
       final heading = event.heading;
       if (heading != null) {
         setState(() => _deviceHeading = heading);
+        _fovMarker?.setAngle(heading);
+        _triangleMarker?.setAngle(heading);
       }
     });
+  }
+
+  /// GPS heading의 0°/360° 경계를 처리하는 low-pass filter
+  double _smoothBearing(double target) {
+    if (_smoothedBearing < 0) {
+      _smoothedBearing = target;
+      return _smoothedBearing;
+    }
+    // 최단 각도 경로로 보간 (예: 350° → 10° 시 +20° 방향)
+    final diff = ((target - _smoothedBearing + 540) % 360) - 180;
+    _smoothedBearing = (_smoothedBearing + diff * 0.25 + 360) % 360;
+    return _smoothedBearing;
   }
 
   Future<void> _onPositionUpdate(Position pos) async {
@@ -157,27 +198,70 @@ class _NavigationScreenState extends State<NavigationScreen>
 
     final latLng = NLatLng(pos.latitude, pos.longitude);
 
-    // ── 1. NLocationOverlay: 파란 점 위치만 (방향 삼각형은 _headingMarker가 담당)
-    final overlay = _mapController?.getLocationOverlay();
-    overlay?.setIsVisible(true);
-    overlay?.setPosition(latLng);
+    // ── 사용자 위치 마커 업데이트
+    _fovMarker?.setPosition(latLng);
+    _fovMarker?.setIsVisible(true);
+    _ringMarker?.setPosition(latLng);
+    _ringMarker?.setIsVisible(true);
+    _triangleMarker?.setPosition(latLng);
+    _triangleMarker?.setIsVisible(true);
 
-    if (mounted) setState(() => _userHeading = pos.heading);
+    final bearing = _smoothBearing(pos.heading);
+    _updateSegmentProgress(pos);
+    if (mounted) setState(() => _userHeading = bearing);
 
-    // ── 3. 팔로우 모드: 카메라가 사용자를 따라감 ────────────────────────────
+    // ── 팔로우 모드: 카메라가 사용자를 따라감 ────────────────────────────
     if (_isFollowing && _mapController != null) {
       await _mapController!.updateCamera(
         NCameraUpdate.fromCameraPosition(NCameraPosition(
           target: latLng,
           zoom: 16,
-          bearing: pos.heading, // 이동 방향이 위쪽
+          bearing: bearing,
         ))
           ..setAnimation(
             animation: NCameraAnimation.easing,
-            duration: const Duration(milliseconds: 700),
+            duration: const Duration(milliseconds: 1000),
           ),
       );
     }
+  }
+
+  // ── 구간 내 사용자 상대 위치 계산 ─────────────────────────────────────────
+  /// 각 구간(선분)에 사용자 좌표를 정사영해 가장 가까운 구간과 진행도 t를 구함
+  void _updateSegmentProgress(Position pos) {
+    if (_stops.length < 2) return;
+
+    int bestSeg = 0;
+    double bestT = 0.0;
+    double bestDist = double.infinity;
+
+    for (int i = 0; i < _stops.length - 1; i++) {
+      final a = _stops[i].latLng;
+      final b = _stops[i + 1].latLng;
+
+      final dLat = b.latitude - a.latitude;
+      final dLng = b.longitude - a.longitude;
+      final uLat = pos.latitude - a.latitude;
+      final uLng = pos.longitude - a.longitude;
+
+      final lenSq = dLat * dLat + dLng * dLng;
+      final t = lenSq == 0 ? 0.0 : (uLat * dLat + uLng * dLng) / lenSq;
+      final tClamped = t.clamp(0.0, 1.0);
+
+      final closestLat = a.latitude + tClamped * dLat;
+      final closestLng = a.longitude + tClamped * dLng;
+      final dist = (closestLat - pos.latitude) * (closestLat - pos.latitude) +
+          (closestLng - pos.longitude) * (closestLng - pos.longitude);
+
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestSeg = i;
+        bestT = tClamped;
+      }
+    }
+
+    _currentSegmentIndex = bestSeg;
+    _segmentProgress = bestT;
   }
 
   // ── 내 위치로 이동 + 팔로우 재개 ──────────────────────────────────────────
@@ -228,21 +312,6 @@ class _NavigationScreenState extends State<NavigationScreen>
         children: [
           // ── 지도 전체 배경 ──
           Positioned.fill(child: _buildMap()),
-          // ── 방향 삼각형 (Flutter 위젯 오버레이, 팔로우 모드에서 사용자=화면 중앙)
-          if (_isFollowing && _lastPosition != null)
-            Center(
-              child: IgnorePointer(
-                child: Transform.rotate(
-                  // 지도 카메라 bearing(_userHeading)만큼 보정 후 deviceHeading 적용
-                  angle: (_deviceHeading - _userHeading) * pi / 180,
-                  child: const SizedBox(
-                    width: 44,
-                    height: 44,
-                    child: CustomPaint(painter: _DirectionTrianglePainter()),
-                  ),
-                ),
-              ),
-            ),
           // ── 뒤로가기 ──
           _buildBackButton(),
           // ── 나침반 + 내 위치 버튼 ──
@@ -316,16 +385,76 @@ class _NavigationScreenState extends State<NavigationScreen>
         ),
     );
 
-    // ── NLocationOverlay: 파란 점
-    final overlay = controller.getLocationOverlay();
+    // ── NLocationOverlay(파란 점) 숨김
+    controller.getLocationOverlay().setIsVisible(false);
 
-    // 맵 준비 전 수신된 GPS 위치가 있으면 즉시 반영
-    if (_lastPosition != null) {
-      final latLng = NLatLng(_lastPosition!.latitude, _lastPosition!.longitude);
-      overlay.setPosition(latLng);
-      overlay.setIsVisible(true);
-    } else {
-      overlay.setIsVisible(false);
+    // ── 사용자 위치 마커 생성 (링 + 삼각형 분리)
+    final initPos = _lastPosition != null
+        ? NLatLng(_lastPosition!.latitude, _lastPosition!.longitude)
+        : _stops.first.latLng;
+
+    final fovIcon = await NOverlayImage.fromWidget(
+      widget: const SizedBox(
+        width: 80,
+        height: 80,
+        child: CustomPaint(painter: _FovConePainter()),
+      ),
+      size: _kFovConeSize,
+      context: context,
+    );
+
+    final ringIcon = await NOverlayImage.fromWidget(
+      widget: const SizedBox(
+        width: 22,
+        height: 22,
+        child: CustomPaint(painter: _RingPainter()),
+      ),
+      size: _kRingSize,
+      context: context,
+    );
+    final triangleIcon = await NOverlayImage.fromWidget(
+      widget: const SizedBox(
+        width: 22,
+        height: 26,
+        child: CustomPaint(painter: _TriangleArrowPainter()),
+      ),
+      size: _kTriangleSize,
+      context: context,
+    );
+
+    _fovMarker = NMarker(
+      id: 'user_fov',
+      position: initPos,
+      icon: fovIcon,
+      anchor: const NPoint(0.5, 1.0), // 하단 중앙 = 사용자 위치
+      size: _kFovConeSize,
+      angle: _deviceHeading,
+    );
+
+    _ringMarker = NMarker(
+      id: 'user_ring',
+      position: initPos,
+      icon: ringIcon,
+      anchor: const NPoint(0.5, 0.5), // 링 중앙 = 사용자 위치
+      size: _kRingSize,
+    );
+    _triangleMarker = NMarker(
+      id: 'user_triangle',
+      position: initPos,
+      icon: triangleIcon,
+      anchor: const NPoint(0.5, 1.0), // 이미지 하단(= 투명 패딩 끝) = 사용자 위치
+      size: _kTriangleSize,
+      angle: _deviceHeading,
+    );
+
+    await controller.addOverlay(_fovMarker!);
+    await controller.addOverlay(_ringMarker!);
+    await controller.addOverlay(_triangleMarker!);
+
+    if (_lastPosition == null) {
+      _fovMarker!.setIsVisible(false);
+      _ringMarker!.setIsVisible(false);
+      _triangleMarker!.setIsVisible(false);
     }
   }
 
@@ -559,10 +688,18 @@ class _NavigationScreenState extends State<NavigationScreen>
                 ),
                 if (!isLast)
                   Expanded(
-                    child: Container(
-                      width: 2,
-                      margin: const EdgeInsets.symmetric(vertical: 4),
-                      color: AppColors.neutralScale[100],
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: CustomPaint(
+                        painter: _SegmentLinePainter(
+                          isCompleted: index < _currentSegmentIndex,
+                          isCurrent: index == _currentSegmentIndex,
+                          progress: _segmentProgress,
+                          lineColor: AppColors.primaryScale[400]!,
+                          baseColor: AppColors.neutralScale[100]!,
+                          dotColor: AppColors.primaryScale[500]!,
+                        ),
+                      ),
                     ),
                   ),
               ],
@@ -806,54 +943,185 @@ class _CompassPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-// ─── 방향 삼각형 (NMarker 아이콘 전용, 회전은 setAngle()이 담당) ────────────────
+// ─── FOV 콘 마커 (하늘색 부채꼴) ─────────────────────────────────────────────
+// 캔버스: 80×80, anchor(0.5, 1.0) → 하단 중앙 = 사용자 위치
+// 위쪽(전방)으로 ±30° 부채꼴을 그림
 
-class _DirectionTriangle extends StatelessWidget {
-  const _DirectionTriangle();
+class _FovConePainter extends CustomPainter {
+  const _FovConePainter();
 
   @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      size: const Size(44, 44),
-      painter: _DirectionTrianglePainter(),
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final cy = size.height; // 사용자 위치 = 하단 중앙
+
+    const halfAngle = 30.0 * pi / 180; // 30° in radians
+    final length = size.height * 0.92;
+
+    // 시작 각도: 캔버스 기준 위쪽(-90°) - halfAngle
+    final startAngle = -pi / 2 - halfAngle;
+
+    final rect = Rect.fromCircle(center: Offset(cx, cy), radius: length);
+
+    // 방사형 그라디언트: 사용자 위치에서 바깥으로 투명해짐
+    final gradient = RadialGradient(
+      center: Alignment.bottomCenter,
+      radius: 1.0,
+      colors: const [
+        Color(0xAA00C8FF), // 하늘색, 내부 60% 불투명
+        Color(0x1100C8FF), // 하늘색, 외곽 거의 투명
+      ],
+      stops: const [0.0, 1.0],
     );
+
+    final paint = Paint()
+      ..shader = gradient.createShader(
+        Rect.fromLTWH(0, 0, size.width, size.height),
+      )
+      ..style = PaintingStyle.fill;
+
+    final path = Path()
+      ..moveTo(cx, cy)
+      ..arcTo(rect, startAngle, 2 * halfAngle, false)
+      ..close();
+
+    canvas.drawPath(path, paint);
   }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-class _DirectionTrianglePainter extends CustomPainter {
-  const _DirectionTrianglePainter();
+// ─── 링 마커 (테두리만) ───────────────────────────────────────────────────────
+
+class _RingPainter extends CustomPainter {
+  const _RingPainter();
 
   @override
   void paint(Canvas canvas, Size size) {
     final cx = size.width / 2;
     final cy = size.height / 2;
 
-    // 삼각형: 위쪽이 바라보는 방향 (setAngle이 이 아이콘을 회전시킴)
-    final tipY = cy - 14.0;
-    final baseY = cy + 6.0;
-    const halfW = 9.0;
-
-    final path = Path()
-      ..moveTo(cx, tipY)
-      ..lineTo(cx - halfW, baseY)
-      ..lineTo(cx + halfW, baseY)
-      ..close();
-
-    // 흰 테두리
-    canvas.drawPath(
-      path,
+    const strokeW = 4.3;
+    canvas.drawCircle(
+      Offset(cx, cy),
+      cx - strokeW / 2 - 2.5,
       Paint()
-        ..color = Colors.white
+        ..color = const Color(0xFFFF3AB7)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 3
-        ..strokeJoin = StrokeJoin.round,
+        ..strokeWidth = strokeW,
     );
-    // 파란 채우기
-    canvas.drawPath(path, Paint()..color = const Color(0xFF1A73E8));
   }
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// ─── 삼각형(정삼각형 화살표) 마커 ────────────────────────────────────────────
+// 캔버스: 22×32 (하단 12px = 투명 패딩 → 링 테두리 두께만큼 간격)
+
+class _TriangleArrowPainter extends CustomPainter {
+  const _TriangleArrowPainter();
+
+  static const _strokeW = 2.5;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+
+    // 정삼각형: 22px 정사각형 영역 안에 stroke로 그림
+    const side = 13.0;
+    const triH = side * 0.866; // √3/2
+    const topY = (22 - triH) / 2;
+    const botY = topY + triH;
+
+    // 밑변을 오목하게: cubic bezier로 안쪽으로 파임
+    const concaveDepth = 4.0;
+    final triangle = Path()
+      ..moveTo(cx, topY)
+      ..lineTo(cx + side / 2, botY)
+      ..cubicTo(
+        cx + side / 4, botY - concaveDepth,
+        cx - side / 4, botY - concaveDepth,
+        cx - side / 2, botY,
+      )
+      ..close();
+
+    canvas.drawPath(
+      triangle,
+      Paint()
+        ..color = const Color(0xFFFF3AB7)
+        ..style = PaintingStyle.fill,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// ─── 구간 선 + 사용자 위치 dot 페인터 ─────────────────────────────────────────
+class _SegmentLinePainter extends CustomPainter {
+  final bool isCompleted;
+  final bool isCurrent;
+  final double progress;
+  final Color lineColor;
+  final Color baseColor;
+  final Color dotColor;
+
+  const _SegmentLinePainter({
+    required this.isCompleted,
+    required this.isCurrent,
+    required this.progress,
+    required this.lineColor,
+    required this.baseColor,
+    required this.dotColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final basePaint = Paint()..color = baseColor;
+    final colorPaint = Paint()..color = lineColor;
+
+    // 베이스 선 (회색 전체)
+    canvas.drawRect(Rect.fromLTWH(cx - 1, 0, 2, size.height), basePaint);
+
+    if (isCompleted) {
+      // 완료 구간: 전체 컬러
+      canvas.drawRect(Rect.fromLTWH(cx - 1, 0, 2, size.height), colorPaint);
+    } else if (isCurrent) {
+      // 현재 구간: 진행된 부분만 컬러
+      final progressY = size.height * progress;
+      if (progressY > 0) {
+        canvas.drawRect(
+            Rect.fromLTWH(cx - 1, 0, 2, progressY), colorPaint);
+      }
+
+      // 사용자 위치 dot
+      const dotRadius = 5.0;
+      final dotCenter = Offset(cx, progressY);
+
+      // 글로우 (그림자)
+      canvas.drawCircle(
+        dotCenter,
+        dotRadius + 3,
+        Paint()
+          ..color = dotColor.withAlpha(0x44)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+      );
+      // 흰 테두리
+      canvas.drawCircle(dotCenter, dotRadius, Paint()..color = Colors.white);
+      // 컬러 fill
+      canvas.drawCircle(
+          dotCenter, dotRadius - 2.5, Paint()..color = dotColor);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_SegmentLinePainter old) =>
+      old.isCompleted != isCompleted ||
+      old.isCurrent != isCurrent ||
+      old.progress != progress;
 }
 
 // ─── 내부 데이터 모델 ──────────────────────────────────────────────────────────

@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>PM 지도</title>
+<script src="https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=ml6nfgvait&submodules=geocoder"></script>
+<style>
+  :root{
+    --naver-green:#03C75A;
+    --beam-purple:#4B2FE0;
+    --ink:#1B1F23;
+    --sub:#6B7280;
+    --sheet-shadow:0 -8px 30px rgba(0,0,0,0.18);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;height:100%;font-family:"Apple SD Gothic Neo","Pretendard",system-ui,-apple-system,sans-serif;background:#1a1a1a;}
+
+  .phone{
+    max-width:420px;margin:0 auto;height:100vh;
+    position:relative;overflow:hidden;background:#e8eff2;
+  }
+
+  /* ---- 네이버 지도 ---- */
+  #naverMap{
+    position:absolute;inset:0;width:100%;height:100%;
+    z-index:0;
+  }
+
+  /* ---- 커스텀 마커 ---- */
+  .pm-marker{
+    position:relative;cursor:pointer;
+    transform:translate(-50%,-100%);
+    filter:drop-shadow(0 2px 4px rgba(0,0,0,0.28));
+    transition:transform .12s ease;
+  }
+  .pm-marker:active{ transform:translate(-50%,-100%) scale(0.9); }
+
+  .m-beam{
+    min-width:46px;height:28px;border-radius:14px;
+    background:var(--beam-purple);
+    display:flex;align-items:center;justify-content:center;
+    padding:0 10px;
+  }
+  .m-beam span{color:#fff;font-weight:800;font-size:12px;font-style:italic;letter-spacing:0.3px;}
+
+  .m-gcoo{
+    width:32px;height:32px;border-radius:50%;
+    background:#fff;border:3px solid var(--naver-green);
+    display:flex;align-items:center;justify-content:center;
+    position:relative;
+  }
+  .m-gcoo::before{
+    content:"";position:absolute;inset:-3px;border-radius:50%;
+    border:3px solid var(--naver-green);opacity:0.3;transform:translate(2px,2px);
+  }
+  .m-gcoo span{color:var(--naver-green);font-weight:900;font-size:14px;z-index:2;}
+
+  .m-custom{
+    min-width:46px;height:28px;border-radius:14px;
+    display:flex;align-items:center;justify-content:center;padding:0 10px;
+  }
+  .m-custom span{color:#fff;font-weight:800;font-size:12px;}
+
+  /* 마커 말풍선 꼬리 */
+  .m-tail{
+    width:0;height:0;
+    border-left:6px solid transparent;
+    border-right:6px solid transparent;
+    margin:0 auto;
+  }
+  .m-tail.purple{border-top:8px solid var(--beam-purple);}
+  .m-tail.green{border-top:8px solid var(--naver-green);}
+  .m-tail.custom{border-top:8px solid var(--tailColor, #555);}
+
+  /* ---- 상단 상태바 ---- */
+  .statusbar{
+    position:absolute;top:0;left:0;right:0;height:48px;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:0 18px;font-size:15px;font-weight:700;color:#1B1F23;
+    z-index:20;pointer-events:none;
+    background:linear-gradient(to bottom, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0) 100%);
+  }
+  .statusbar .icons{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600;}
+  .battery-pill{background:#111;color:#fff;border-radius:10px;padding:2px 7px;font-size:11px;font-weight:700;}
+
+  /* ---- 뒤로가기 & NAVER 뱃지 ---- */
+  .back-btn{
+    position:absolute;top:56px;left:16px;width:44px;height:44px;border-radius:50%;
+    background:#fff;box-shadow:0 2px 12px rgba(0,0,0,0.18);
+    display:flex;align-items:center;justify-content:center;
+    z-index:20;cursor:pointer;border:none;font-size:18px;
+  }
+  .naver-badge{
+    position:absolute;top:110px;left:16px;background:#fff;border-radius:20px;
+    padding:6px 16px;font-weight:800;font-size:13px;color:var(--naver-green);
+    box-shadow:0 2px 10px rgba(0,0,0,0.15);z-index:20;letter-spacing:0.5px;
+  }
+
+  /* ---- 이 지역 재탐색 버튼 ---- */
+  .re-search-wrap{
+    position:absolute;top:58px;left:50%;transform:translateX(-50%);
+    z-index:21;pointer-events:none;
+    opacity:0;transition:opacity .25s ease, transform .25s ease;
+    transform:translateX(-50%) translateY(-8px);
+  }
+  .re-search-wrap.show{
+    pointer-events:auto;opacity:1;
+    transform:translateX(-50%) translateY(0);
+  }
+  .re-search-btn{
+    background:#fff;border:none;border-radius:20px;
+    padding:10px 20px;font-size:13px;font-weight:700;color:var(--ink);
+    box-shadow:0 3px 14px rgba(0,0,0,0.22);
+    cursor:pointer;display:flex;align-items:center;gap:6px;
+    white-space:nowrap;
+  }
+  .re-search-btn .spin{display:none;width:14px;height:14px;border:2px solid #ddd;border-top-color:var(--naver-green);border-radius:50%;animation:spin .6s linear infinite;}
+  .re-search-btn.loading .spin{display:block;}
+  .re-search-btn.loading .re-txt{display:none;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  /* ---- 사이드 필터 ---- */
+  .side-btns{
+    position:absolute;top:110px;right:12px;
+    display:flex;flex-direction:column;gap:10px;z-index:20;
+  }
+  .side-btn{
+    width:64px;background:#fff;border-radius:16px;
+    box-shadow:0 2px 10px rgba(0,0,0,0.15);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:8px 4px;font-size:11px;font-weight:700;color:var(--ink);
+    border:2px solid transparent;cursor:pointer;transition:all .2s;
+  }
+  .side-btn.active{border-color:var(--naver-green);color:var(--naver-green);}
+  .side-btn .ic{font-size:20px;margin-bottom:3px;}
+
+  /* ---- 하단 버튼 ---- */
+  .bottom-left-btns{position:absolute;bottom:28px;left:12px;display:flex;flex-direction:column;gap:10px;z-index:20;}
+  .bottom-right-btns{position:absolute;bottom:28px;right:12px;display:flex;flex-direction:column;gap:10px;z-index:20;}
+  .round-btn{
+    width:60px;height:60px;border-radius:16px;background:#fff;
+    box-shadow:0 2px 10px rgba(0,0,0,0.15);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    font-size:10px;font-weight:700;color:var(--ink);cursor:pointer;border:none;
+  }
+  .round-btn .ic{font-size:18px;margin-bottom:2px;}
+  .round-btn.locate{border-radius:50%;width:48px;height:48px;color:#3478F6;font-size:22px;}
+
+  /* ---- 로딩 바 ---- */
+  .loading-bar{
+    position:absolute;top:0;left:0;right:0;height:3px;z-index:100;
+    background:linear-gradient(90deg,var(--naver-green),#1FDB74);
+    animation:shimmer 1.1s ease-in-out infinite;display:none;
+  }
+  .loading-bar.show{display:block;}
+  @keyframes shimmer{0%{transform:translateX(-100%);}100%{transform:translateX(100%);}}
+
+  /* ---- 토스트 ---- */
+  .toast{
+    position:absolute;bottom:120px;left:50%;transform:translateX(-50%);
+    background:rgba(0,0,0,0.76);color:#fff;border-radius:20px;
+    padding:8px 18px;font-size:12px;font-weight:600;
+    z-index:40;white-space:nowrap;pointer-events:none;
+    opacity:0;transition:opacity .3s ease;
+  }
+  .toast.show{opacity:1;}
+
+  /* ---- 오버레이 & 바텀시트 ---- */
+  .overlay{
+    position:absolute;inset:0;background:rgba(0,0,0,0);pointer-events:none;
+    transition:background .25s ease;z-index:30;
+  }
+  .overlay.show{background:rgba(0,0,0,0.38);pointer-events:auto;}
+
+  .sheet{
+    position:absolute;left:0;right:0;bottom:0;
+    background:#fff;border-radius:22px 22px 0 0;
+    box-shadow:var(--sheet-shadow);
+    transform:translateY(105%);
+    transition:transform .3s cubic-bezier(.32,.72,0,1);
+    z-index:31;padding:10px 20px 36px;
+  }
+  .sheet.show{transform:translateY(0);}
+
+  .sheet-handle{width:40px;height:4px;background:#E0E0E0;border-radius:2px;margin:6px auto 14px;}
+  .sheet-close{
+    position:absolute;top:16px;right:18px;background:none;border:none;
+    font-size:20px;color:#C0C0C0;cursor:pointer;padding:4px;line-height:1;
+  }
+
+  .sheet-header{display:flex;align-items:center;gap:12px;margin-bottom:16px;}
+  .sheet-icon{
+    width:52px;height:52px;border-radius:16px;
+    display:flex;align-items:center;justify-content:center;
+    font-weight:900;font-size:22px;color:#fff;flex-shrink:0;
+  }
+  .sheet-title{font-size:17px;font-weight:800;color:var(--ink);line-height:1.3;}
+  .sheet-sub{font-size:12.5px;color:var(--sub);margin-top:3px;}
+
+  .sheet-stats{display:flex;gap:10px;margin-bottom:14px;}
+  .stat-box{flex:1;background:#F6F7F8;border-radius:14px;padding:13px 10px;text-align:center;}
+  .s-label{font-size:11px;color:var(--sub);font-weight:600;margin-bottom:5px;}
+  .s-value{font-size:16px;font-weight:800;color:var(--ink);}
+  .bat-high{color:var(--naver-green);}
+  .bat-mid{color:#F59E0B;}
+  .bat-low{color:#E0483F;}
+
+  .sheet-row{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:12px 2px;border-bottom:1px solid #F4F4F4;
+    font-size:13px;color:var(--sub);
+  }
+  .sheet-row:last-of-type{border-bottom:none;}
+  .sheet-row b{color:var(--ink);font-weight:700;font-size:13.5px;}
+
+  .badge{
+    display:inline-block;border-radius:8px;
+    padding:4px 11px;font-size:11.5px;font-weight:700;
+  }
+  .badge.available{background:#E6F9EE;color:#059652;}
+
+  .data-note{text-align:center;font-size:10px;color:#C0C0C0;margin-top:10px;margin-bottom:-4px;}
+
+  .rent-btn{
+    width:100%;margin-top:16px;padding:16px;border:none;border-radius:14px;
+    font-size:16px;font-weight:800;color:#fff;cursor:pointer;transition:opacity .15s;
+  }
+  .rent-btn:active{opacity:0.82;}
+</style>
+</head>
+<body>
+<div class="phone">
+  <!-- 로딩바 -->
+  <div class="loading-bar" id="loadingBar"></div>
+  <!-- 토스트 -->
+  <div class="toast" id="toast"></div>
+
+  <!-- 네이버 지도 -->
+  <div id="naverMap"></div>
+
+  <!-- 상단 그라데이션 상태바 -->
+  <div class="statusbar">
+    <span id="clockEl">--:--</span>
+    <div class="icons"><span>▂▄▆</span><span>📶</span><span class="battery-pill">89</span></div>
+  </div>
+
+  <!-- 뒤로 & 뱃지 -->
+  <button class="back-btn" onclick="history.back()">←</button>
+  <div class="naver-badge">NAVER</div>
+
+  <!-- 이 지역 재탐색 버튼 -->
+  <div class="re-search-wrap" id="reSearchWrap">
+    <button class="re-search-btn" id="reSearchBtn" onclick="searchThisArea()">
+      <div class="spin"></div>
+      <span class="re-txt">🔍 이 지역 재탐색</span>
+    </button>
+  </div>
+
+  <!-- 사이드 필터 -->
+  <div class="side-btns">
+    <div class="side-btn active" id="btn-all"  onclick="filterMarkers('all')"><div class="ic">🛴</div>전체</div>
+    <div class="side-btn"        id="btn-kick" onclick="filterMarkers('kick')"><div class="ic">🛴</div>킥보드</div>
+    <div class="side-btn"        id="btn-bike" onclick="filterMarkers('bike')"><div class="ic">🚲</div>자전거</div>
+  </div>
+
+  <!-- 하단 버튼 -->
+  <div class="bottom-left-btns">
+    <button class="round-btn" onclick="alert('면허증 확인')"><div class="ic">🪪</div>면허증</button>
+    <button class="round-btn" onclick="myLocation()"><div class="ic">📍</div>내위치</button>
+  </div>
+  <div class="bottom-right-btns">
+    <button class="round-btn" onclick="alert('신고하기')"><div class="ic">⚠️</div>신고</button>
+    <button class="round-btn locate" onclick="myLocation()">◎</button>
+  </div>
+
+  <!-- 오버레이 -->
+  <div class="overlay" id="overlay" onclick="closeSheet()"></div>
+
+  <!-- 바텀 시트 -->
+  <div class="sheet" id="sheet">
+    <button class="sheet-close" onclick="closeSheet()">✕</button>
+    <div class="sheet-handle"></div>
+
+    <div class="sheet-header">
+      <div class="sheet-icon" id="sheetIcon"></div>
+      <div>
+        <div class="sheet-title" id="sheetTitle"></div>
+        <div class="sheet-sub"   id="sheetSub"></div>
+      </div>
+    </div>
+
+    <div class="sheet-stats">
+      <div class="stat-box"><div class="s-label">배터리</div><div class="s-value" id="statBattery">-</div></div>
+      <div class="stat-box"><div class="s-label">도보 거리</div><div class="s-value" id="statDistance">-</div></div>
+      <div class="stat-box"><div class="s-label">기기 종류</div><div class="s-value" id="statKind">-</div></div>
+    </div>
+
+    <div class="sheet-row"><span>장치 ID</span><b id="statId">-</b></div>
+    <div class="sheet-row"><span>운영사</span><b id="statProvider">-</b></div>
+    <div class="sheet-row"><span>운행 상태</span><span class="badge available" id="statStatus">탑승 가능</span></div>
+    <div class="sheet-row"><span>좌표</span><b id="statCoord">-</b></div>
+
+    <p class="data-note" id="dataNoteEl"></p>
+    <button class="rent-btn" id="rentBtn" onclick="rent()">대여하기</button>
+  </div>
+</div>
+
+<script>
+// ============================
+// 설정
+// ============================
+const SERVICE_KEY = '2f82e9261530e44f3c6439acfa570bc49a5f284c92c909b4211f5b5b3d532dea';
+const API_URL     = 'https://apis.data.go.kr/1613000/PersonalMobilityInfo/GetPMListByProvider';
+const PROVIDERS   = ['Beam','GCOO','SWING','씽씽','킥고잉','Lime','지쿠','알파카'];
+
+// 한양대 ERICA 캠퍼스 중심
+const ERICA_LAT = 37.2974;
+const ERICA_LNG = 126.8352;
+
+// 브랜드 스타일
+const BRAND = {
+  'Beam'  :{ bg:'#4B2FE0', short:'beam',  tail:'purple', type:'beam'   },
+  'GCOO'  :{ bg:'#03C75A', short:'G',     tail:'green',  type:'gcoo'   },
+  'SWING' :{ bg:'#FF5A36', short:'SW',    tail:'custom', type:'custom' },
+  '씽씽'  :{ bg:'#2196F3', short:'씽씽', tail:'custom', type:'custom' },
+  '킥고잉':{ bg:'#FF6D00', short:'킥',   tail:'custom', type:'custom' },
+  'Lime'  :{ bg:'#00C853', short:'L',     tail:'custom', type:'custom' },
+  '지쿠'  :{ bg:'#7B1FA2', short:'G',     tail:'custom', type:'custom' },
+  '알파카' :{ bg:'#795548', short:'알',   tail:'custom', type:'custom' },
+};
+function getBrand(name){
+  if(!name) return { bg:'#9E9E9E', short:'PM', tail:'custom', type:'custom' };
+  for(const k of Object.keys(BRAND)){
+    if(name.includes(k)||k.includes(name)) return BRAND[k];
+  }
+  const pal=['#E91E63','#9C27B0','#3F51B5','#00BCD4','#FF5722'];
+  const c=pal[name.charCodeAt(0)%pal.length];
+  return { bg:c, short:name.slice(0,1), tail:'custom', type:'custom' };
+}
+
+// 마커 HTML 생성
+function markerHtml(brand){
+  let inner='';
+  if(brand.type==='beam'){
+    inner=`<div class="m-beam"><span>beam</span></div>`;
+  }else if(brand.type==='gcoo'){
+    inner=`<div class="m-gcoo"><span>G</span></div>`;
+  }else{
+    inner=`<div class="m-custom" style="background:${brand.bg}"><span>${brand.short}</span></div>`;
+  }
+  const tail = brand.tail==='purple'
+    ? `<div class="m-tail purple"></div>`
+    : brand.tail==='green'
+    ? `<div class="m-tail green"></div>`
+    : `<div class="m-tail custom" style="border-top-color:${brand.bg}"></div>`;
+  return `<div class="pm-marker">${inner}${tail}</div>`;
+}
+
+// ============================
+// 데모 데이터 (ERICA 인근 좌표)
+// ============================
+const DEMO_OFFSET = [
+  [0.0028,0.0031],[0.0015,-0.0042],[-0.0012,0.0033],[-0.0024,-0.0015],
+  [0.0033,-0.0008],[-0.0005,0.0048],[0.0041,0.0022],[-0.0031,0.0019],
+  [0.0018,-0.0034],[-0.0038,-0.0027],[0.0009,0.0055],[0.0046,-0.0016],
+  [-0.0019,-0.0043],[0.0027,0.0038],[-0.0044,0.0011],[0.0005,-0.0051],
+  [0.0035,0.0009],[-0.0026,0.0044],[0.0013,-0.0018],[-0.0007,-0.0036],
+  [0.0049,0.0027],[-0.0033,-0.0006],[0.0021,0.0046],[-0.0015,0.0025],
+];
+const DEMO_VEHICLES = [
+  'Beam','Beam','Beam','Beam','GCOO','GCOO','GCOO','GCOO',
+  'SWING','SWING','씽씽','씽씽','킥고잉','Lime',
+  'Beam','GCOO','킥고잉','SWING','씽씽','Beam','GCOO','Lime','Beam','씽씽'
+].map((prov,i)=>({
+  providerName: prov,
+  deviceId: prov.slice(0,2).toUpperCase()+'-'+(1000+i*7),
+  batteryLevel: 20+((i*83+17)%73),
+  vehicleType: (prov==='GCOO'&&i%2===0)?'전기자전거':'전동킥보드',
+  category: (prov==='GCOO'&&i%2===0)?'bike':'kick',
+  lat: ERICA_LAT + DEMO_OFFSET[i%DEMO_OFFSET.length][0],
+  lng: ERICA_LNG + DEMO_OFFSET[i%DEMO_OFFSET.length][1],
+  distance: 30+((i*67)%270),
+  isDemo: true,
+}));
+
+// ============================
+// 상태
+// ============================
+let map = null;
+let naverMarkers = [];          // { marker, vehicle } 배열
+let currentFilter = 'all';
+let selectedVehicle = null;
+let mapMoved = false;
+let searchCity = '안산';        // 현재 탐색 지역명
+
+// ============================
+// 지도 초기화
+// ============================
+function initMap(){
+  map = new naver.maps.Map('naverMap',{
+    center: new naver.maps.LatLng(ERICA_LAT, ERICA_LNG),
+    zoom: 16,
+    mapTypeId: naver.maps.MapTypeId.NORMAL,
+    zoomControl: false,
+    scaleControl: false,
+    logoControl: false,
+    mapDataControl: false,
+  });
+
+  // 지도 드래그 → 재탐색 버튼 표시
+  naver.maps.Event.addListener(map, 'dragstart', ()=>{
+    mapMoved = true;
+    showReSearch(true);
+  });
+
+  // 지도 클릭 → 바텀시트 닫기
+  naver.maps.Event.addListener(map, 'click', ()=> closeSheet());
+
+  loadPMData(ERICA_LAT, ERICA_LNG);
+}
+
+// ============================
+// PM 데이터 로드
+// ============================
+async function loadPMData(lat, lng){
+  showLoading(true);
+  clearMarkers();
+
+  let vehicles = await fetchAPI(lat, lng);
+  showLoading(false);
+
+  if(vehicles.length>0){
+    renderMarkers(vehicles);
+    showToast(`📡 ${vehicles.length}대 실시간 PM 검색됨`);
+  }else{
+    // 데모 데이터 (center 기준으로 오프셋 재계산)
+    const demo = DEMO_VEHICLES.map(v=>({
+      ...v,
+      lat: lat + (v.lat - ERICA_LAT),
+      lng: lng + (v.lng - ERICA_LNG),
+    }));
+    renderMarkers(demo);
+    showToast(`🗺 ${searchCity} 인근 데모 데이터`);
+  }
+}
+
+// ============================
+// API 호출
+// ============================
+async function fetchAPI(lat, lng){
+  // 현재 지도 중심을 역지오코딩 → 시군구명 추출
+  const city = await reverseGeocode(lat, lng);
+  searchCity = city || searchCity;
+
+  let results = [];
+  for(const prov of PROVIDERS){
+    try{
+      const url = `${API_URL}?serviceKey=${SERVICE_KEY}&numOfRows=50&pageNo=1&_type=json`
+        + `&providerName=${encodeURIComponent(prov)}`
+        + `&cityName=${encodeURIComponent(searchCity)}`;
+      const res  = await fetch(url,{ signal:AbortSignal.timeout(5000) });
+      const json = await res.json();
+      const items = json?.response?.body?.items?.item;
+      if(!items) continue;
+      const list = Array.isArray(items)?items:[items];
+      list.forEach(it=>{
+        const lat_ = parseFloat(it.lat||it.latitude||0);
+        const lng_ = parseFloat(it.lng||it.longitude||0);
+        results.push({
+          providerName: it.providerName||prov,
+          deviceId:     it.deviceId||'-',
+          batteryLevel: parseInt(it.batteryLevel??50),
+          vehicleType:  it.vehicleType||'전동킥보드',
+          category:     (it.vehicleType||'').includes('자전거')?'bike':'kick',
+          lat: lat_||lat+(Math.random()-.5)*0.006,
+          lng: lng_||lng+(Math.random()-.5)*0.006,
+          distance: Math.round(calcDistance(lat,lng,lat_||lat,lng_||lng)*1000),
+          isDemo: false,
+        });
+      });
+    }catch(_){}
+  }
+  return results;
+}
+
+// 역지오코딩 → 시군구명
+function reverseGeocode(lat, lng){
+  return new Promise(resolve=>{
+    naver.maps.Service.reverseGeocode(
+      { coords: new naver.maps.LatLng(lat,lng), orders:[naver.maps.Service.OrderType.ADDR] },
+      (status, res)=>{
+        if(status!==naver.maps.Service.Status.OK){ resolve(null); return; }
+        const area = res?.v2?.results?.[0]?.region;
+        // area2 = 시군구, area3 = 읍면동
+        const city = area?.area2?.name || area?.area1?.name || null;
+        resolve(city);
+      }
+    );
+  });
+}
+
+// ============================
+// 마커 렌더링
+// ============================
+function clearMarkers(){
+  naverMarkers.forEach(({marker})=> marker.setMap(null));
+  naverMarkers = [];
+}
+
+function renderMarkers(vehicles){
+  vehicles.forEach(v=>{
+    const brand = getBrand(v.providerName);
+    const marker = new naver.maps.Marker({
+      position: new naver.maps.LatLng(v.lat, v.lng),
+      map: (currentFilter==='all'||v.category===currentFilter) ? map : null,
+      icon: {
+        content: markerHtml(brand),
+        anchor: new naver.maps.Point(23, 40),
+      },
+    });
+    naver.maps.Event.addListener(marker,'click',()=> openSheet(v,brand));
+    naverMarkers.push({ marker, vehicle:v });
+  });
+}
+
+// ============================
+// 이 지역 재탐색
+// ============================
+async function searchThisArea(){
+  const btn = document.getElementById('reSearchBtn');
+  btn.classList.add('loading');
+  showReSearch(false);
+  closeSheet();
+
+  const center = map.getCenter();
+  await loadPMData(center.lat(), center.lng());
+
+  btn.classList.remove('loading');
+  mapMoved = false;
+}
+
+function showReSearch(show){
+  document.getElementById('reSearchWrap').classList.toggle('show', show);
+}
+
+// ============================
+// 필터
+// ============================
+function filterMarkers(mode){
+  currentFilter = mode;
+  ['all','kick','bike'].forEach(m=>
+    document.getElementById('btn-'+m).classList.toggle('active', m===mode));
+
+  naverMarkers.forEach(({marker,vehicle})=>{
+    marker.setMap(mode==='all'||vehicle.category===mode ? map : null);
+  });
+}
+
+// ============================
+// 바텀 시트
+// ============================
+function openSheet(v, brand){
+  selectedVehicle = v;
+
+  document.getElementById('sheetIcon').style.background = brand.bg;
+  document.getElementById('sheetIcon').textContent = brand.short==='beam'?'B':brand.short;
+  document.getElementById('rentBtn').style.background = brand.bg;
+
+  document.getElementById('sheetTitle').textContent = `${v.providerName} · ${v.vehicleType}`;
+  document.getElementById('sheetSub').textContent   = `${searchCity} 인근`;
+
+  const bat = v.batteryLevel;
+  const batEl = document.getElementById('statBattery');
+  batEl.textContent = bat+'%';
+  batEl.className = 's-value '+(bat>=50?'bat-high':bat>=25?'bat-mid':'bat-low');
+
+  document.getElementById('statDistance').textContent = v.distance+'m';
+  document.getElementById('statKind').textContent = v.category==='bike'?'자전거':'킥보드';
+  document.getElementById('statId').textContent = v.deviceId;
+  document.getElementById('statProvider').textContent = v.providerName;
+  document.getElementById('statCoord').textContent =
+    `${v.lat.toFixed(4)}, ${v.lng.toFixed(4)}`;
+  document.getElementById('dataNoteEl').textContent = v.isDemo
+    ? '※ 데모 데이터 — 운영사 미등록'
+    : '※ 공공데이터포털 국토교통부 PM 실시간';
+
+  document.getElementById('overlay').classList.add('show');
+  document.getElementById('sheet').classList.add('show');
+
+  // 선택된 마커로 지도 이동
+  map.panTo(new naver.maps.LatLng(v.lat, v.lng));
+}
+
+function closeSheet(){
+  document.getElementById('overlay').classList.remove('show');
+  document.getElementById('sheet').classList.remove('show');
+}
+
+function rent(){
+  if(!selectedVehicle) return;
+  alert(`[${selectedVehicle.providerName}] ${selectedVehicle.deviceId}\n대여를 시작합니다.`);
+}
+
+// ============================
+// 내 위치
+// ============================
+function myLocation(){
+  if(!navigator.geolocation){ showToast('위치 정보를 지원하지 않습니다'); return; }
+  showToast('📍 위치 찾는 중...');
+  navigator.geolocation.getCurrentPosition(
+    pos=>{
+      const { latitude:lat, longitude:lng } = pos.coords;
+      map.setCenter(new naver.maps.LatLng(lat,lng));
+      map.setZoom(16);
+      showToast('📍 현재 위치로 이동했습니다');
+      searchThisArea();
+    },
+    ()=>{ showToast('위치 접근 권한이 없습니다'); }
+  );
+}
+
+// ============================
+// 유틸
+// ============================
+function calcDistance(lat1,lng1,lat2,lng2){
+  const R=6371, dLat=(lat2-lat1)*Math.PI/180, dLng=(lng2-lng1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+function showLoading(on){
+  document.getElementById('loadingBar').classList.toggle('show', on);
+}
+
+let toastTimer=null;
+function showToast(msg){
+  const el=document.getElementById('toast');
+  el.textContent=msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>el.classList.remove('show'), 2600);
+}
+
+// 시계
+(function clock(){
+  const d=new Date(), h=d.getHours(), m=String(d.getMinutes()).padStart(2,'0');
+  document.getElementById('clockEl').textContent=`${h}:${m}`;
+  setTimeout(clock,30000);
+})();
+
+// ============================
+// 시작
+// ============================
+initMap();
+</script>
+</body>
+</html>

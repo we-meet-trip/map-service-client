@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
 // ─── Request ──────────────────────────────────────────────────
@@ -184,10 +185,8 @@ class TripApiService {
   TripApiService._();
   static final TripApiService instance = TripApiService._();
 
-  static const _baseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'http://localhost:8080',
-  );
+  static String get _baseUrl =>
+      dotenv.env['API_BASE_URL'] ?? 'http://localhost:8080';
 
   Future<TripGenerateResponse> generateTrip(TripGenerateRequest request) async {
     final uri = Uri.parse('$_baseUrl/api/v1/trip/generate');
