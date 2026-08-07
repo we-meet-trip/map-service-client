@@ -3,13 +3,11 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../core/naver_map/naver_map_adapter.dart';
 import 'package:go_router/go_router.dart';
-import 'package:geolocator/geolocator.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../common/theme/app_icons.dart';
 import '../widgets/transport_theme.dart';
 import '../../../common/widgets/next_button.dart';
 import '../../../common/widgets/prev_button.dart';
-import '../../../common/widgets/app_confirm_dialog.dart';
 import '../../../core/state/trip_repository.dart';
 import '../../../common/widgets/text_field.dart';
 import '../../../core/api/api_client.dart';
@@ -323,35 +321,6 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
         onMapReady: _onMapReady,
       ),
     );
-  }
-
-  Future<void> _onMapTapped(NLatLng latLng) async {
-    final controller = _mapController;
-    if (controller == null) return;
-
-    // 현재 GPS 위치 가져오기
-    try {
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) return;
-
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) return;
-      }
-      if (permission == LocationPermission.deniedForever) return;
-
-      final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
-
-      final locationOverlay = controller.getLocationOverlay();
-      locationOverlay.setIsVisible(true);
-      locationOverlay.setPosition(NLatLng(position.latitude, position.longitude));
-      locationOverlay.setBearing(position.heading);
-    } catch (_) {
-      // 위치 권한 없거나 실패 시 무시
-    }
   }
 
   Widget _buildMapAreaWithBackButton() {
