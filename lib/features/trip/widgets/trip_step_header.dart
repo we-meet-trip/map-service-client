@@ -4,6 +4,7 @@ import 'trip_step_indicator.dart';
 
 class TripStepHeader extends StatelessWidget {
   final int step;
+  final int totalSteps;
   final String title;
   final String subtitle;
   final bool isNextEnabled;
@@ -11,6 +12,7 @@ class TripStepHeader extends StatelessWidget {
   const TripStepHeader({
     super.key,
     required this.step,
+    this.totalSteps = 5,
     required this.title,
     required this.subtitle,
     this.isNextEnabled = false,
@@ -21,7 +23,7 @@ class TripStepHeader extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        TripStepIndicator(currentStep: step, isNextEnabled: isNextEnabled),
+        TripStepIndicator(currentStep: step, totalSteps: totalSteps, isNextEnabled: isNextEnabled),
         const SizedBox(height: 24),
         Text(
           title,

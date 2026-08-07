@@ -8,12 +8,16 @@ import '../../data/repositories/invite_link_repository.dart';
 import '../../features/home/screens/home_screen.dart';
 import '../../features/trip/screens/trip_regenerate_screen.dart';
 import '../../features/trip/screens/trip_created_screen.dart';
+import '../../features/place_explore/screens/place_explore_step1_screen.dart';
+import '../../features/place_explore/screens/place_explore_step2_screen.dart';
+import '../../features/place_explore/providers/place_explore_provider.dart';
 import '../../features/trip/screens/trip_directions_screen.dart';
 import '../../features/trip/screens/search_step1_screen.dart';
 import '../../features/saved/screens/saved_screen.dart';
 import '../../features/chat/providers/chat_room_detail_provider.dart';
 import '../../features/chat/screens/chat_room_detail_screen.dart';
 import '../state/trip_repository.dart';
+import '../api/trip_api_service.dart';
 import '../../features/chat/screens/chat_screen.dart';
 import '../../features/mypage/screens/mypage_screen.dart';
 import '../../features/mypage/screens/profile_edit_screen.dart';
@@ -28,6 +32,7 @@ import '../../features/auth/screens/signup_complete_screen.dart';
 import '../../features/chat/screens/trip_selection_for_chat_screen.dart';
 import '../../features/invite/screens/invite_handler_screen.dart';
 import '../../features/splash/screens/splash_screen.dart';
+import '../../common/widgets/app_loading_screen.dart';
 import '../../features/mobility/screens/bike_scooter_location_screen.dart';
 import '../../features/vision/screens/vision_screen.dart';
 import '../../features/saved/screens/navigation_screen.dart';
@@ -136,6 +141,40 @@ final appRouter = GoRouter(
                 GoRoute(
                   path: 'search',
                   builder: (context, state) => const SearchStep1Screen(),
+                ),
+                GoRoute(
+                  path: 'place-explore/step1',
+                  builder: (context, state) => PlaceExploreStep1Screen(
+                    onNext: () {
+                      final provider =
+                          context.read<PlaceExploreProvider>();
+                      provider.commitSelection();
+                      provider.loadAllDetails();
+                      context.go('/trip/place-explore/step2');
+                    },
+                    onPrev: () => context.go('/trip/search'),
+                  ),
+                ),
+                GoRoute(
+                  path: 'place-explore/step2',
+                  builder: (context, state) => PlaceExploreStep2Screen(
+                    onNext: () =>
+                        context.go('/trip/place-explore/generating'),
+                    onPrev: () => context.go('/trip/place-explore/step1'),
+                  ),
+                ),
+                GoRoute(
+                  path: 'place-explore/generating',
+                  builder: (context, state) => AppLoadingScreen(
+                    onComplete: () =>
+                        context.go('/trip/place-explore/result'),
+                  ),
+                ),
+                GoRoute(
+                  path: 'place-explore/result',
+                  builder: (context, state) => TripCreatedScreen(
+                    response: state.extra as TripGenerateResponse?,
+                  ),
                 ),
               ],
             ),
