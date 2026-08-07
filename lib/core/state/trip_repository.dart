@@ -26,6 +26,9 @@ class TripRepository {
   /// 재탐색 화면은 라우트가 달라 화면 사이로 값을 넘길 수도 없어 여기에 둔다.
   TripPlanContext? lastPlan;
 
+  final ValueNotifier<List<SavedTrip>> plannedTrips = ValueNotifier([]);
+  final ValueNotifier<List<SavedTrip>> completedTrips = ValueNotifier([]);
+
   void setPendingTrip(TripGenerateResponse response) {
     pendingTrip = response;
     autoSaveOnNext = true;
@@ -33,6 +36,12 @@ class TripRepository {
 
   void setLastPlan(TripPlanContext context) {
     lastPlan = context;
+  }
+
+  void setChatRoomId(String tripId, String roomId) {
+    plannedTrips.value = plannedTrips.value
+        .map((t) => t.id == tripId ? t.copyWith(chatRoomId: roomId) : t)
+        .toList();
   }
 }
 
@@ -86,8 +95,24 @@ class SavedTrip {
     required this.tripEndDate,
     required this.stops,
     required this.totalDurationMinutes,
+    this.chatRoomId,
     this.warnings = const [],
   });
+
+  String get id => scheduleId?.toString() ?? '';
+
+  SavedTrip copyWith({String? chatRoomId}) => SavedTrip(
+        scheduleId: scheduleId,
+        name: name,
+        route: route,
+        savedAt: savedAt,
+        tripStartDate: tripStartDate,
+        tripEndDate: tripEndDate,
+        stops: stops,
+        totalDurationMinutes: totalDurationMinutes,
+        chatRoomId: chatRoomId ?? this.chatRoomId,
+        warnings: warnings,
+      );
 
   factory SavedTrip.fromDetail(ScheduleDetail d) {
     final start = d.dateStart ?? DateTime.now();
@@ -104,3 +129,25 @@ class SavedTrip {
     );
   }
 }
+
+final mockPlannedTrip = SavedTrip(
+  scheduleId: 9001,
+  name: '성수동 나들이',
+  route: '성수역 → 카페 → 공원',
+  savedAt: DateTime(2024, 6, 1),
+  tripStartDate: DateTime(2024, 8, 10),
+  tripEndDate: DateTime(2024, 8, 10),
+  stops: const [],
+  totalDurationMinutes: 180,
+);
+
+final mockCompletedTrip = SavedTrip(
+  scheduleId: 9002,
+  name: '여수 바다 여행',
+  route: '여수역 → 해변 → 식당',
+  savedAt: DateTime(2024, 5, 1),
+  tripStartDate: DateTime(2024, 5, 10),
+  tripEndDate: DateTime(2024, 5, 12),
+  stops: const [],
+  totalDurationMinutes: 360,
+);

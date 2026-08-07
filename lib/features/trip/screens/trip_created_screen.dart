@@ -1096,13 +1096,21 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
           ),
         ),
         cancelLabel: '닫기',
-        confirmLabel: '보러가기',
-        onConfirm: () {
+        confirmLabel: '대화방 생성하기',
+        onCancel: () {
           Navigator.of(ctx).pop();
           TripRepository.instance.requestedTab.value = 0;
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (context.mounted) {
               context.go('/saved');
+            }
+          });
+        },
+        onConfirm: () {
+          Navigator.of(ctx).pop();
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (context.mounted) {
+              context.go('/chat');
             }
           });
         },
