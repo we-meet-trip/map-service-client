@@ -15,7 +15,6 @@ import '../../../common/widgets/text_field.dart';
 import '../../../core/api/trip_api_service.dart';
 import '../../../core/router/app_router.dart';
 import '../../auth/widgets/kakao_login_button.dart';
-import '../../../common/widgets/draggable_vision_button.dart';
 
 class TripCreatedScreen extends StatefulWidget {
   const TripCreatedScreen({
@@ -163,12 +162,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
         if (mounted) _showSaveBottomSheet(context);
       });
     }
-    return Stack(
-      children: [
-        _buildBody(context),
-        const DraggableVisionButton(),
-      ],
-    );
+    return _buildBody(context);
   }
 
   Widget _buildBody(BuildContext context) {
@@ -240,7 +234,6 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
   }
 
   // ── 지도 영역 ────────────────────────────────────────────────
-  // (Stack의 두 번째 자식 DraggableVisionButton은 build()에서 추가됨)
 
   Widget _buildMapArea() {
     return SizedBox(
