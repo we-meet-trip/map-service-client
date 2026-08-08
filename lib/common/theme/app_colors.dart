@@ -121,6 +121,6 @@ class AppColors {
   static const myBubbleText    = Color(0xFFFFFFFF);
   static const otherBubbleBg   = Color(0xFFFFFFFF);
   static const otherBubbleText = Color(0xFF000000);
-  static const senderName      = Color(0xFF8164B4);
+  static const senderName      = Color(0xFF70608B);
 
 }
