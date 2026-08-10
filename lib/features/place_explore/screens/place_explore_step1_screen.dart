@@ -155,6 +155,8 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
           detail: detail,
           isAdded: provider.selectedIds.contains(place.id),
           onToggle: () => provider.togglePlace(place.id),
+          latitude: place.latitude,
+          longitude: place.longitude,
         ),
       );
     } finally {
