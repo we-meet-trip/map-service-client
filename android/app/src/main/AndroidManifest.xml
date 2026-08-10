@@ -45,13 +45,14 @@
                     android:host="${deepLinkHost}"
                     android:pathPrefix="/invite" />
             </intent-filter>
-            <!-- 개발/테스트: 커스텀 URI 스킴 (wemeettrip://invite/TOKEN) -->
+            <!-- 앱 전용 주소 (mapservice://invite/TOKEN). 도메인 검증이 필요 없어
+                 개발 중 확인에 쓰고, iOS 에서는 유일하게 동작하는 길이다. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
-                    android:scheme="wemeettrip"
+                    android:scheme="mapservice"
                     android:host="invite" />
             </intent-filter>
             <!-- 카카오 로그인 복귀 주소 -->
