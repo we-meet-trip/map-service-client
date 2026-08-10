@@ -177,6 +177,9 @@ class NMarker {
         _angle = angle,
         _isVisible = true;
 
+  /// 지금 자리. 지도에 마커를 올릴 때 읽는다.
+  NLatLng get position => _position;
+
   void setOnTapListener(void Function(NMarker overlay) listener) {
     onTap = listener;
   }
