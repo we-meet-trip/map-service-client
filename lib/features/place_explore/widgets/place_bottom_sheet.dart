@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import '../../../common/constants/category_tags.dart';
 import '../../../common/theme/app_colors.dart';
 // 후기 모델 이름이 화면 모델과 겹쳐 통로 쪽에 이름을 붙여 구분한다.
 import '../../../core/api/review_api_service.dart' as review_api;
@@ -152,6 +153,7 @@ class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
   }
 
   Widget _buildHeader() {
+    final tag = tagForCategory(widget.detail.category);
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 14, 24, 0),
       child: Column(
@@ -224,8 +226,7 @@ class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
             ),
           ),
           const SizedBox(height: 6),
-          if (widget.detail.category != null &&
-              widget.detail.category!.isNotEmpty)
+          if (tag != null)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
@@ -233,7 +234,7 @@ class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
                 borderRadius: BorderRadius.circular(100),
               ),
               child: Text(
-                widget.detail.category!,
+                tag,
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,

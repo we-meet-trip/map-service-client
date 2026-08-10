@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../common/constants/category_tags.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../core/api/review_api_service.dart';
 
@@ -126,6 +127,7 @@ class _PlaceDetailSheetState extends State<_PlaceDetailSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final tag = tagForCategory(widget.category);
     return DraggableScrollableSheet(
       initialChildSize: 0.72,
       minChildSize: 0.4,
@@ -164,7 +166,7 @@ class _PlaceDetailSheetState extends State<_PlaceDetailSheet> {
                     fontSize: 13, color: AppColors.neutralScale[400]),
               ),
             ],
-            if (widget.category != null && widget.category!.isNotEmpty) ...[
+            if (tag != null) ...[
               const SizedBox(height: 12),
               Align(
                 alignment: Alignment.centerLeft,
@@ -176,7 +178,7 @@ class _PlaceDetailSheetState extends State<_PlaceDetailSheet> {
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
-                    widget.category!,
+                    tag,
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
