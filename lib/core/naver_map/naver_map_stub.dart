@@ -17,6 +17,7 @@ import 'dart:ui_web' as ui_web;
 import 'package:flutter/material.dart';
 import 'package:web/web.dart' as web;
 
+import 'map_pointer_web.dart';
 import 'web/naver_loader.dart';
 import 'web/naver_web_controller.dart';
 
@@ -291,12 +292,33 @@ class _NaverMapState extends State<NaverMap> {
         ..style.width = '100%'
         ..style.height = '100%';
       _host = div;
+      _applyPointer();
       return div;
     });
+    naverMapPointerEnabled.addListener(_applyPointer);
+  }
+
+  /// 지도 요소가 손짓을 받을지 켜고 끈다.
+  ///
+  /// 지도를 담는 칸은 우리 요소 하나가 아니라 그것을 감싼 자리까지다.
+  /// 감싼 자리를 열어 두면 손짓이 거기서 멈춰 시트까지 닿지 않는다.
+  void _applyPointer() {
+    final value = naverMapPointerEnabled.value ? 'auto' : 'none';
+    web.Element? element = _host;
+    var depth = 0;
+    while (element != null && depth < 6) {
+      final tag = element.tagName.toUpperCase();
+      if (identical(element, _host) || tag.startsWith('FLT-PLATFORM-VIEW')) {
+        (element as web.HTMLElement).style.pointerEvents = value;
+      }
+      element = element.parentElement;
+      depth++;
+    }
   }
 
   @override
   void dispose() {
+    naverMapPointerEnabled.removeListener(_applyPointer);
     _resizeObserver?.disconnect();
     // 붙일 때와 같은 함수 객체·같은 캡처 값으로 떼야 실제로 떨어진다.
     final gesture = _gestureHandler;

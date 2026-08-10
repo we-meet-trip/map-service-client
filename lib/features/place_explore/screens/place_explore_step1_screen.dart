@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../common/widgets/next_button.dart';
 import '../../../common/widgets/prev_button.dart';
+import '../../../core/naver_map/map_pointer.dart';
 import '../../../core/naver_map/naver_map_adapter.dart';
 import '../models/place.dart';
 import '../providers/place_explore_provider.dart';
@@ -141,17 +142,24 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
     final provider = context.read<PlaceExploreProvider>();
     final detail = await provider.loadDetail(place.id);
     if (detail == null || !mounted) return;
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      useSafeArea: true,
-      builder: (_) => PlaceBottomSheet(
-        detail: detail,
-        isAdded: provider.selectedIds.contains(place.id),
-        onToggle: () => context.read<PlaceExploreProvider>().togglePlace(place.id),
-      ),
-    );
+    // 시트가 떠 있는 동안은 지도를 잠근다. 웹에서는 지도가 화면에 직접
+    // 얹혀 있어, 잠그지 않으면 시트를 밀어도 지도만 움직인다.
+    setNaverMapPointerEnabled(false);
+    try {
+      await showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        useSafeArea: true,
+        builder: (_) => PlaceBottomSheet(
+          detail: detail,
+          isAdded: provider.selectedIds.contains(place.id),
+          onToggle: () => provider.togglePlace(place.id),
+        ),
+      );
+    } finally {
+      setNaverMapPointerEnabled(true);
+    }
   }
 
   @override
