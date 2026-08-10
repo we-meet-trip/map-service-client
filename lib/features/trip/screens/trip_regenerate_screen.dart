@@ -29,7 +29,7 @@ class TripRegenerateScreen extends StatefulWidget {
 
 // 서버 없이 화면만 확인할 때 true 로 되돌린다. 평소에는 실제 일정 생성을
 // 호출하므로 false 다.
-const bool _useMock = true;
+const bool _useMock = false;
 
 Future<TripGenerateResponse> _mockGenerateTrip() async {
   await Future.delayed(const Duration(seconds: 2));
