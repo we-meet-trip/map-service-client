@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../../common/theme/app_colors.dart';
+// 후기 모델 이름이 화면 모델과 겹쳐 통로 쪽에 이름을 붙여 구분한다.
+import '../../../core/api/review_api_service.dart' as review_api;
 import '../models/place_detail.dart';
+import '../utils/review_paging.dart';
 import 'blog_review_card.dart';
 import 'place_ai_summary_card.dart';
 
@@ -24,17 +27,26 @@ class PlaceBottomSheet extends StatefulWidget {
 }
 
 class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
-  static const _initialCount = 2;
-  static const _firstPageSize = 3;
-  static const _pageSize = 5;
+  final _api = review_api.ReviewApiService.instance;
 
   late bool _isAdded;
-  int _visibleCount = _initialCount;
+
+  List<String> _bullets = const [];
+  bool _summaryLoading = false;
+
+  final List<BlogReview> _reviews = [];
+  bool _reviewsLoading = true;
+  bool _moreLoading = false;
+  bool _hasMore = false;
 
   @override
   void initState() {
     super.initState();
     _isAdded = widget.isAdded;
+    // 요약과 후기는 장소명으로 물어본다. 시트는 기다리지 않고 먼저 열리고
+    // 받아온 뒤에 그 자리만 채워진다.
+    _loadSummary();
+    _loadFirstPage();
   }
 
   void _handleToggle() {
@@ -42,12 +54,60 @@ class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
     widget.onToggle();
   }
 
+  Future<void> _loadSummary() async {
+    setState(() => _summaryLoading = true);
+    final bullets = await _api.fetchSummary(widget.detail.name);
+    if (!mounted) return;
+    setState(() {
+      _bullets = bullets;
+      _summaryLoading = false;
+    });
+  }
+
+  Future<void> _loadFirstPage() async {
+    final page = nextReviewPage(0);
+    final result = await _api.fetchReviews(
+      widget.detail.name,
+      start: page.start,
+      display: page.display,
+    );
+    if (!mounted) return;
+    setState(() {
+      _reviews
+        ..clear()
+        ..addAll(result.reviews.map(_toReview));
+      _hasMore = result.hasMore;
+      _reviewsLoading = false;
+    });
+  }
+
+  Future<void> _loadMore() async {
+    if (_moreLoading) return;
+    setState(() => _moreLoading = true);
+    final page = nextReviewPage(_reviews.length);
+    final result = await _api.fetchReviews(
+      widget.detail.name,
+      start: page.start,
+      display: page.display,
+    );
+    if (!mounted) return;
+    setState(() {
+      _reviews.addAll(result.reviews.map(_toReview));
+      _hasMore = result.hasMore;
+      _moreLoading = false;
+    });
+  }
+
+  BlogReview _toReview(review_api.BlogReview review) => BlogReview(
+        title: review.title,
+        blogName: review.bloggerName,
+        date: review.displayDate,
+        snippet: review.description,
+        url: review.link,
+      );
+
   @override
   Widget build(BuildContext context) {
-    final reviews = widget.detail.blogReviews;
-    final shown = reviews.take(_visibleCount).toList();
-    final hasMore = _visibleCount < reviews.length;
-
     return DraggableScrollableSheet(
       initialChildSize: 0.48,
       minChildSize: 0.35,
@@ -64,16 +124,21 @@ class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
             slivers: [
               SliverToBoxAdapter(child: _buildHeader()),
               SliverToBoxAdapter(child: _buildDivider()),
-              SliverToBoxAdapter(child: PlaceAiSummaryCard(summary: widget.detail.aiSummary)),
+              SliverToBoxAdapter(child: _buildSummary()),
               SliverToBoxAdapter(child: _buildReviewsHeader()),
-              SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) => BlogReviewCard(review: shown[index]),
-                  childCount: shown.length,
+              if (_reviewsLoading)
+                SliverToBoxAdapter(child: _buildReviewsLoading())
+              else if (_reviews.isEmpty)
+                SliverToBoxAdapter(child: _buildEmptyReviews())
+              else
+                SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) => BlogReviewCard(review: _reviews[index]),
+                    childCount: _reviews.length,
+                  ),
                 ),
-              ),
-              if (hasMore)
-                SliverToBoxAdapter(child: _buildMoreButton(reviews.length)),
+              if (_hasMore && !_reviewsLoading)
+                SliverToBoxAdapter(child: _buildMoreButton()),
               SliverToBoxAdapter(
                 child: SizedBox(
                   height: MediaQuery.paddingOf(context).bottom + 24,
@@ -207,6 +272,50 @@ class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
     );
   }
 
+  /// 요약 자리. 받아오는 동안은 자리만 잡고, 근거를 못 구했으면 접는다.
+  Widget _buildSummary() {
+    if (_summaryLoading) {
+      return const Padding(
+        padding: EdgeInsets.fromLTRB(24, 20, 24, 0),
+        child: Center(
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+    if (_bullets.isEmpty) return const SizedBox.shrink();
+    return PlaceAiSummaryCard(summary: _bullets.join('\n'));
+  }
+
+  Widget _buildReviewsLoading() {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 24),
+      child: Center(
+        child: SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyReviews() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
+      child: Text(
+        '아직 등록된 후기가 없어요.',
+        style: TextStyle(
+          fontSize: 13,
+          color: AppColors.neutralScale[300],
+        ),
+      ),
+    );
+  }
+
   Widget _buildReviewsHeader() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
@@ -231,17 +340,12 @@ class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
     );
   }
 
-  Widget _buildMoreButton(int total) {
+  Widget _buildMoreButton() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 4, 24, 4),
       child: Center(
         child: GestureDetector(
-          onTap: () {
-            setState(() {
-              final add = _visibleCount == _initialCount ? _firstPageSize : _pageSize;
-              _visibleCount = (_visibleCount + add).clamp(0, total);
-            });
-          },
+          onTap: _moreLoading ? null : _loadMore,
           child: Container(
             height: 38,
             padding: const EdgeInsets.symmetric(horizontal: 28),
@@ -262,11 +366,18 @@ class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
                 ),
               ),
               const SizedBox(width: 6),
-              Icon(
-                PhosphorIcons.caretDown(),
-                size: 16,
-                color: AppColors.tripAccentPurple,
-              ),
+              if (_moreLoading)
+                const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else
+                Icon(
+                  PhosphorIcons.caretDown(),
+                  size: 16,
+                  color: AppColors.tripAccentPurple,
+                ),
             ],
           ),
         ),
