@@ -67,12 +67,18 @@ class SelectedPlace {
   final double longitude;
   final int day;
 
+  /// 장소 분류. 고른 장소로 동선만 다시 만들 때, 서버는 이 장소를 새로
+  /// 찾아보지 않아 분류를 알 방법이 없다. 처음 받았던 값을 그대로 실어
+  /// 보내야 결과 화면의 분류 칩이 남는다. 모르면 싣지 않는다.
+  final String? category;
+
   const SelectedPlace({
     required this.name,
     required this.address,
     required this.latitude,
     required this.longitude,
     required this.day,
+    this.category,
   });
 
   Map<String, dynamic> toJson() => {
@@ -81,6 +87,7 @@ class SelectedPlace {
         'lat': latitude,
         'lng': longitude,
         'day': day,
+        if (category != null && category!.isNotEmpty) 'category': category,
       };
 }
 
