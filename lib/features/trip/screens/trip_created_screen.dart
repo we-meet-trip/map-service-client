@@ -1086,8 +1086,10 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
                   child: ElevatedButton(
                     onPressed: () {
                       Navigator.of(ctx).pop();
+                      // 목록이 아니라 일정 선택으로 보낸다. 목록으로 보내면
+                      // 방을 만드는 화면을 사용자가 다시 찾아 들어가야 한다.
                       WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (context.mounted) context.go('/chat');
+                        if (context.mounted) context.go('/chat/new');
                       });
                     },
                     style: ElevatedButton.styleFrom(
