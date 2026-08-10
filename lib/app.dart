@@ -7,7 +7,9 @@ import 'core/services/deep_link_service.dart';
 import 'data/repositories/chat_repository.dart';
 import 'data/repositories/invite_link_repository.dart';
 import 'data/repositories/invite_repository.dart';
-import 'data/repositories/mock_chat_repository.dart';
+import 'data/repositories/api_chat_repository.dart';
+import 'data/repositories/api_invite_link_repository.dart';
+import 'data/repositories/api_invite_repository.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/chat/providers/chat_room_list_provider.dart';
 import 'features/invite/providers/invite_provider.dart';
@@ -22,9 +24,9 @@ class App extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        Provider<ChatRepository>(create: (_) => MockChatRepository()),
-        Provider<InviteLinkRepository>(create: (_) => MockInviteLinkRepository()),
-        Provider<InviteRepository>(create: (_) => MockInviteRepository()),
+        Provider<ChatRepository>(create: (_) => ApiChatRepository()),
+        Provider<InviteLinkRepository>(create: (_) => ApiInviteLinkRepository()),
+        Provider<InviteRepository>(create: (_) => ApiInviteRepository()),
         Provider<PlaceExploreRepository>(
           create: (_) => TripPlanPlaceExploreRepository(),
         ),

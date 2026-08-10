@@ -29,7 +29,7 @@ class _TripSelectionForChatScreenState
     setState(() => _loading = true);
     try {
       final repo = context.read<ChatRepository>();
-      final room = await repo.createChatRoomForTrip(trip.id, trip.name);
+      final room = await repo.createChatRoomForSchedule(trip.scheduleId!);
       TripRepository.instance.setChatRoomId(trip.id, room.id);
       if (!mounted) return;
       context.read<ChatRoomListProvider>().loadRooms();

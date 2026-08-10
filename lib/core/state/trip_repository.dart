@@ -38,7 +38,7 @@ class TripRepository {
     lastPlan = context;
   }
 
-  void setChatRoomId(String tripId, String roomId) {
+  void setChatRoomId(String tripId, int roomId) {
     plannedTrips.value = plannedTrips.value
         .map((t) => t.id == tripId ? t.copyWith(chatRoomId: roomId) : t)
         .toList();
@@ -80,7 +80,7 @@ class SavedTrip {
   final DateTime tripEndDate;
   final List<TripStop> stops;
   final int totalDurationMinutes;
-  final String? chatRoomId;
+  final int? chatRoomId;
 
   /// 추천 당시 반영하지 못한 조건 안내. 생성 화면과 같은 안내를 재열람에서도
   /// 보여준다. 없으면 빈 목록.
@@ -101,7 +101,7 @@ class SavedTrip {
 
   String get id => scheduleId?.toString() ?? '';
 
-  SavedTrip copyWith({String? chatRoomId}) => SavedTrip(
+  SavedTrip copyWith({int? chatRoomId}) => SavedTrip(
         scheduleId: scheduleId,
         name: name,
         route: route,

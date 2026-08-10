@@ -28,7 +28,7 @@ class ChatRoomListProvider extends ChangeNotifier {
         if (a.type != b.type) {
           return a.type == ChatRoomType.upcoming ? -1 : 1;
         }
-        return b.lastMessageAt.compareTo(a.lastMessageAt);
+        return b.sortedAt.compareTo(a.sortedAt);
       });
   }
 

@@ -18,6 +18,7 @@ import '../../features/trip/screens/search_step1_screen.dart';
 import '../../features/saved/screens/saved_screen.dart';
 import '../../features/chat/providers/chat_room_detail_provider.dart';
 import '../../features/chat/screens/chat_room_detail_screen.dart';
+import '../../features/chat/screens/chat_room_missing_screen.dart';
 import '../state/trip_repository.dart';
 import '../../features/chat/screens/chat_screen.dart';
 import '../../features/mypage/screens/mypage_screen.dart';
@@ -245,14 +246,21 @@ final appRouter = GoRouter(
                 GoRoute(
                   path: ':id',
                   builder: (context, state) {
-                    final room = state.extra! as ChatRoom;
+                    // 목록에서 들어오면 방을 들고 오지만, 링크로 곧장 들어오거나
+                    // 브라우저에서 새로 고치면 들고 올 것이 없다. 그때 값이 있다고
+                    // 단정하면 화면이 뜨기도 전에 죽는다.
+                    final room = state.extra as ChatRoom?;
+                    final roomId = room?.id ?? int.tryParse(state.pathParameters['id'] ?? '');
+                    if (roomId == null) {
+                      return const ChatRoomMissingScreen();
+                    }
                     return ChangeNotifierProvider(
                       create: (ctx) => ChatRoomDetailProvider(
                         ctx.read<ChatRepository>(),
                         ctx.read<InviteLinkRepository>(),
-                        room.id,
+                        roomId,
                       ),
-                      child: ChatRoomDetailScreen(room: room),
+                      child: ChatRoomDetailScreen(room: room, roomId: roomId),
                     );
                   },
                 ),
