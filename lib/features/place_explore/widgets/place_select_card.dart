@@ -64,21 +64,23 @@ class PlaceSelectCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryScale[0],
-                      borderRadius: BorderRadius.circular(100),
-                    ),
-                    child: Text(
-                      detail.category,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.primaryScale[400],
+                  if (detail.category != null && detail.category!.isNotEmpty)
+                    Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryScale[0],
+                        borderRadius: BorderRadius.circular(100),
+                      ),
+                      child: Text(
+                        detail.category!,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primaryScale[400],
+                        ),
                       ),
                     ),
-                  ),
                 ],
               ),
             ),

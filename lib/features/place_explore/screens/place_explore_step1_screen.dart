@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -16,6 +17,12 @@ const _kInitialCamera = NCameraPosition(
   target: NLatLng(37.5666, 126.9784),
   zoom: 12.0,
 );
+
+/// 안내 글이 덮는 위쪽 높이. 단계 표시·제목·설명과 위아래 여백을 더한 값이다.
+const _headerInset = 190.0;
+
+/// 버튼이 덮는 아래쪽 높이. 다음·이전 버튼과 그 사이 여백을 더한 값이다.
+const _buttonsInset = 190.0;
 
 class PlaceExploreStep1Screen extends StatefulWidget {
   final VoidCallback onNext;
@@ -48,7 +55,65 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
     final provider = context.read<PlaceExploreProvider>();
     if (_mapController == null || provider.places.isEmpty || _markersInitialized) return;
     _markersInitialized = true;
-    await _initMarkers(_mapController!, provider.places);
+    final controller = _mapController!;
+    await _initMarkers(controller, provider.places);
+    if (!mounted) return;
+    await _fitCamera(controller, provider.places);
+  }
+
+  /// 장소가 모두 들어오도록 지도를 옮긴다.
+  ///
+  /// 처음 보는 좌표는 고정값이라 다른 지역 일정이면 마커가 화면 밖에 남는다.
+  Future<void> _fitCamera(
+      NaverMapController controller, List<Place> places) async {
+    if (places.isEmpty) return;
+
+    var minLat = places.first.latitude;
+    var maxLat = places.first.latitude;
+    var minLng = places.first.longitude;
+    var maxLng = places.first.longitude;
+    for (final place in places) {
+      if (place.latitude < minLat) minLat = place.latitude;
+      if (place.latitude > maxLat) maxLat = place.latitude;
+      if (place.longitude < minLng) minLng = place.longitude;
+      if (place.longitude > maxLng) maxLng = place.longitude;
+    }
+
+    // 한 곳뿐이거나 같은 자리에 겹쳐 있으면 범위의 넓이가 0이 된다. 그때는
+    // 범위 대신 가운데를 잡아 고정 배율로 옮긴다.
+    const minSpan = 1e-6;
+    if (maxLat - minLat < minSpan && maxLng - minLng < minSpan) {
+      await controller.updateCamera(
+        NCameraUpdate.scrollAndZoomTo(
+          target: NLatLng(minLat, minLng),
+          zoom: 14,
+        ),
+      );
+      return;
+    }
+
+    await controller.updateCamera(
+      NCameraUpdate.fitBounds(
+        NLatLngBounds(
+          southWest: NLatLng(minLat, minLng),
+          northEast: NLatLng(maxLat, maxLng),
+        ),
+        padding: _mapInset(),
+      ),
+    );
+  }
+
+  /// 지도에서 가려지는 가장자리.
+  ///
+  /// 위아래 끝은 안내 글과 버튼이 덮고 있어, 그만큼 비워 두지 않으면 가장
+  /// 바깥쪽 장소가 그 뒤로 들어간다. 창이 짧을 때 여백이 화면을 다 먹지
+  /// 않도록 높이의 일부까지만 준다.
+  EdgeInsets _mapInset() {
+    final media = MediaQuery.of(context);
+    final limit = media.size.height * 0.25;
+    final top = math.min(media.padding.top + _headerInset, limit);
+    final bottom = math.min(media.padding.bottom + _buttonsInset, limit);
+    return EdgeInsets.fromLTRB(60, top, 60, bottom);
   }
 
   Future<void> _initMarkers(NaverMapController controller, List<Place> places) async {
@@ -148,6 +213,14 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
             ),
           ),
         ),
+        if (provider.status == PlaceExploreStatus.error)
+          Positioned(
+            left: 24,
+            right: 24,
+            top: 0,
+            bottom: 0,
+            child: Center(child: _buildEmptyPlanNotice()),
+          ),
         if (selectedIds.isNotEmpty)
           Positioned(
             left: 14,
@@ -215,6 +288,37 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
             child: PrevButton(onPressed: widget.onPrev),
           ),
         ],
+      ),
+    );
+  }
+
+  /// 고를 장소가 없을 때의 안내.
+  ///
+  /// 탐색은 방금 만든 일정의 장소를 다시 고르는 자리라, 일정 없이 들어오면
+  /// 지도에 아무것도 찍히지 않는다. 빈 지도만 보이면 고장으로 읽히므로
+  /// 무엇이 없는지 알려 준다.
+  Widget _buildEmptyPlanNotice() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.neutralScale[600]!.withAlpha(0x1A),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Text(
+        '생성된 일정이 없어요.\n일정을 먼저 만들어주세요.',
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+          color: AppColors.neutralScale[600],
+        ),
       ),
     );
   }

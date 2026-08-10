@@ -12,7 +12,7 @@ import 'features/auth/providers/auth_provider.dart';
 import 'features/chat/providers/chat_room_list_provider.dart';
 import 'features/invite/providers/invite_provider.dart';
 import 'features/place_explore/data/place_explore_repository.dart';
-import 'features/place_explore/data/mock_place_explore_repository.dart';
+import 'features/place_explore/data/trip_plan_place_explore_repository.dart';
 import 'features/place_explore/providers/place_explore_provider.dart';
 
 class App extends StatelessWidget {
@@ -26,7 +26,7 @@ class App extends StatelessWidget {
         Provider<InviteLinkRepository>(create: (_) => MockInviteLinkRepository()),
         Provider<InviteRepository>(create: (_) => MockInviteRepository()),
         Provider<PlaceExploreRepository>(
-          create: (_) => MockPlaceExploreRepository(),
+          create: (_) => TripPlanPlaceExploreRepository(),
         ),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(
