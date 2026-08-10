@@ -4,13 +4,12 @@ import 'package:provider/provider.dart';
 import 'common/theme/app_colors.dart';
 import 'core/router/app_router.dart';
 import 'core/services/deep_link_service.dart';
-import 'data/repositories/chat_repository.dart';
-import 'data/repositories/invite_link_repository.dart';
-import 'data/repositories/invite_repository.dart';
 import 'data/repositories/api_chat_repository.dart';
 import 'data/repositories/api_invite_link_repository.dart';
 import 'data/repositories/api_invite_repository.dart';
-import 'features/auth/providers/auth_provider.dart';
+import 'data/repositories/chat_repository.dart';
+import 'data/repositories/invite_link_repository.dart';
+import 'data/repositories/invite_repository.dart';
 import 'features/chat/providers/chat_room_list_provider.dart';
 import 'features/invite/providers/invite_provider.dart';
 import 'features/place_explore/data/place_explore_repository.dart';
@@ -30,7 +29,6 @@ class App extends StatelessWidget {
         Provider<PlaceExploreRepository>(
           create: (_) => TripPlanPlaceExploreRepository(),
         ),
-        ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(
           create: (ctx) => ChatRoomListProvider(ctx.read<ChatRepository>()),
         ),
@@ -55,7 +53,9 @@ class _AppRoot extends StatefulWidget {
 }
 
 class _AppRootState extends State<_AppRoot> {
-  AuthProvider? _authProvider;
+  // 대기 중인 초대 토큰으로 되돌아가는 일은 로그인이 끝나는 화면들이 맡는다
+  // (postLoginRoute). 여기서 로그인 상태 변화를 듣고 이동시키던 때는, 그 이동이
+  // 로그인 화면이 뒤이어 하는 이동에 곧바로 덮여 초대가 조용히 끊겼다.
 
   @override
   void initState() {
@@ -63,28 +63,7 @@ class _AppRootState extends State<_AppRoot> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       DeepLinkService.init(appRouter);
-      _authProvider = context.read<AuthProvider>();
-      _authProvider!.addListener(_onAuthChanged);
     });
-  }
-
-  @override
-  void dispose() {
-    _authProvider?.removeListener(_onAuthChanged);
-    super.dispose();
-  }
-
-  void _onAuthChanged() {
-    if (!mounted) return;
-    final auth = context.read<AuthProvider>();
-    if (!auth.isLoggedIn) return;
-
-    final inviteProvider = context.read<InviteProvider>();
-    final token = inviteProvider.pendingToken;
-    if (token != null) {
-      inviteProvider.pendingToken = null;
-      appRouter.go('/invite/$token');
-    }
   }
 
   @override
