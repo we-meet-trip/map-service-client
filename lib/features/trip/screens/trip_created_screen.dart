@@ -711,6 +711,8 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
                     name: stop.name,
                     address: stop.address,
                     category: stop.category,
+                    latitude: stop.latLng.latitude,
+                    longitude: stop.latLng.longitude,
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
