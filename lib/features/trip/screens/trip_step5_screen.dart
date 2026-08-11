@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../core/naver_map/naver_map_adapter.dart';
+import '../../../core/naver_map/naver_map_bootstrap.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../common/theme/app_icons.dart';
 import '../widgets/trip_step_header.dart';
@@ -452,18 +453,26 @@ class _TripStep5ScreenState extends State<TripStep5Screen> {
       clipBehavior: Clip.hardEdge,
       child: Stack(
         children: [
-            NaverMap(
-            options: const NaverMapViewOptions(
-              initialCameraPosition: _kKoreaOverview,
-              scrollGesturesEnable: true,
-              zoomGesturesEnable: true,
-              rotationGesturesEnable: false,
-              mapType: NMapType.basic,
+          // 지도 식별자가 다음 것으로 바뀌면 지도를 다시 만든다. 인증 판정은
+          // 지도를 그릴 때 오는데, 그때 이미 만들어진 지도는 처음 식별자로
+          // 인증을 끝낸 뒤라 스스로 다시 묻지 않는다 — 다시 만들지 않으면 첫
+          // 진입 화면만 계속 비어 있고 나갔다 들어와야 나온다.
+          ValueListenableBuilder<int>(
+            valueListenable: naverMapAuthGeneration,
+            builder: (context, generation, _) => NaverMap(
+              key: ValueKey('step5-map-$generation'),
+              options: const NaverMapViewOptions(
+                initialCameraPosition: _kKoreaOverview,
+                scrollGesturesEnable: true,
+                zoomGesturesEnable: true,
+                rotationGesturesEnable: false,
+                mapType: NMapType.basic,
+              ),
+              onMapReady: (controller) {
+                _mapController = controller;
+                _updateOverlays();
+              },
             ),
-            onMapReady: (controller) {
-              _mapController = controller;
-              _updateOverlays();
-            },
           ),
           // ── 글라스 +/- 버튼 ──
           Positioned(

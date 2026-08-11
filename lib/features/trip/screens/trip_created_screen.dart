@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../core/naver_map/naver_map_adapter.dart';
+import '../../../core/naver_map/naver_map_bootstrap.dart';
 import 'package:go_router/go_router.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../common/theme/app_icons.dart';
@@ -302,23 +304,31 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
   // (Stack의 두 번째 자식 DraggableVisionButton은 build()에서 추가됨)
 
   Widget _buildMapArea() {
+    // 지도 식별자가 다음 것으로 바뀌면 지도를 다시 만든다. 인증 판정은 지도를
+    // 그릴 때 오는데, 그때 이미 만들어진 지도는 처음 식별자로 인증을 끝낸
+    // 뒤라 스스로 다시 묻지 않는다 — 다시 만들지 않으면 첫 진입 화면만 계속
+    // 비어 있고 나갔다 들어와야 나온다.
     return SizedBox(
       width: double.infinity,
       height: 280,
-      child: NaverMap(
-        options: NaverMapViewOptions(
-          initialCameraPosition: NCameraPosition(
-            target: _selectedDayStops.isNotEmpty
-                ? _selectedDayStops.first.latLng
-                : _stops.first.latLng,
-            zoom: 14,
+      child: ValueListenableBuilder<int>(
+        valueListenable: naverMapAuthGeneration,
+        builder: (context, generation, _) => NaverMap(
+          key: ValueKey('created-map-$generation'),
+          options: NaverMapViewOptions(
+            initialCameraPosition: NCameraPosition(
+              target: _selectedDayStops.isNotEmpty
+                  ? _selectedDayStops.first.latLng
+                  : _stops.first.latLng,
+              zoom: 14,
+            ),
+            scrollGesturesEnable: true,
+            zoomGesturesEnable: true,
+            rotationGesturesEnable: false,
+            mapType: NMapType.basic,
           ),
-          scrollGesturesEnable: true,
-          zoomGesturesEnable: true,
-          rotationGesturesEnable: false,
-          mapType: NMapType.basic,
+          onMapReady: _onMapReady,
         ),
-        onMapReady: _onMapReady,
       ),
     );
   }
@@ -363,25 +373,56 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
     await _renderDayOverlays(controller);
   }
 
+  // 한 번에 한 벌만 그린다. 일차를 바꿀 때와 지도가 준비될 때 각각 들어오는데,
+  // 지도를 다시 만들면 그 둘이 겹친다. 마커 아이콘은 위젯을 그림 파일로 구워
+  // 만들고 그 굽는 자리가 앱 전체에 하나뿐이라, 겹쳐 돌면 서로의 파일을 지우고
+  // 그 그림을 지도에 얹으려다 iOS 에서 앱이 죽는다.
+  int _renderPass = 0;
+  Future<void>? _renderInFlight;
+
   Future<void> _renderDayOverlays(NaverMapController controller) async {
+    // 번호를 먼저 올린다. 앞서 돌던 그리기가 이 값을 보고 다음 대기 지점에서
+    // 스스로 물러난다.
+    final pass = ++_renderPass;
+    final previous = _renderInFlight;
+    final done = Completer<void>();
+    _renderInFlight = done.future;
+    try {
+      if (previous != null) await previous;
+      await _renderDayOverlaysPass(controller, pass);
+    } finally {
+      done.complete();
+      if (identical(_renderInFlight, done.future)) _renderInFlight = null;
+    }
+  }
+
+  Future<void> _renderDayOverlaysPass(
+      NaverMapController controller, int pass) async {
     final stops = _selectedDayStops;
-    if (stops.isEmpty) return;
+    if (stops.isEmpty || !mounted) return;
+    // 지도가 바뀌었는지도 함께 본다. 번호만으로는 같은 순번에서 지도가 갈린
+    // 경우를 못 가른다.
+    bool stale() =>
+        !mounted || pass != _renderPass || _mapController != controller;
 
     await controller.clearOverlays();
+    if (stale()) return;
 
     // 번호 마커 추가
     for (int i = 0; i < stops.length; i++) {
-      if (!mounted) return;
+      if (!mounted || stale()) return;
       final icon = await NOverlayImage.fromWidget(
         widget: _buildNumberMarker('${i + 1}'),
         size: const Size(36, 36),
         context: context,
       );
+      if (stale()) return;
       await controller.addOverlay(NMarker(
         id: 'stop_$i',
         position: stops[i].latLng,
         icon: icon,
       ));
+      if (stale()) return;
     }
 
     // 경로 폴리라인 추가 — 구간마다 도로 추종 path 가 있으면 그 좌표를,
@@ -417,6 +458,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
         outlineColor: Colors.white,
         outlineWidth: 2,
       ));
+      if (stale()) return;
     }
 
     // 경로 전체(마커+도로 굴곡 포함)가 보이도록 fitBounds. 경로가 없으면 stop 기준.

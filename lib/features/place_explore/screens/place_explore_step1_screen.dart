@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
@@ -7,6 +8,7 @@ import '../../../common/widgets/next_button.dart';
 import '../../../common/widgets/prev_button.dart';
 import '../../../core/naver_map/map_pointer.dart';
 import '../../../core/naver_map/naver_map_adapter.dart';
+import '../../../core/naver_map/naver_map_bootstrap.dart';
 import '../models/place.dart';
 import '../providers/place_explore_provider.dart';
 import '../widgets/place_pin.dart';
@@ -52,14 +54,36 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
     });
   }
 
+  // 한 번에 한 벌만 그린다. 지도를 다시 만들면 앞서 그리던 것이 아직 돌고 있을
+  // 수 있는데, 마커 아이콘은 위젯을 그림 파일로 구워 만들고 그 굽는 자리가 앱
+  // 전체에 하나뿐이라 겹쳐 돌면 서로의 파일을 지운다. 그 그림을 지도에 얹으려다
+  // iOS 에서 앱이 죽는다.
+  int _renderPass = 0;
+  Future<void>? _renderInFlight;
+
   Future<void> _tryInitMarkers() async {
     final provider = context.read<PlaceExploreProvider>();
     if (_mapController == null || provider.places.isEmpty || _markersInitialized) return;
     _markersInitialized = true;
     final controller = _mapController!;
-    await _initMarkers(controller, provider.places);
-    if (!mounted) return;
-    await _fitCamera(controller, provider.places);
+    final places = provider.places;
+
+    // 번호를 먼저 올린다. 앞서 돌던 그리기가 이 값을 보고 다음 대기 지점에서
+    // 스스로 물러난다.
+    final pass = ++_renderPass;
+    final previous = _renderInFlight;
+    final done = Completer<void>();
+    _renderInFlight = done.future;
+    try {
+      if (previous != null) await previous;
+      if (!mounted || pass != _renderPass || _mapController != controller) return;
+      await _initMarkers(controller, places, pass);
+      if (!mounted || pass != _renderPass || _mapController != controller) return;
+      await _fitCamera(controller, places);
+    } finally {
+      done.complete();
+      if (identical(_renderInFlight, done.future)) _renderInFlight = null;
+    }
   }
 
   /// 장소가 모두 들어오도록 지도를 옮긴다.
@@ -117,15 +141,22 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
     return EdgeInsets.fromLTRB(60, top, 60, bottom);
   }
 
-  Future<void> _initMarkers(NaverMapController controller, List<Place> places) async {
+  Future<void> _initMarkers(
+      NaverMapController controller, List<Place> places, int pass) async {
+    // 지도가 바뀌었는지도 함께 본다. 번호만으로는 같은 순번에서 지도가 갈린
+    // 경우를 못 가른다.
+    bool stale() =>
+        !mounted || pass != _renderPass || _mapController != controller;
+
     for (int i = 0; i < places.length; i++) {
-      if (!mounted) return;
+      if (!mounted || stale()) return;
       final place = places[i];
       final icon = await NOverlayImage.fromWidget(
         widget: PlacePin(number: i + 1),
         size: const Size(32, 40),
         context: context,
       );
+      if (stale()) return;
       final marker = NMarker(
         id: place.id,
         position: NLatLng(place.latitude, place.longitude),
@@ -135,6 +166,7 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
         if (mounted) _showPlaceSheet(place);
       });
       await controller.addOverlay(marker);
+      if (stale()) return;
     }
   }
 
@@ -179,19 +211,32 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
 
     return Stack(
       children: [
+        // 지도 식별자가 다음 것으로 바뀌면 지도를 다시 만든다. 인증 판정은
+        // 지도를 그릴 때 오는데, 그때 이미 만들어진 지도는 처음 식별자로
+        // 인증을 끝낸 뒤라 스스로 다시 묻지 않는다 — 다시 만들지 않으면 첫
+        // 진입 화면만 계속 비어 있고 나갔다 들어와야 나온다.
         Positioned.fill(
-          child: NaverMap(
-            options: const NaverMapViewOptions(
-              initialCameraPosition: _kInitialCamera,
-              scrollGesturesEnable: true,
-              zoomGesturesEnable: true,
-              rotationGesturesEnable: false,
-              mapType: NMapType.basic,
+          child: ValueListenableBuilder<int>(
+            valueListenable: naverMapAuthGeneration,
+            builder: (context, generation, _) => NaverMap(
+              key: ValueKey('explore-map-$generation'),
+              options: const NaverMapViewOptions(
+                initialCameraPosition: _kInitialCamera,
+                scrollGesturesEnable: true,
+                zoomGesturesEnable: true,
+                rotationGesturesEnable: false,
+                mapType: NMapType.basic,
+              ),
+              onMapReady: (controller) {
+                // 새로 만든 지도에는 마커가 없다. 그렸다는 표시를 지워 다시
+                // 그리게 한다.
+                if (!identical(_mapController, controller)) {
+                  _markersInitialized = false;
+                }
+                _mapController = controller;
+                _tryInitMarkers();
+              },
             ),
-            onMapReady: (controller) {
-              _mapController = controller;
-              _tryInitMarkers();
-            },
           ),
         ),
         Positioned(

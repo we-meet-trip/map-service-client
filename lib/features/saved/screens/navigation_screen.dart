@@ -12,6 +12,7 @@ import '../../../common/theme/app_icons.dart';
 import '../../../core/api/schedule_api_service.dart';
 import '../../../core/api/trip_api_service.dart';
 import '../../../core/naver_map/naver_map_adapter.dart';
+import '../../../core/naver_map/naver_map_bootstrap.dart';
 import '../../../core/state/trip_repository.dart';
 import '../../trip/widgets/transport_theme.dart';
 
@@ -457,19 +458,27 @@ class _NavigationScreenState extends State<NavigationScreen>
   // ──────────────────────────────────────────────────────────── 지도 ──────
 
   Widget _buildMap() {
-    return NaverMap(
-      options: NaverMapViewOptions(
-        initialCameraPosition: NCameraPosition(
-          target: _stops.first.latLng,
-          zoom: 14,
+    // 지도 식별자가 다음 것으로 바뀌면 지도를 다시 만든다. 인증 판정은 지도를
+    // 그릴 때 오는데, 그때 이미 만들어진 지도는 처음 식별자로 인증을 끝낸
+    // 뒤라 스스로 다시 묻지 않는다 — 다시 만들지 않으면 첫 진입 화면만 계속
+    // 비어 있고 나갔다 들어와야 나온다.
+    return ValueListenableBuilder<int>(
+      valueListenable: naverMapAuthGeneration,
+      builder: (context, generation, _) => NaverMap(
+        key: ValueKey('nav-map-$generation'),
+        options: NaverMapViewOptions(
+          initialCameraPosition: NCameraPosition(
+            target: _stops.first.latLng,
+            zoom: 14,
+          ),
+          scrollGesturesEnable: true,
+          zoomGesturesEnable: true,
+          rotationGesturesEnable: true, // 회전 허용 (나침반과 연동)
+          mapType: NMapType.basic,
         ),
-        scrollGesturesEnable: true,
-        zoomGesturesEnable: true,
-        rotationGesturesEnable: true, // 회전 허용 (나침반과 연동)
-        mapType: NMapType.basic,
+        onMapReady: _onMapReady,
+        onCameraChange: _onCameraChange,
       ),
-      onMapReady: _onMapReady,
-      onCameraChange: _onCameraChange,
     );
   }
 
@@ -495,27 +504,57 @@ class _NavigationScreenState extends State<NavigationScreen>
   /// 전 일차를 한 줄로 이으면 하루의 마지막 방문지에서 다음 날 첫 방문지까지가
   /// 하나의 이동 구간처럼 보인다. 그 둘 사이에는 잠자리와 하룻밤이 있어서
   /// 길 안내로 이을 구간이 아니다. 그래서 일차마다 따로 그린다.
+  // 한 번에 한 벌만 그린다. 안내 시작·일차 변경·지도 준비 세 갈래로 들어오는
+  // 데다 지도를 다시 만들면 그것들이 겹친다. 마커 아이콘은 위젯을 그림 파일로
+  // 구워 만들고 그 굽는 자리가 앱 전체에 하나뿐이라, 겹쳐 돌면 서로의 파일을
+  // 지우고 그 그림을 지도에 얹으려다 iOS 에서 앱이 죽는다.
+  int _renderPass = 0;
+  Future<void>? _renderInFlight;
+
   Future<void> _renderDay(NaverMapController controller) async {
+    // 번호를 먼저 올린다. 앞서 돌던 그리기가 이 값을 보고 다음 대기 지점에서
+    // 스스로 물러난다.
+    final pass = ++_renderPass;
+    final previous = _renderInFlight;
+    final done = Completer<void>();
+    _renderInFlight = done.future;
+    try {
+      if (previous != null) await previous;
+      await _renderDayPass(controller, pass);
+    } finally {
+      done.complete();
+      if (identical(_renderInFlight, done.future)) _renderInFlight = null;
+    }
+  }
+
+  Future<void> _renderDayPass(NaverMapController controller, int pass) async {
     final dayStops = _stops;
-    if (dayStops.isEmpty) return;
+    if (dayStops.isEmpty || !mounted) return;
+    // 지도가 바뀌었는지도 함께 본다. 번호만으로는 같은 순번에서 지도가 갈린
+    // 경우를 못 가른다.
+    bool stale() =>
+        !mounted || pass != _renderPass || _mapController != controller;
 
     // 이 화면이 얹는 것은 마커와 경로뿐이라 통째로 지운다. 내 위치 표시는
     // 오버레이 목록이 아니라 컨트롤러가 따로 들고 있어 여기서 지워지지 않는다.
     await controller.clearOverlays();
+    if (stale()) return;
 
     // 번호 마커 — 번호는 그날 안에서 다시 1부터 센다.
     for (int i = 0; i < dayStops.length; i++) {
-      if (!mounted) return;
+      if (!mounted || stale()) return;
       final icon = await NOverlayImage.fromWidget(
         widget: _buildMarkerWidget('${i + 1}'),
         size: const Size(36, 36),
         context: context,
       );
+      if (stale()) return;
       await controller.addOverlay(NMarker(
         id: 'nav_stop_${_selectedDay}_$i',
         position: dayStops[i].latLng,
         icon: icon,
       ));
+      if (stale()) return;
     }
 
     // 경로 폴리라인 — 구간마다 도로 좌표가 있으면 그것을, 없으면 두 방문지를
@@ -549,6 +588,7 @@ class _NavigationScreenState extends State<NavigationScreen>
         outlineColor: Colors.white,
         outlineWidth: 2,
       ));
+      if (stale()) return;
     }
 
     // 경로 전체가 보이도록 fitBounds (하단 시트 공간 확보)
@@ -570,6 +610,7 @@ class _NavigationScreenState extends State<NavigationScreen>
           duration: const Duration(milliseconds: 900),
         ),
     );
+    if (stale()) return;
 
     // ── NLocationOverlay(파란 점) 숨김
     controller.getLocationOverlay().setIsVisible(false);
@@ -579,6 +620,7 @@ class _NavigationScreenState extends State<NavigationScreen>
         ? NLatLng(_lastPosition!.latitude, _lastPosition!.longitude)
         : _stops.first.latLng;
 
+    if (!mounted || stale()) return;
     final fovIcon = await NOverlayImage.fromWidget(
       widget: const SizedBox(
         width: 80,
@@ -588,6 +630,7 @@ class _NavigationScreenState extends State<NavigationScreen>
       size: _kFovConeSize,
       context: context,
     );
+    if (!mounted || stale()) return;
 
     final ringIcon = await NOverlayImage.fromWidget(
       widget: const SizedBox(
@@ -598,6 +641,7 @@ class _NavigationScreenState extends State<NavigationScreen>
       size: _kRingSize,
       context: context,
     );
+    if (!mounted || stale()) return;
     final triangleIcon = await NOverlayImage.fromWidget(
       widget: const SizedBox(
         width: 22,
@@ -607,6 +651,7 @@ class _NavigationScreenState extends State<NavigationScreen>
       size: _kTriangleSize,
       context: context,
     );
+    if (stale()) return;
 
     _fovMarker = NMarker(
       id: 'user_fov',
@@ -634,8 +679,11 @@ class _NavigationScreenState extends State<NavigationScreen>
     );
 
     await controller.addOverlay(_fovMarker!);
+    if (stale()) return;
     await controller.addOverlay(_ringMarker!);
+    if (stale()) return;
     await controller.addOverlay(_triangleMarker!);
+    if (stale()) return;
 
     if (_lastPosition == null) {
       _fovMarker!.setIsVisible(false);

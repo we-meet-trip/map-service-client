@@ -20,19 +20,30 @@ const String kNaverAuthParam = 'ncpKeyId';
 final ValueNotifier<bool> naverLoadFailed = ValueNotifier<bool>(false);
 
 final Completer<void> _ready = Completer<void>();
-bool _requested = false;
+
+/// Client ids already injected. A second attempt only makes sense with a key we
+/// have not tried yet — re-injecting the same one cannot change the outcome.
+final Set<String> _attempted = <String>{};
 
 /// Completes once the Naver Maps script has loaded (before auth is verified).
 Future<void> get naverReady => _ready.future;
 
-/// Injects the Naver Maps JS v3 script exactly once and wires the global
-/// auth-failure hook. Safe to call more than once.
+/// Injects the Naver Maps JS v3 script and wires the global auth-failure hook.
+///
+/// Calling this again with a *different* client id re-injects the script, which
+/// is how the caller retries after an auth failure: the failure verdict only
+/// arrives at runtime, so the second key cannot be chosen up front. Repeating a
+/// client id already tried is a no-op.
 Future<void> loadNaverMaps({
   required String clientId,
   void Function(Object error)? onAuthFailed,
 }) {
-  if (_requested) return _ready.future;
-  _requested = true;
+  if (clientId.isEmpty || _attempted.contains(clientId)) return _ready.future;
+  _attempted.add(clientId);
+
+  // A retry starts from a clean slate: the previous attempt set this, and
+  // leaving it on would keep the fallback map showing even if this key works.
+  naverLoadFailed.value = false;
 
   // Naver invokes this global function on authentication failure. It must be
   // registered BEFORE the script executes.
