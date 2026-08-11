@@ -11,6 +11,7 @@ import '../../../common/widgets/app_loading_indicator.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/schedule_api_service.dart';
 import '../../../core/router/app_router.dart';
+import '../../../core/state/user_repository.dart';
 import '../../saved/utils/open_schedule.dart';
 import '../../trip/widgets/trip_card.dart';
 import '../models/weather_data.dart';
@@ -266,9 +267,12 @@ class _Greeting extends StatelessWidget {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
+          // right 를 두어 이름이 캐릭터 그림 자리를 넘지 않게 한다. 이름은 최대
+          // 50자까지 올 수 있어, 폭을 막지 않으면 긴 이름이 그림 위로 흘러간다.
           Positioned(
             left: 0,
             top: 0,
+            right: 108,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -280,26 +284,31 @@ class _Greeting extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text.rich(
-                  TextSpan(
-                    children: [
-                      TextSpan(
-                        text: '보라돌이동글이',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.neutralScale[600],
+                ValueListenableBuilder<UserProfile>(
+                  valueListenable: UserRepository.instance.profile,
+                  builder: (context, profile, _) => Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(
+                          text: profile.displayName,
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.neutralScale[600],
+                          ),
                         ),
-                      ),
-                      TextSpan(
-                        text: ' 님',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w400,
-                          color: AppColors.neutralScale[400],
+                        TextSpan(
+                          text: ' 님',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w400,
+                            color: AppColors.neutralScale[400],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
@@ -826,17 +835,28 @@ class _WeatherCard extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // 기온은 서버에 신선한 실황이 있을 때만 온다. 없으면 그
+                  // 자리를 비운다 — 새벽 기온을 지금 기온으로 보여 주지 않는다.
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.baseline,
                     textBaseline: TextBaseline.alphabetic,
                     children: [
-                      Text('${w.temp.round()}°C',
-                          style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w700)),
-                      const SizedBox(width: 10),
-                      Text(w.description,
-                          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w600)),
+                      if (w.temp != null) ...[
+                        Text('${w.temp!.round()}°C',
+                            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w700)),
+                        const SizedBox(width: 10),
+                      ],
+                      if (w.description.isNotEmpty)
+                        Text(w.description,
+                            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w600)),
                     ],
                   ),
+                  // 잰 지 한참 지난 값이면 몇 시 기준인지 밝힌다.
+                  if (w.observedLabel != null) ...[
+                    const SizedBox(height: 2),
+                    Text(w.observedLabel!,
+                        style: TextStyle(fontSize: 12, color: AppColors.neutralScale[300])),
+                  ],
                   // 어제 같은 시간대 기록이 있을 때만 비교 문구를 그린다.
                   if (w.yesterdayLabel != null) ...[
                     const SizedBox(height: 4),
@@ -849,23 +869,27 @@ class _WeatherCard extends StatelessWidget {
               Image.asset(w.iconAsset, width: 88, height: 88),
             ],
           ),
-          const SizedBox(height: 8),
-          // 추천 스타일
-          Text('추천 스타일',
-              style: TextStyle(fontSize: 13, color: AppColors.neutralScale[300])),
-          const SizedBox(height: 8),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            decoration: BoxDecoration(
-              color: AppColors.background,
-              borderRadius: BorderRadius.circular(14),
+          // 옷차림은 기온에서 나온다. 기온을 모르면 제안도 없다 — 아무
+          // 옷차림이나 내놓으면 사용자는 그것을 오늘 날씨에 맞춘 제안으로
+          // 읽는다.
+          if (w.clothing.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text('추천 스타일',
+                style: TextStyle(fontSize: 13, color: AppColors.neutralScale[300])),
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: w.clothing.map((c) => _ClothingItem(label: c)).toList(),
+              ),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: w.clothing.map((c) => _ClothingItem(label: c)).toList(),
-            ),
-          ),
+          ],
           const SizedBox(height: 20),
           // 날씨 세부 정보 — 두 컬럼 + 구분선
           IntrinsicHeight(
@@ -915,6 +939,12 @@ class _WeatherCard extends StatelessWidget {
                           ],
                         ],
                       ),
+                    if (w.airObservedLabel != null) ...[
+                      const SizedBox(height: 4),
+                      Text(w.airObservedLabel!,
+                          style: TextStyle(
+                              fontSize: 11, color: AppColors.neutralScale[300])),
+                    ],
                   ],
                 ),
               ],
