@@ -1,9 +1,4 @@
-import 'dart:async';
-import 'dart:convert';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:http/http.dart' as http;
-
-import '../config/app_config.dart';
+import 'api_client.dart';
 
 // ─── Request ──────────────────────────────────────────────────
 
@@ -341,8 +336,6 @@ class TripApiService {
   TripApiService._();
   static final TripApiService instance = TripApiService._();
 
-  static String get _baseUrl => kApiBaseUrl;
-
   // 여행 생성은 LLM 여러 번 호출로 수 초~2분 소요된다. 무한 대기를 막되,
   // 서버가 먼저 끊고 사유를 담은 응답을 줄 수 있도록 서버 대기 상한보다
   // 길게 잡는다(서버 150초). 이 값이 서버보다 짧으면 서버가 아직 살아 있는
@@ -366,48 +359,30 @@ class TripApiService {
     String path,
     Map<String, dynamic> body,
   ) async {
-    final uri = Uri.parse('$_baseUrl$path');
-    final http.Response response;
+    // 공통 통로로 보낸다. 직접 보내면 토큰이 실리지 않고 만료 갱신도 없어,
+    // 서버에서 인증을 켜는 순간 일정 생성과 동선 재생성이 함께 막힌다.
+    // 앱에서 가장 오래 걸리는 요청이라 기다리는 시간은 여기서 따로 준다.
     try {
-      response = await http
-          .post(
-            uri,
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode(body),
-          )
-          .timeout(_requestTimeout);
-    } on TimeoutException {
+      final parsed = await ApiClient.instance
+          .post(path, body: body, timeout: _requestTimeout);
+      return TripGenerateResponse.fromJson(parsed);
+    } on ApiException catch (e) {
+      // 공통 통로가 이미 오류 본문의 키를 순서대로 훑어 접어 준다. 여기서는
+      // 화면이 기다리는 예외 형태로만 바꾼다.
       throw TripApiException(
-        error: 'REQUEST_TIMEOUT',
-        message: '여행 생성이 지연되고 있어요. 잠시 후 다시 시도해주세요.',
-        statusCode: 408,
+        error: e.statusCode == 408 ? 'REQUEST_TIMEOUT' : e.code,
+        message: e.statusCode == 408
+            ? '여행 생성이 지연되고 있어요. 잠시 후 다시 시도해주세요.'
+            : e.message,
+        statusCode: e.statusCode,
       );
-    }
-
-    Map<String, dynamic> parsed;
-    try {
-      parsed = jsonDecode(response.body) as Map<String, dynamic>;
     } on FormatException {
       // 본문이 비었거나 JSON 이 아닌 응답(게이트웨이 오류 등).
       throw TripApiException(
         error: 'INVALID_RESPONSE',
         message: '서버 응답을 읽지 못했어요. 잠시 후 다시 시도해주세요.',
-        statusCode: response.statusCode,
+        statusCode: 502,
       );
     }
-
-    if (response.statusCode == 200) {
-      return TripGenerateResponse.fromJson(parsed);
-    }
-
-    throw TripApiException(
-      error: parsed['error'] as String? ??
-          parsed['code'] as String? ??
-          'UNKNOWN_ERROR',
-      message: parsed['message'] as String? ??
-          parsed['detail'] as String? ??
-          '알 수 없는 오류가 발생했습니다.',
-      statusCode: response.statusCode,
-    );
   }
 }

@@ -1,10 +1,7 @@
-import 'dart:convert';
-
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:http/http.dart' as http;
 
-import '../../../core/config/app_config.dart';
+import '../../../core/api/api_client.dart';
 import '../models/weather_data.dart';
 
 /// 홈 화면 날씨 카드의 데이터 공급자.
@@ -14,10 +11,6 @@ import '../models/weather_data.dart';
 /// 했는데, 그러려면 인증키를 앱에 넣어야 했고 같은 계산이 서버와 앱 양쪽에
 /// 중복으로 존재했다.
 class WeatherService {
-  /// 서버 주소는 시작할 때 정해진다. 상수로 잡아 두면 그 시점의 값이
-  /// 굳어져, 원격에서 받은 주소가 반영되지 않는다.
-  static String get _baseUrl => kApiBaseUrl;
-
   /// 화면을 오갈 때마다 다시 부르지 않도록 잠시 들고 있는다. 실황이 매시
   /// 갱신이라 이보다 자주 물어도 대체로 같은 값이 온다.
   static const _cacheDuration = Duration(minutes: 30);
@@ -52,20 +45,21 @@ class WeatherService {
     final position = useApproximateLocation
         ? (_fallbackLat, _fallbackLng)
         : await _resolvePosition();
-    final uri = Uri.parse('$_baseUrl/api/v1/weather/home').replace(
-      queryParameters: {
-        'lat': position.$1.toString(),
-        'lng': position.$2.toString(),
-      },
-    );
-
-    final response =
-        await http.get(uri).timeout(const Duration(seconds: 15));
-    if (response.statusCode != 200) {
+    // 공통 통로로 보낸다. 직접 보내면 토큰이 실리지 않아, 서버에서 인증을
+    // 켜는 순간 홈 화면 첫 진입의 날씨 카드가 곧바로 막힌다.
+    final Map<String, dynamic> body;
+    try {
+      body = await ApiClient.instance.get(
+        '/api/v1/weather/home',
+        query: {
+          'lat': position.$1.toString(),
+          'lng': position.$2.toString(),
+        },
+        timeout: const Duration(seconds: 15),
+      );
+    } on ApiException {
       throw Exception('날씨 정보를 가져오지 못했어요.');
     }
-    final body =
-        jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
     final data = WeatherData.fromJson(body);
 
     _cache = data;

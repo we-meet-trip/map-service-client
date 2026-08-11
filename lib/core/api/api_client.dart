@@ -39,6 +39,11 @@ class ApiClient {
   ApiClient._();
   static final ApiClient instance = ApiClient._();
 
+  /// 따로 정하지 않은 요청이 기다리는 시간.
+  ///
+  /// 화면을 곧바로 채우는 조회는 이보다 짧게 잡는다. 부가 정보 하나가
+  /// 이만큼 붙들면 사용자는 화면이 멈춘 것으로 본다 — 그런 요청은 호출하는
+  /// 쪽에서 [timeout] 으로 자기 사정에 맞는 시간을 준다.
   static const _timeout = Duration(seconds: 30);
 
   /// 만료 갱신을 시도하지 않는 경로. 이 경로들의 401 은 만료가 아니라
@@ -46,23 +51,27 @@ class ApiClient {
   static bool _isAuthPath(String path) => path.startsWith('/api/v1/auth/');
 
   Future<Map<String, dynamic>> get(String path,
-          {Map<String, String>? query}) =>
-      _send('GET', path, query: query);
+          {Map<String, String>? query, Duration? timeout}) =>
+      _send('GET', path, query: query, timeout: timeout);
 
-  Future<Map<String, dynamic>> post(String path, {Object? body}) =>
-      _send('POST', path, body: body);
+  Future<Map<String, dynamic>> post(String path,
+          {Object? body, Duration? timeout}) =>
+      _send('POST', path, body: body, timeout: timeout);
 
-  Future<Map<String, dynamic>> patch(String path, {Object? body}) =>
-      _send('PATCH', path, body: body);
+  Future<Map<String, dynamic>> patch(String path,
+          {Object? body, Duration? timeout}) =>
+      _send('PATCH', path, body: body, timeout: timeout);
 
-  Future<Map<String, dynamic>> delete(String path, {Object? body}) =>
-      _send('DELETE', path, body: body);
+  Future<Map<String, dynamic>> delete(String path,
+          {Object? body, Duration? timeout}) =>
+      _send('DELETE', path, body: body, timeout: timeout);
 
   Future<Map<String, dynamic>> _send(
     String method,
     String path, {
     Map<String, String>? query,
     Object? body,
+    Duration? timeout,
     bool retried = false,
   }) async {
     final uri = Uri.parse('$kApiBaseUrl$path').replace(
@@ -80,7 +89,7 @@ class ApiClient {
       if (body != null) {
         request.body = jsonEncode(body);
       }
-      final streamed = await request.send().timeout(_timeout);
+      final streamed = await request.send().timeout(timeout ?? _timeout);
       response = await http.Response.fromStream(streamed);
     } on TimeoutException {
       throw const ApiException(
@@ -94,7 +103,7 @@ class ApiClient {
       final refreshed = await AuthStore.instance.refresh();
       if (refreshed) {
         return _send(method, path,
-            query: query, body: body, retried: true);
+            query: query, body: body, timeout: timeout, retried: true);
       }
     }
 

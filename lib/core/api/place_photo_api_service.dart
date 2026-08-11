@@ -1,8 +1,4 @@
-import 'dart:convert';
-
-import 'package:http/http.dart' as http;
-
-import '../config/app_config.dart';
+import 'api_client.dart';
 
 /// 사진을 올린 사람 표기.
 ///
@@ -74,10 +70,6 @@ class PlacePhotoApiService {
 
   static final PlacePhotoApiService instance = PlacePhotoApiService._();
 
-  /// 서버 주소는 시작할 때 정해진다. 상수로 잡아 두면 그 시점의 값이
-  /// 굳어져, 원격에서 받은 주소가 반영되지 않는다.
-  static String get _baseUrl => kApiBaseUrl;
-
   static const _timeout = Duration(seconds: 15);
 
   /// 장소 사진을 받는다.
@@ -93,18 +85,16 @@ class PlacePhotoApiService {
     required double latitude,
     required double longitude,
   }) async {
-    final uri = Uri.parse('$_baseUrl/api/v1/places/photos').replace(
-      queryParameters: {
-        'query': query,
-        'lat': '$latitude',
-        'lng': '$longitude',
-      },
-    );
     try {
-      final response = await http.get(uri).timeout(_timeout);
-      if (response.statusCode != 200) return const [];
-      final body =
-          jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+      final body = await ApiClient.instance.get(
+        '/api/v1/places/photos',
+        query: {
+          'query': query,
+          'lat': '$latitude',
+          'lng': '$longitude',
+        },
+        timeout: _timeout,
+      );
       final raw = body['photos'];
       if (raw is! List) return const [];
       return raw
