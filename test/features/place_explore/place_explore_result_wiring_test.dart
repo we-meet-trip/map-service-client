@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:map_service_client/common/widgets/app_loading_screen.dart';
+import 'package:map_service_client/core/api/api_client.dart';
 import 'package:map_service_client/core/api/trip_api_service.dart';
 import 'package:map_service_client/core/state/trip_repository.dart';
 import 'package:map_service_client/features/place_explore/screens/place_explore_result_screen.dart';
@@ -127,8 +128,44 @@ void main() {
         // 로딩 화면이 최소 대기 시간을 두므로 그 타이머를 소진시킨다.
         // 대기가 끝나면 일정 화면으로 넘어가는데, 그 화면은 지도를 그려
         // 시험 환경에서 열리지 않는다. 여기서 볼 것은 요청이므로 넘긴다.
+        //
+        // 넘기되 무엇을 넘기는지는 못 박는다. 종류를 안 보고 삼키면 응답을
+        // 읽다 난 오류나 화면을 그리다 난 오류까지 함께 사라져, 그 뒤로는
+        // 어떤 고장이 나도 이 시험이 통과한다. 지도가 안 열리는 그 하나만
+        // 넘어가게 둔다.
+        // 넘어간 화면은 이 환경에서 그려지지 않는다(지도 미초기화 등). 그것은
+        // 넘기되, 무엇을 넘기는지는 못 박는다. 종류를 안 보고 삼키면 응답을
+        // 읽다 난 오류까지 함께 사라져 — 위의 요청 검증은 응답이 오기 전에
+        // 이미 끝나 있다 — 그 뒤로는 어떤 고장이 나도 이 시험이 통과한다.
+        //
+        // 한 프레임에 여러 건이 쌓이면 나중에 한꺼번에 꺼낼 때 "여러 건"이라는
+        // 요약만 남아 내용을 볼 수 없으므로, 나는 자리에서 건건이 받아 둔다.
+        final caught = <FlutterErrorDetails>[];
+        final previousOnError = FlutterError.onError;
+        FlutterError.onError = caught.add;
         await tester.pump(const Duration(seconds: 3));
-        tester.takeException();
+        FlutterError.onError = previousOnError;
+
+        // 화면을 그리다 난 것만 허용한다. 응답을 읽다 난 오류(형 불일치·널
+        // 참조)나 서버 통신 오류가 섞였다면 그것은 이 시험이 지키려는 배선이
+        // 깨진 것이다.
+        for (final details in caught) {
+          expect(
+            details.library,
+            anyOf(equals('widgets library'), equals('Flutter framework')),
+            reason: '화면 렌더 말고 다른 층에서 난 오류는 회귀다: ${details.exception}',
+          );
+          expect(
+            details.exception,
+            isNot(anyOf(isA<ApiException>(), isA<TripApiException>())),
+            reason: '요청·응답 경로에서 난 오류는 회귀다: ${details.exception}',
+          );
+          expect(
+            details.exception,
+            isNot(anyOf(isA<TypeError>(), isA<NoSuchMethodError>())),
+            reason: '응답을 읽다 난 오류는 회귀다: ${details.exception}',
+          );
+        }
       },
       createHttpClient: (_) =>
           _FakeHttpClient(routeBody(), 200, requested, sentBodies),

@@ -60,6 +60,11 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  # 실기기·시뮬레이터에서 앱을 실제로 띄워 화면을 확인하는 시험에 쓴다.
+  # 위젯 시험과 달리 지도·네트워크가 진짜로 돌아, 화면에 무엇이 나오는지
+  # 그대로 본다.
+  integration_test:
+    sdk: flutter
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
