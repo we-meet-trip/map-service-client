@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../common/widgets/back_header.dart';
 import '../../../common/widgets/app_loading_indicator.dart';
-import '../../../core/api/odsay_subway_service.dart';
+import '../../../core/api/subway_route_api_service.dart';
 
 class SubwayRouteArgs {
   final String originLabel;
@@ -38,7 +38,7 @@ class _SubwayRouteScreenState extends State<SubwayRouteScreen> {
   @override
   void initState() {
     super.initState();
-    _future = OdsaySubwayService.instance.findFastestSubwayRoute(
+    _future = SubwayRouteApiService.instance.findFastestSubwayRoute(
       startLng: widget.args.originLng,
       startLat: widget.args.originLat,
       endLng: widget.args.destinationLng,
