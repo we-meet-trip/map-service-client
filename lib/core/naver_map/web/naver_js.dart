@@ -43,6 +43,9 @@ extension type JsMarker._(JSObject _) implements JSObject {
   external factory JsMarker(JSObject options);
   external void setMap(JsMap? map);
   external void setPosition(JsLatLng position);
+  // 아이콘을 통째로 갈아 끼운다. 마커를 회전시키는 길이 이것뿐이라 — 각도는
+  // 아이콘 내용(HTML)의 변형으로 들어간다 — 방향이 바뀔 때마다 여기를 부른다.
+  external void setIcon(JSObject icon);
 }
 
 @JS('naver.maps.Polyline')

@@ -82,18 +82,26 @@ class NMapType {
   const NMapType._();
 }
 
+/// 지도 제공자 로고를 붙일 모서리.
+///
+/// 로고는 지울 수 없고 자리만 옮길 수 있다. 화면 아래쪽에 시트가 덮이는
+/// 배치에서 로고가 가려지지 않도록 화면이 자리를 골라 넘긴다.
+enum NLogoAlign { leftBottom, rightBottom, leftTop, rightTop }
+
 class NaverMapViewOptions {
   final NCameraPosition? initialCameraPosition;
   final bool scrollGesturesEnable;
   final bool zoomGesturesEnable;
   final bool rotationGesturesEnable;
   final NMapType mapType;
+  final NLogoAlign logoAlign;
   const NaverMapViewOptions({
     this.initialCameraPosition,
     this.scrollGesturesEnable = true,
     this.zoomGesturesEnable = true,
     this.rotationGesturesEnable = true,
     this.mapType = const NMapType._(),
+    this.logoAlign = NLogoAlign.leftBottom,
   });
 }
 
@@ -178,16 +186,41 @@ class NMarker {
         _angle = angle,
         _isVisible = true;
 
+  /// 지도에 올린 뒤 값이 바뀌었음을 알리는 통로.
+  ///
+  /// 방향과 표시 여부는 마커를 올린 뒤에도 계속 바뀐다 — 길안내 화면은 기기가
+  /// 향한 쪽이 바뀔 때마다 각도를 다시 준다. 올릴 때 한 번만 읽으면 그 뒤
+  /// 변화가 화면에 닿지 않아, 방향 표시가 처음 각도에 멈춘 채로 남는다.
+  /// 지도를 그리는 쪽이 여기에 자기 갱신을 걸어 둔다.
+  void Function()? onChanged;
+
   /// 지금 자리. 지도에 마커를 올릴 때 읽는다.
   NLatLng get position => _position;
+
+  /// 지금 방향(도). 0 이 위쪽이다.
+  double get angle => _angle;
+
+  /// 지금 표시 여부.
+  bool get isVisible => _isVisible;
 
   void setOnTapListener(void Function(NMarker overlay) listener) {
     onTap = listener;
   }
 
-  void setPosition(NLatLng position) { _position = position; }
-  void setIsVisible(bool isVisible) { _isVisible = isVisible; }
-  void setAngle(double angle) { _angle = angle; }
+  void setPosition(NLatLng position) {
+    _position = position;
+    onChanged?.call();
+  }
+
+  void setIsVisible(bool isVisible) {
+    _isVisible = isVisible;
+    onChanged?.call();
+  }
+
+  void setAngle(double angle) {
+    _angle = angle;
+    onChanged?.call();
+  }
 }
 
 enum NOverlayType {
