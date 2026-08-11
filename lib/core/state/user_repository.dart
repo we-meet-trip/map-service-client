@@ -22,6 +22,58 @@ class UserRepository {
     profile.value = profile.value.copyWith(nickname: nickname);
   }
 
+  /// 서버가 보관 중인 계정 정보를 화면용 프로필에 맞춘다.
+  ///
+  /// 로그인 직후와 앱 시작 복원 뒤에 부른다. 그 전에는 가입 화면을 거친
+  /// 사용자만 이름을 갖고 있어, 이미 있는 계정으로 로그인하면 화면이 계속
+  /// 기본 이름을 보여 줬다.
+  ///
+  /// 항목마다 따로 넣지 않고 한 번에 넣는다 — 넣을 때마다 저장과 다시 그리기가
+  /// 일어나기 때문이다.
+  ///
+  /// null 인 항목은 건드리지 않는다. 로그인 응답처럼 이름만 아는 경우가 있고,
+  /// 그때 나머지를 함께 지우면 이미 갖고 있던 값이 사라진다.
+  void applyAccount({
+    String? nickname,
+    String? email,
+    DateTime? birthdate,
+    String? gender,
+    List<String>? interests,
+    List<String>? themes,
+  }) {
+    profile.value = profile.value.copyWith(
+      nickname: (nickname == null || nickname.isEmpty) ? null : nickname,
+      email: email,
+      birthdate: birthdate,
+      gender: gender,
+      interests: interests,
+      themes: themes,
+    );
+  }
+
+  /// 로그아웃할 때 계정에서 온 항목만 비운다.
+  ///
+  /// 비우지 않으면 로그아웃한 뒤에도 홈 화면이 방금 나간 사람의 이름으로
+  /// 인사한다. 한 기기를 여러 사람이 번갈아 쓰는 경우 특히 헷갈린다.
+  ///
+  /// 기기에만 있는 항목(프로필 사진·이름 표기·연락처·주소·알림 설정)은 그대로
+  /// 둔다. 계정과 무관하게 이 기기에서 정한 값이다.
+  void clearAccount() {
+    final current = profile.value;
+    profile.value = UserProfile(
+      id: current.id,
+      nickname: '',
+      interests: const [],
+      themes: const [],
+      profileImagePath: current.profileImagePath,
+      englishName: current.englishName,
+      phone: current.phone,
+      homeAddress: current.homeAddress,
+      otherAddresses: current.otherAddresses,
+      notificationsEnabled: current.notificationsEnabled,
+    );
+  }
+
   void updateBirthGender({DateTime? birthdate, String? gender}) {
     profile.value = profile.value.copyWith(birthdate: birthdate, gender: gender);
   }
@@ -128,6 +180,13 @@ class UserProfile {
         id: 'local_${DateTime.now().millisecondsSinceEpoch}',
         nickname: '',
       );
+
+  /// 화면에 보여 줄 이름.
+  ///
+  /// 로그인 전이거나 아직 서버에서 이름을 받지 못했을 때 쓸 기본 이름을 여기서
+  /// 한 번만 정한다. 화면마다 따로 정하면 같은 사람을 홈과 마이페이지가 다르게
+  /// 부르게 된다.
+  String get displayName => nickname.isEmpty ? '여행자' : nickname;
 
   UserProfile copyWith({
     String? nickname,

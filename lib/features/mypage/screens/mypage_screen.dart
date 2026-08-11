@@ -48,7 +48,7 @@ class MypageScreen extends StatelessWidget {
                           text: TextSpan(
                             children: [
                               TextSpan(
-                                text: profile.nickname.isEmpty ? '여행자' : profile.nickname,
+                                text: profile.displayName,
                                 style: TextStyle(
                                   fontSize: 20,
                                   fontWeight: FontWeight.w700,

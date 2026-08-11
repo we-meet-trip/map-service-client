@@ -1,5 +1,10 @@
+import 'dart:async';
+
 import '../state/auth_store.dart';
+// UserProfile 이라는 이름이 화면용과 서버용 두 곳에 있어, 여기서는 보관소만 들인다.
+import '../state/user_repository.dart' show UserRepository;
 import 'api_client.dart';
+import 'user_api_service.dart';
 
 /// 회원가입·로그인·토큰 갱신·로그아웃을 다룬다.
 ///
@@ -18,6 +23,9 @@ class AuthApiService {
   Future<void> bootstrap() async {
     AuthStore.instance.refreshHandler = _refreshTokens;
     await AuthStore.instance.restore();
+    if (AuthStore.instance.isLoggedIn.value) {
+      _syncProfile();
+    }
   }
 
   /// 이메일 회원가입.
@@ -47,6 +55,7 @@ class AuthApiService {
 
     final json = await _api.post('/api/v1/auth/signup', body: body);
     await AuthStore.instance.save(AuthTokens.fromJson(json));
+    _syncProfile();
   }
 
   /// 이메일 로그인.
@@ -59,6 +68,7 @@ class AuthApiService {
       'password': password,
     });
     await AuthStore.instance.save(AuthTokens.fromJson(json));
+    _syncProfile();
   }
 
   /// 카카오 인가 화면 주소를 받는다.
@@ -76,6 +86,7 @@ class AuthApiService {
       'code': code,
     });
     await AuthStore.instance.save(AuthTokens.fromJson(json));
+    _syncProfile();
   }
 
   /// 로그아웃. 서버 호출이 실패해도 기기의 토큰은 반드시 버린다 —
@@ -87,6 +98,40 @@ class AuthApiService {
       // 이미 만료됐거나 서버가 응답하지 않아도 아래에서 정리한다.
     } finally {
       await AuthStore.instance.clear();
+      UserRepository.instance.clearAccount();
+    }
+  }
+
+  /// 로그인한 사람의 정보를 화면용 프로필에 맞춘다.
+  ///
+  /// 두 걸음으로 나눈다. 인증 응답에 이미 들어 있는 이름을 먼저 넣어 화면이
+  /// 곧바로 제 이름을 그리게 하고, 나머지 항목은 뒤에서 조용히 받아 채운다.
+  ///
+  /// 뒤 호출을 기다리지 않는 이유는 앱 시작과 로그인 직후가 네트워크 응답을
+  /// 기다리며 멈춰서는 안 되기 때문이다. 그래서 이 함수는 값을 돌려주지 않고,
+  /// 결과는 보관소를 듣고 있는 화면이 받는다.
+  void _syncProfile() {
+    final nickname = AuthStore.instance.nickname;
+    if (nickname != null && nickname.isNotEmpty) {
+      UserRepository.instance.applyAccount(nickname: nickname);
+    }
+    unawaited(_fetchAccount());
+  }
+
+  Future<void> _fetchAccount() async {
+    try {
+      final me = await UserApiService.instance.me();
+      UserRepository.instance.applyAccount(
+        nickname: me.nickname,
+        email: me.email,
+        birthdate: me.birthDate,
+        gender: me.gender,
+        interests: me.interests,
+        themes: me.themes,
+      );
+    } catch (_) {
+      // 못 받아도 앞 걸음에서 넣은 이름과 기기에 저장해 둔 값으로 화면은
+      // 그대로 나간다. 여기서 화면에 알리면 시작할 때마다 오류가 뜬다.
     }
   }
 

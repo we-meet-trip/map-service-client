@@ -8,6 +8,9 @@ import '../../../common/widgets/back_header.dart';
 import '../../../common/widgets/gender_choice_chip.dart';
 import '../../../common/widgets/named_address_prompt.dart';
 import '../../../common/widgets/text_field.dart';
+import '../../../core/api/api_client.dart';
+import '../../../core/api/user_api_service.dart' show UserApiService;
+import '../../../core/state/auth_store.dart';
 import '../../../core/state/user_repository.dart';
 import '../../auth/widgets/birthdate_field.dart';
 import '../widgets/profile_avatar.dart';
@@ -22,6 +25,36 @@ class ProfileEditScreen extends StatelessWidget {
     );
     if (picked != null) {
       UserRepository.instance.updateProfileImage(picked.path);
+    }
+  }
+
+  /// 이름을 바꾼다.
+  ///
+  /// 로그인한 상태면 서버에 먼저 반영한다. 기기에만 적어 두면 다음 로그인이나
+  /// 앱 재시작 때 서버에서 받아 온 이름이 덮어써서 방금 바꾼 이름이 사라진다.
+  ///
+  /// 로그인 전에는 서버에 보낼 곳이 없으므로 기기에만 적는다 — 가입 화면을
+  /// 거치기 전에도 이 화면을 쓸 수 있다.
+  Future<void> _saveNickname(BuildContext context, String nickname) async {
+    final trimmed = nickname.trim();
+    if (trimmed.isEmpty || trimmed == UserRepository.instance.profile.value.nickname) {
+      return;
+    }
+    if (!AuthStore.instance.isLoggedIn.value) {
+      UserRepository.instance.updateNickname(trimmed);
+      return;
+    }
+    try {
+      final updated = await UserApiService.instance.update(nickname: trimmed);
+      UserRepository.instance.updateNickname(updated.nickname);
+      // 보관소의 이름은 앱을 다시 켰을 때 화면이 처음 그리는 값이다. 함께
+      // 고치지 않으면 재시작 직후 잠깐 옛 이름이 보인다.
+      await AuthStore.instance.updateNickname(updated.nickname);
+    } on ApiException catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message)),
+      );
     }
   }
 
@@ -164,7 +197,7 @@ class ProfileEditScreen extends StatelessWidget {
                   context,
                   title: '이름',
                   initialValue: profile.nickname,
-                  onSave: (v) => UserRepository.instance.updateNickname(v),
+                  onSave: (v) => _saveNickname(context, v),
                 );
             return Column(
               children: [
@@ -185,7 +218,7 @@ class ProfileEditScreen extends StatelessWidget {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                profile.nickname.isEmpty ? '여행자' : profile.nickname,
+                                profile.displayName,
                                 style: TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.w700,
