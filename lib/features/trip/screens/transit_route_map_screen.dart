@@ -231,11 +231,21 @@ class _LegTile extends StatelessWidget {
         TransitLegType.walk => AppColors.neutralScale[300]!,
       };
 
-  String get _title {
-    if (leg.type == TransitLegType.walk) return '도보 이동';
-    final line = leg.lineName ?? '';
-    final stationInfo = leg.stationCount != null ? ' (${leg.stationCount}개 역)' : '';
-    return '$line$stationInfo';
+  String get _title => leg.type == TransitLegType.walk ? '도보 이동' : (leg.lineName ?? '');
+
+  String get _stopUnit => leg.type == TransitLegType.bus ? '개 정류장' : '개 역';
+
+  void _showStops(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => _StopListSheet(
+        title: leg.lineName ?? _title,
+        color: _iconColor,
+        stopNames: leg.stopNames,
+      ),
+    );
   }
 
   @override
@@ -269,13 +279,47 @@ class _LegTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    _title,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.neutralScale[600],
-                    ),
+                  Row(
+                    children: [
+                      Text(
+                        _title,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.neutralScale[600],
+                        ),
+                      ),
+                      if (leg.stopNames.isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        InkWell(
+                          onTap: () => _showStops(context),
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: _iconColor.withAlpha(24),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  '${leg.stopNames.length}$_stopUnit',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: _iconColor,
+                                  ),
+                                ),
+                                Icon(Icons.chevron_right_rounded,
+                                    size: 13, color: _iconColor),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -291,6 +335,122 @@ class _LegTile extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _StopListSheet extends StatelessWidget {
+  const _StopListSheet({
+    required this.title,
+    required this.color,
+    required this.stopNames,
+  });
+
+  final String title;
+  final Color color;
+  final List<String> stopNames;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.7,
+        ),
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.neutralScale[100],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              '$title 경유 정류장',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: AppColors.neutralScale[600],
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '${stopNames.length}개 정류장을 지나요',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: AppColors.tabBarUnselected,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: stopNames.length,
+                itemBuilder: (context, index) {
+                  final isFirst = index == 0;
+                  final isLast = index == stopNames.length - 1;
+                  return IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Column(
+                          children: [
+                            if (!isFirst)
+                              Expanded(
+                                child: Container(width: 2, color: color.withAlpha(60)),
+                              ),
+                            Container(
+                              width: 8,
+                              height: 8,
+                              margin: const EdgeInsets.symmetric(vertical: 4),
+                              decoration: BoxDecoration(
+                                color: color,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            if (!isLast)
+                              Expanded(
+                                child: Container(width: 2, color: color.withAlpha(60)),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: Text(
+                              stopNames[index],
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight:
+                                    isFirst || isLast ? FontWeight.w700 : FontWeight.w500,
+                                color: AppColors.neutralScale[600],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

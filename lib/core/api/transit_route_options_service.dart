@@ -15,18 +15,24 @@ class TransitRouteLeg {
   /// 지도에 그릴 [lat,lng] 좌표열. 좌표가 없는 순수 도보 연결 구간은 비어 있다.
   final List<List<double>> geometry;
 
+  /// 지나는 역/정류장 이름(순서대로). geometry 와 같은 이유로 비어 있을 수
+  /// 있다 — 버스는 가끔 이 목록이 비어 오고, 도보 연결 구간은 아예 없다.
+  final List<String> stopNames;
+
   const TransitRouteLeg({
     required this.type,
     required this.startName,
     required this.endName,
     required this.sectionTimeMinutes,
     required this.geometry,
+    required this.stopNames,
     this.lineName,
     this.stationCount,
   });
 
   factory TransitRouteLeg.fromJson(Map<String, dynamic> json) {
     final rawGeometry = json['geometry'];
+    final rawStops = json['stops'];
     return TransitRouteLeg(
       type: switch (json['type'] as String?) {
         'subway' => TransitLegType.subway,
@@ -45,6 +51,7 @@ class TransitRouteLeg {
               .where((p) => p.length >= 2)
               .toList()
           : const [],
+      stopNames: rawStops is List ? rawStops.whereType<String>().toList() : const [],
     );
   }
 }
