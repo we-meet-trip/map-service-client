@@ -40,6 +40,8 @@ import '../../features/mobility/screens/bike_scooter_location_screen.dart';
 import '../../features/vision/screens/vision_screen.dart';
 import '../../features/saved/screens/navigation_screen.dart';
 import '../../features/trip/screens/subway_route_screen.dart';
+import '../../features/trip/screens/transit_route_options_screen.dart';
+import '../../features/trip/screens/transit_route_map_screen.dart';
 import '../../common/widgets/address_search_screen.dart';
 import '../state/auth_store.dart';
 
@@ -226,6 +228,20 @@ final appRouter = GoRouter(
                           builder: (context, state) => SubwayRouteScreen(
                             args: state.extra as SubwayRouteArgs,
                           ),
+                        ),
+                        GoRoute(
+                          path: 'transit',
+                          builder: (context, state) => TransitRouteOptionsScreen(
+                            args: state.extra as SubwayRouteArgs,
+                          ),
+                          routes: [
+                            GoRoute(
+                              path: 'map',
+                              builder: (context, state) => TransitRouteMapScreen(
+                                args: state.extra as TransitRouteMapArgs,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),

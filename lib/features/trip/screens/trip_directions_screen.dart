@@ -241,6 +241,58 @@ class _TripDirectionsScreenState extends State<TripDirectionsScreen> {
     );
   }
 
+  /// 대중교통(지하철·버스 통합) 경로 후보 조회로 이동한다.
+  ///
+  /// _onSubwayTap 과 흐름이 같다 — 지하철 전용 화면과 달리 여기는 버스·혼합
+  /// 경로까지 나열하는 화면으로 보낸다.
+  Future<void> _onTransitTap() async {
+    final stops = widget.savedTrip?.stops;
+    if (stops == null || stops.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('저장된 여행 일정이 없어서 경로를 찾을 수 없어요.')),
+      );
+      return;
+    }
+    final destination = [...stops]..sort((a, b) => a.order.compareTo(b.order));
+    final firstStop = destination.first;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      useRootNavigator: false,
+      builder: (_) => const Center(child: AppLoadingIndicator()),
+    );
+
+    Location? origin;
+    try {
+      origin = await _resolveOriginLocation();
+    } catch (_) {
+      origin = null;
+    }
+
+    if (!mounted) return;
+    Navigator.of(context, rootNavigator: false).pop();
+
+    if (origin == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('출발지 위치를 확인할 수 없어요.')),
+      );
+      return;
+    }
+
+    context.push(
+      '/saved/trip/directions/transit',
+      extra: SubwayRouteArgs(
+        originLabel: _originLabel,
+        originLat: origin.latitude,
+        originLng: origin.longitude,
+        destinationLabel: firstStop.name,
+        destinationLat: firstStop.latitude,
+        destinationLng: firstStop.longitude,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final tripName = widget.savedTrip?.name ?? '저장된 일정';
@@ -340,10 +392,11 @@ class _TripDirectionsScreenState extends State<TripDirectionsScreen> {
                 const SizedBox(height: 12),
                 _buildBigCard(
                   title: '버스',
-                  subtitle: '실시간 버스 위치 확인해보세요',
+                  subtitle: '지하철과 함께 가는 방법도 찾아보세요',
                   image: 'assets/images/transport/tour_bus.png',
                   imageSize: 74,
                   imageRight: 20,
+                  onTap: _onTransitTap,
                 ),
                 const SizedBox(height: 12),
                 Row(
