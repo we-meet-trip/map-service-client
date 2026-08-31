@@ -1,13 +1,12 @@
-import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
-import 'package:http/http.dart' as http;
 
 import '../../../common/theme/app_colors.dart';
+import '../../../core/api/api_client.dart';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 따릉이 대여소 모델
@@ -17,16 +16,29 @@ class DdallengiStation {
   final String stationName;
   final int rackTotCnt;
   final int parkingBikeTotCnt;
-  final double shared;
   final double lat;
   final double lng;
+
+  /// 서버가 준 한 줄을 읽는다.
+  ///
+  /// 이름이 서버와 화면에서 다르다. 서버는 밑줄로 잇고 화면은 옛 발급처
+  /// 이름을 그대로 쓴다. 이 짝짓기가 어긋나면 대여소가 전부 0으로 보이는데,
+  /// 그 모습은 "자전거가 없는 대여소" 와 구분되지 않는다.
+  factory DdallengiStation.fromServer(Map<String, dynamic> row) =>
+      DdallengiStation(
+        stationId: '${row['station_id'] ?? ''}',
+        stationName: '${row['name'] ?? ''}',
+        rackTotCnt: (row['rack_total'] as num?)?.toInt() ?? 0,
+        parkingBikeTotCnt: (row['parking_bike_total'] as num?)?.toInt() ?? 0,
+        lat: (row['lat'] as num?)?.toDouble() ?? 0,
+        lng: (row['lng'] as num?)?.toDouble() ?? 0,
+      );
 
   const DdallengiStation({
     required this.stationId,
     required this.stationName,
     required this.rackTotCnt,
     required this.parkingBikeTotCnt,
-    required this.shared,
     required this.lat,
     required this.lng,
   });
@@ -45,47 +57,36 @@ class DdallengiStation {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// 따릉이 실시간 대여정보 API (서울시 공공자전거)
-// http://openapi.seoul.go.kr:8088/{KEY}/json/bikeList/{START}/{END}/
+// 따릉이 대여소 조회
+//
+// 발급처를 앱이 직접 부르지 않는다. 그러면 인증키가 앱 꾸러미에 함께 실려
+// 나가고, 그 발급처는 평문으로만 받아서 배포본에서는 아예 닿지 못한다.
+// 서버가 대신 물어 오면 키는 서버에만 남고 앱은 https 로만 말한다.
+//
+// 서버는 좌표 주변 반경으로 준다. 화면이 어차피 중심에서 5km 안만 그리므로
+// 같은 값을 반경으로 넘긴다.
 // ──────────────────────────────────────────────────────────────────────────────
-const _ddalKey = '7165587761646d6c3639447a796650';
-
-Future<List<DdallengiStation>> fetchDdallengiStations() async {
-  final results = <DdallengiStation>[];
+Future<List<DdallengiStation>> fetchDdallengiStations(
+  double lat,
+  double lng, {
+  int radiusM = 5000,
+}) async {
   try {
-    int start = 1;
-    while (true) {
-      final end = start + 999;
-      final uri = Uri.parse(
-        'http://openapi.seoul.go.kr:8088/$_ddalKey/json/bikeList/$start/$end/',
-      );
-      final res = await http.get(uri).timeout(const Duration(seconds: 10));
-      if (res.statusCode != 200) break;
-      final json = jsonDecode(res.body) as Map<String, dynamic>;
-      final body = json['rentBikeStatus'] as Map<String, dynamic>?;
-      if (body == null) break;
-      final total = body['list_total_count'] as int? ?? 0;
-      final rows = body['row'] as List<dynamic>? ?? [];
-      for (final it in rows) {
-        final lat = double.tryParse('${it['stationLatitude'] ?? ''}') ?? 0;
-        final lng = double.tryParse('${it['stationLongitude'] ?? ''}') ?? 0;
-        if (lat == 0 || lng == 0) continue;
-        results.add(DdallengiStation(
-          stationId: '${it['stationId'] ?? ''}',
-          stationName: '${it['stationName'] ?? ''}',
-          rackTotCnt: int.tryParse('${it['rackTotCnt'] ?? 0}') ?? 0,
-          parkingBikeTotCnt:
-              int.tryParse('${it['parkingBikeTotCnt'] ?? 0}') ?? 0,
-          shared: double.tryParse('${it['shared'] ?? 0}') ?? 0,
-          lat: lat,
-          lng: lng,
-        ));
-      }
-      if (end >= total) break;
-      start += 1000;
-    }
-  } catch (_) {}
-  return results;
+    final body = await ApiClient.instance.get(
+      '/api/v1/mobility/bike-stations',
+      query: {'lat': '$lat', 'lng': '$lng', 'radiusM': '$radiusM'},
+    );
+    final rows = body['stations'];
+    if (rows is! List) return const [];
+    return rows
+        .whereType<Map<String, dynamic>>()
+        .map(DdallengiStation.fromServer)
+        .where((s) => s.lat != 0 && s.lng != 0)
+        .toList();
+  } catch (_) {
+    // 조회에 실패하면 빈 목록으로 둔다. 화면은 대여소가 없다고 표시한다.
+    return const [];
+  }
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -157,12 +158,11 @@ class _BikeScooterLocationScreenState
     });
     _clearMarkers();
 
-    // 전체 대여소 미로드 시에만 API 호출 (이동 시엔 캐시 사용)
-    if (_allStations.isEmpty) {
-      final stations = await fetchDdallengiStations();
-      if (!mounted) return;
-      setState(() => _allStations = stations);
-    }
+    // 서버가 중심 주변만 주므로 지도를 옮기면 그 자리로 다시 물어야 한다.
+    // 한 번만 받아 두면 옮긴 곳에는 아무것도 뜨지 않는다.
+    final stations = await fetchDdallengiStations(_centerLat, _centerLng);
+    if (!mounted) return;
+    setState(() => _allStations = stations);
 
     setState(() => _loading = false);
     await _renderMarkers();

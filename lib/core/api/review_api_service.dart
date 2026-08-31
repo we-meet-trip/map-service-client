@@ -1,8 +1,4 @@
-import 'dart:convert';
-
-import 'package:http/http.dart' as http;
-
-import '../config/app_config.dart';
+import 'api_client.dart';
 
 /// 블로그 후기 한 건.
 class BlogReview {
@@ -66,9 +62,7 @@ class ReviewApiService {
 
   /// 서버 주소는 시작할 때 정해진다. 상수로 잡아 두면 그 시점의 값이
   /// 굳어져, 원격에서 받은 주소가 반영되지 않는다.
-  static String get _baseUrl => kApiBaseUrl;
 
-  static const _timeout = Duration(seconds: 15);
 
   /// 후기를 구간 단위로 받는다.
   ///
@@ -83,22 +77,17 @@ class ReviewApiService {
     required int start,
     required int display,
   }) async {
-    final uri = Uri.parse('$_baseUrl/api/v1/reviews').replace(
-      queryParameters: {
+    try {
+      // 공통 통로로 보낸다. 직접 부르면 토큰이 붙지 않아, 서버가 인증을 켜는
+      // 순간 이 목록만 비어 보인다 — 실패를 빈 결과로 접기 때문에 그 사실이
+      // 화면에 드러나지도 않는다.
+      final body = await ApiClient.instance.get('/api/v1/reviews', query: {
         'query': query,
         'start': '$start',
         'display': '$display',
         // 장소 상세 목록은 최신 글부터 보여 준다.
         'sort': 'date',
-      },
-    );
-    try {
-      final response = await http.get(uri).timeout(_timeout);
-      if (response.statusCode != 200) {
-        return const BlogReviewPage(reviews: [], hasMore: false);
-      }
-      final body =
-          jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+      });
       final raw = body['reviews'];
       final items = raw is List
           ? raw
@@ -120,13 +109,9 @@ class ReviewApiService {
   /// 근거가 부족하거나 요약에 실패하면 빈 목록이 온다. 그 자체는 오류가 아니며
   /// 화면은 요약 영역만 접는다.
   Future<List<String>> fetchSummary(String query) async {
-    final uri = Uri.parse('$_baseUrl/api/v1/reviews/summary')
-        .replace(queryParameters: {'query': query});
     try {
-      final response = await http.get(uri).timeout(_timeout);
-      if (response.statusCode != 200) return const [];
-      final body =
-          jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+      final body = await ApiClient.instance
+          .get('/api/v1/reviews/summary', query: {'query': query});
       final raw = body['bullets'];
       if (raw is! List) return const [];
       return raw.whereType<String>().where((s) => s.trim().isNotEmpty).toList();
