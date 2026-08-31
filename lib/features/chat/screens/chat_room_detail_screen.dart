@@ -33,7 +33,7 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
       final provider = context.read<ChatRoomDetailProvider>();
       _provider = provider;
       provider.addListener(_showSendErrorIfAny);
-      provider.loadMessages().then((_) {
+      provider.start().then((_) {
         _scrollToBottom();
       });
     });
@@ -144,8 +144,10 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
                                       ...TripRepository.instance.plannedTrips.value,
                                       ...TripRepository.instance.completedTrips.value,
                                     ];
+                                    // 방 번호와 일정 번호는 서로 다른 셈이다.
+                                    // 일정에 적어 둔 방 번호로 찾아야 한다.
                                     final trip = allTrips
-                                        .where((t) => t.id == widget.room.id)
+                                        .where((t) => t.chatRoomId == widget.room.id)
                                         .firstOrNull;
                                     if (trip != null) {
                                       context.go('/saved/trip', extra: trip);
