@@ -167,10 +167,20 @@ class NaverMapController {
         ((JSAny? _) => onTap(m)).toJS,
       );
     }
+    // 올린 뒤 자리를 옮기거나 감추는 화면이 있다. 그리는 쪽을 여기서 이어 준다.
+    m.onPositionChanged =
+        (p) => marker.setPosition(JsLatLng(p.latitude, p.longitude));
+    m.onVisibilityChanged = (visible) => marker.setMap(visible ? _map : null);
+    // 방향은 아이콘 자체를 돌려야 하는데 아이콘을 문자열로 그려 넣고 있어
+    // 여기서는 다루지 않는다. 앱에서는 플러그인이 처리한다.
+    m.onAngleChanged = null;
+
     _overlays.add(_Tracked(() {
       if (listener != null) {
         naverEventRemoveListener(listener);
       }
+      m.onPositionChanged = null;
+      m.onVisibilityChanged = null;
       marker.setMap(null);
     }, null));
   }

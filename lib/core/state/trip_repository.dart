@@ -34,6 +34,57 @@ class TripRepository {
   void setLastPlan(TripPlanContext context) {
     lastPlan = context;
   }
+
+  /// 저장한 일정을 예정·지난 것으로 갈라 둔다. 대화방을 만들 일정을 고르는
+  /// 화면과 대화방에서 일정으로 건너뛰는 자리가 이 둘을 본다.
+  final ValueNotifier<List<SavedTrip>> plannedTrips = ValueNotifier(const []);
+  final ValueNotifier<List<SavedTrip>> completedTrips = ValueNotifier(const []);
+
+  /// 서버에서 저장 목록을 받아 두 칸에 나눠 담는다.
+  ///
+  /// 목록 응답에는 방문지가 없어 여기서는 제목과 기간만 채운다. 상세를
+  /// 일정마다 한 번씩 더 부르면 목록 한 번에 요청이 그 수만큼 늘어나는데,
+  /// 고르는 화면은 제목과 기간만 그리므로 그 값을 치르지 않는다.
+  Future<void> loadSaved() async {
+    final items = await ScheduleApiService.instance.list();
+    final today = DateTime.now();
+    final planned = <SavedTrip>[];
+    final done = <SavedTrip>[];
+    for (final item in items) {
+      final start = item.dateStart ?? item.createdAt ?? today;
+      final end = item.dateEnd ?? start;
+      final trip = SavedTrip(
+        scheduleId: item.scheduleId,
+        name: item.title.isEmpty ? '이름 없는 일정' : item.title,
+        route: '',
+        savedAt: item.createdAt ?? start,
+        tripStartDate: start,
+        tripEndDate: end,
+        stops: const [],
+        totalDurationMinutes: 0,
+        chatRoomId: _roomOf[item.scheduleId.toString()],
+      );
+      (end.isBefore(DateTime(today.year, today.month, today.day)) ? done : planned)
+          .add(trip);
+    }
+    plannedTrips.value = planned;
+    completedTrips.value = done;
+  }
+
+  /// 일정에 붙은 대화방 번호. 목록을 다시 받아도 유지되도록 여기에 둔다.
+  final Map<String, String> _roomOf = {};
+
+  void setChatRoomId(String tripId, String roomId) {
+    _roomOf[tripId] = roomId;
+    plannedTrips.value = [
+      for (final t in plannedTrips.value)
+        t.id == tripId ? t.withChatRoom(roomId) : t,
+    ];
+    completedTrips.value = [
+      for (final t in completedTrips.value)
+        t.id == tripId ? t.withChatRoom(roomId) : t,
+    ];
+  }
 }
 
 /// 방금 만든 일정과 그때 쓴 조건.
@@ -86,8 +137,26 @@ class SavedTrip {
     required this.tripEndDate,
     required this.stops,
     required this.totalDurationMinutes,
+    this.chatRoomId,
     this.warnings = const [],
   });
+
+  /// 화면이 일정을 지목할 때 쓰는 값. 서버는 일정을 숫자로 세므로 그것을 쓴다.
+  /// 아직 저장되지 않은 일정은 지목할 대상이 없어 빈 문자열이 된다.
+  String get id => scheduleId?.toString() ?? '';
+
+  SavedTrip withChatRoom(String roomId) => SavedTrip(
+        scheduleId: scheduleId,
+        name: name,
+        route: route,
+        savedAt: savedAt,
+        tripStartDate: tripStartDate,
+        tripEndDate: tripEndDate,
+        stops: stops,
+        totalDurationMinutes: totalDurationMinutes,
+        chatRoomId: roomId,
+        warnings: warnings,
+      );
 
   factory SavedTrip.fromDetail(ScheduleDetail d) {
     final start = d.dateStart ?? DateTime.now();

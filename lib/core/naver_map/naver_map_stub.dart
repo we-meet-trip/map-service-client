@@ -158,15 +158,45 @@ class NOverlayImage {
 
 class NMarker {
   final String id;
-  final NLatLng position;
+  NLatLng position;
   final NOverlayImage? icon;
   void Function(NMarker overlay)? onTap;
 
-  NMarker({required this.id, required this.position, this.icon});
+  /// 지도에 올린 뒤 값을 바꿀 때 그리는 쪽이 받아 갈 자리.
+  /// 웹 컨트롤러가 마커를 지도에 붙이면서 채워 넣는다. 비어 있으면 값만
+  /// 바뀌고 화면은 그대로다 — 지도에 올리기 전에는 그릴 대상이 없다.
+  void Function(NLatLng position)? onPositionChanged;
+  void Function(bool isVisible)? onVisibilityChanged;
+  void Function(double angle)? onAngleChanged;
+
+  /// 아이콘을 어디에 걸고, 얼마로 그리고, 얼마나 돌릴지.
+  /// 웹 어댑터는 아이콘을 문자열로 그려 넣어 이 셋을 쓰지 않지만, 앱과 같은
+  /// 자리에서 마커를 만들 수 있어야 화면 코드가 갈라지지 않는다.
+  final NPoint? anchor;
+  final Size? size;
+  final double? angle;
+
+  NMarker({
+    required this.id,
+    required this.position,
+    this.icon,
+    this.anchor,
+    this.size,
+    this.angle,
+  });
 
   void setOnTapListener(void Function(NMarker overlay) listener) {
     onTap = listener;
   }
+
+  void setPosition(NLatLng value) {
+    position = value;
+    onPositionChanged?.call(value);
+  }
+
+  void setIsVisible(bool value) => onVisibilityChanged?.call(value);
+
+  void setAngle(double value) => onAngleChanged?.call(value);
 }
 
 enum NOverlayType {

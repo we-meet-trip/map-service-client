@@ -22,6 +22,13 @@ class _TripSelectionForChatScreenState
   String? _selectedTripId;
   bool _loading = false;
 
+  @override
+  void initState() {
+    super.initState();
+    // 목록은 서버에 있다. 화면이 열릴 때 받아 오지 않으면 고를 것이 비어 보인다.
+    TripRepository.instance.loadSaved();
+  }
+
   Future<void> _createChatRoom() async {
     final trip = TripRepository.instance.plannedTrips.value
         .firstWhere((t) => t.id == _selectedTripId);
