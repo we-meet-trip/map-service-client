@@ -3,6 +3,26 @@ import 'api_client.dart';
 /// 통합 길찾기 경로 후보에 등장하는 이동수단.
 enum TransitLegType { walk, subway, bus }
 
+/// 화면이 고른 이동수단. 같은 엔드포인트를 버튼별로 다르게 부른다.
+///
+/// 거르는 규칙(버스 전용만 / 지하철 위주만)은 서버가 정하고, 앱은 어느 버튼을
+/// 눌렀는지만 알린다.
+enum TransitSearchMode {
+  /// 거르지 않는다.
+  all('all'),
+
+  /// 지하철이 든 경로만. 타는 거리 대부분이 버스인 것은 서버가 뺀다.
+  subway('subway'),
+
+  /// 버스 전용만. 지하철이 섞인 경로는 서버가 뺀다.
+  bus('bus');
+
+  const TransitSearchMode(this.wireValue);
+
+  /// 서버에 보내는 값.
+  final String wireValue;
+}
+
 /// 통합 길찾기 경로 후보의 한 구간.
 class TransitRouteLeg {
   final TransitLegType type;
@@ -11,6 +31,9 @@ class TransitRouteLeg {
   final String endName;
   final int sectionTimeMinutes;
   final int? stationCount;
+
+  /// 이 구간의 이동 거리(m). 도보 연결 구간은 0 이다.
+  final int distanceMeters;
 
   /// 지도에 그릴 [lat,lng] 좌표열. 좌표가 없는 순수 도보 연결 구간은 비어 있다.
   final List<List<double>> geometry;
@@ -28,6 +51,7 @@ class TransitRouteLeg {
     required this.stopNames,
     this.lineName,
     this.stationCount,
+    this.distanceMeters = 0,
   });
 
   factory TransitRouteLeg.fromJson(Map<String, dynamic> json) {
@@ -44,6 +68,7 @@ class TransitRouteLeg {
       endName: json['end_name'] as String? ?? '',
       sectionTimeMinutes: (json['section_time_min'] as num?)?.toInt() ?? 0,
       stationCount: (json['station_count'] as num?)?.toInt(),
+      distanceMeters: (json['distance_m'] as num?)?.toInt() ?? 0,
       geometry: rawGeometry is List
           ? rawGeometry
               .whereType<List<dynamic>>()
@@ -63,6 +88,13 @@ class TransitRouteOption {
   final int transferCount;
   final int totalWalkMeters;
 
+  /// 타고 간 거리(m). 도보는 빠져 있다.
+  final int subwayDistanceMeters;
+  final int busDistanceMeters;
+
+  /// 타는 거리 중 버스가 차지하는 몫(0.0~1.0). 서버가 계산해 보낸다.
+  final double busDistanceRatio;
+
   /// 이 경로에 실제 등장하는 이동수단(지하철·버스) 목록.
   final List<TransitLegType> modes;
 
@@ -75,6 +107,9 @@ class TransitRouteOption {
     required this.totalWalkMeters,
     required this.modes,
     required this.legs,
+    this.subwayDistanceMeters = 0,
+    this.busDistanceMeters = 0,
+    this.busDistanceRatio = 0.0,
   });
 
   factory TransitRouteOption.fromJson(Map<String, dynamic> json) {
@@ -85,6 +120,10 @@ class TransitRouteOption {
       fare: (json['fare'] as num?)?.toInt() ?? 0,
       transferCount: (json['transfer_count'] as num?)?.toInt() ?? 0,
       totalWalkMeters: (json['total_walk_m'] as num?)?.toInt() ?? 0,
+      subwayDistanceMeters: (json['subway_distance_m'] as num?)?.toInt() ?? 0,
+      busDistanceMeters: (json['bus_distance_m'] as num?)?.toInt() ?? 0,
+      busDistanceRatio:
+          (json['bus_distance_ratio'] as num?)?.toDouble() ?? 0.0,
       modes: rawModes is List
           ? rawModes
               .whereType<String>()
@@ -121,11 +160,16 @@ class TransitRouteOptionsService {
   /// "갈 수 있는 길이 없다"와 "지금은 알아볼 수 없다"는 화면에서 다른 문구로
   /// 보여야 한다. 그래서 앞은 빈 목록으로, 뒤는 예외로 갈라 돌려준다 — 둘을
   /// 합치면 서버가 잠깐 흔들린 것이 "갈 수 있는 경로가 없다"로 표시된다.
+  ///
+  /// [mode] 는 화면이 고른 이동수단이다. 무엇을 어떻게 거를지는 서버가 정한다 —
+  /// 앱에서 다시 거르면 규칙이 두 곳에 흩어져 한쪽만 고치는 일이 생기고,
+  /// 기준을 바꿀 때마다 앱을 새로 내야 한다.
   Future<List<TransitRouteOption>> findRouteOptions({
     required double startLng,
     required double startLat,
     required double endLng,
     required double endLat,
+    TransitSearchMode mode = TransitSearchMode.all,
   }) async {
     final Map<String, dynamic> body;
     try {
@@ -136,6 +180,7 @@ class TransitRouteOptionsService {
           'startLng': '$startLng',
           'endLat': '$endLat',
           'endLng': '$endLng',
+          'mode': mode.wireValue,
         },
       );
     } on ApiException catch (e) {

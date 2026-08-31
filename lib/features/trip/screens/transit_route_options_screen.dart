@@ -8,9 +8,16 @@ import 'subway_route_screen.dart' show SubwayRouteArgs;
 import 'transit_route_map_screen.dart';
 
 class TransitRouteOptionsScreen extends StatefulWidget {
-  const TransitRouteOptionsScreen({super.key, required this.args});
+  const TransitRouteOptionsScreen({
+    super.key,
+    required this.args,
+    this.mode = TransitSearchMode.all,
+  });
 
   final SubwayRouteArgs args;
+
+  /// 어느 버튼으로 들어왔는지. 화면 제목과 빈 목록 문구가 이 값에 따라 다르다.
+  final TransitSearchMode mode;
 
   @override
   State<TransitRouteOptionsScreen> createState() =>
@@ -29,8 +36,27 @@ class _TransitRouteOptionsScreenState
       startLat: widget.args.originLat,
       endLng: widget.args.destinationLng,
       endLat: widget.args.destinationLat,
+      mode: widget.mode,
     );
   }
+
+  /// 버튼별 제목. 무엇을 눌러 들어왔는지 화면에서 다시 확인할 수 있게 한다.
+  String get _title => switch (widget.mode) {
+        TransitSearchMode.subway => '지하철 경로',
+        TransitSearchMode.bus => '버스 경로',
+        TransitSearchMode.all => '대중교통 경로',
+      };
+
+  /// 결과가 없을 때의 문구.
+  ///
+  /// 지하철은 노선이 아예 없는 지역에서 비는 일이 흔하다. 그때 "경로가 없다"고만
+  /// 하면 갈 방법이 없는 것처럼 읽히므로, 버스로 갈 수 있다는 것을 함께 알린다.
+  String get _emptyMessage => switch (widget.mode) {
+        TransitSearchMode.subway =>
+          '이 지역에는 지하철 노선이 없어요.\n버스로 가는 방법을 확인해보세요.',
+        TransitSearchMode.bus => '버스로 갈 수 있는 경로가 없어요.',
+        TransitSearchMode.all => '대중교통으로 갈 수 있는 경로가 없어요.',
+      };
 
   void _onOptionTap(TransitRouteOption option) {
     context.push(
@@ -55,7 +81,7 @@ class _TransitRouteOptionsScreenState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            BackHeader(title: '대중교통 경로', onBack: () => context.pop()),
+            BackHeader(title: _title, onBack: () => context.pop()),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
               child: Column(
@@ -90,8 +116,12 @@ class _TransitRouteOptionsScreenState
                   if (options.isEmpty) {
                     return Center(
                       child: Text(
-                        '대중교통으로 갈 수 있는 경로가 없어요.',
-                        style: TextStyle(color: AppColors.neutralScale[400]),
+                        _emptyMessage,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: AppColors.neutralScale[400],
+                          height: 1.5,
+                        ),
                       ),
                     );
                   }

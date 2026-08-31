@@ -181,4 +181,50 @@ void main() {
       expect(option.legs, isEmpty);
     });
   });
+
+  group('TransitSearchMode', () {
+    test('서버에 보내는 값이 계약과 맞는다', () {
+      expect(TransitSearchMode.all.wireValue, 'all');
+      expect(TransitSearchMode.subway.wireValue, 'subway');
+      expect(TransitSearchMode.bus.wireValue, 'bus');
+    });
+  });
+
+  group('거리와 버스 비중', () {
+    test('구간 거리와 후보의 거리·비중을 그대로 싣는다', () {
+      final option = TransitRouteOption.fromJson({
+        ...optionJson(),
+        'subway_distance_m': 2000,
+        'bus_distance_m': 8000,
+        'bus_distance_ratio': 0.8,
+        'legs': [
+          {...legJson(), 'distance_m': 2000},
+        ],
+      });
+
+      expect(option.subwayDistanceMeters, 2000);
+      expect(option.busDistanceMeters, 8000);
+      expect(option.busDistanceRatio, 0.8);
+      expect(option.legs.single.distanceMeters, 2000);
+    });
+
+    test('거리 필드가 없는 과거 형식 응답도 그대로 열린다', () {
+      // 서버가 아직 안 올라간 상태에서도 화면이 죽지 않아야 한다.
+      final option = TransitRouteOption.fromJson(optionJson());
+
+      expect(option.subwayDistanceMeters, 0);
+      expect(option.busDistanceMeters, 0);
+      expect(option.busDistanceRatio, 0.0);
+      expect(option.legs.single.distanceMeters, 0);
+    });
+
+    test('정수로 와도 비중을 double 로 읽는다', () {
+      final option = TransitRouteOption.fromJson({
+        ...optionJson(),
+        'bus_distance_ratio': 1,
+      });
+
+      expect(option.busDistanceRatio, 1.0);
+    });
+  });
 }

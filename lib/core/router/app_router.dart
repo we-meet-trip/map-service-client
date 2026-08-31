@@ -40,6 +40,7 @@ import '../../features/mobility/screens/bike_scooter_location_screen.dart';
 import '../../features/vision/screens/vision_screen.dart';
 import '../../features/saved/screens/navigation_screen.dart';
 import '../../features/trip/screens/subway_route_screen.dart';
+import '../api/transit_route_options_service.dart';
 import '../../features/trip/screens/transit_route_options_screen.dart';
 import '../../features/trip/screens/transit_route_map_screen.dart';
 import '../../common/widgets/address_search_screen.dart';
@@ -231,8 +232,15 @@ final appRouter = GoRouter(
                         ),
                         GoRoute(
                           path: 'transit',
+                          // mode 는 쿼리로 받는다. 지하철·버스 버튼이 같은
+                          // 화면을 서로 다른 조회 조건으로 연다.
                           builder: (context, state) => TransitRouteOptionsScreen(
                             args: state.extra as SubwayRouteArgs,
+                            mode: switch (state.uri.queryParameters['mode']) {
+                              'subway' => TransitSearchMode.subway,
+                              'bus' => TransitSearchMode.bus,
+                              _ => TransitSearchMode.all,
+                            },
                           ),
                           routes: [
                             GoRoute(
