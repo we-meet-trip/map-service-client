@@ -97,13 +97,13 @@ class AppConfig {
     }
 
     // 원격을 못 읽었을 때 곧바로 쓸 수 있도록 캐시를 먼저 깔아 둔다.
-    final cached = _normalize(await _readCache());
+    final cached = _normalize(await _readCache(), requireHttps: true);
     if (cached != null) {
       _apiBaseUrl = cached;
       _source = 'cache';
     }
 
-    final remote = _normalize(await _fetchRemote());
+    final remote = _normalize(await _fetchRemote(), requireHttps: true);
     if (remote != null) {
       _apiBaseUrl = remote;
       _source = 'remote';
@@ -129,7 +129,7 @@ class AppConfig {
   Future<void> _retryUntilRemote() async {
     for (final delay in _retryDelays) {
       await Future<void>.delayed(delay);
-      final remote = _normalize(await _fetchRemote());
+      final remote = _normalize(await _fetchRemote(), requireHttps: true);
       if (remote == null) continue;
       final changed = remote != _apiBaseUrl;
       _apiBaseUrl = remote;
@@ -165,13 +165,19 @@ class AppConfig {
   ///
   /// 뒤 슬래시를 떼는 이유: 호출부가 `'$base/api/v1/...'` 로 이어 붙이는데,
   /// 슬래시가 남아 있으면 `//api/v1` 이 되어 서버가 다른 경로로 본다.
-  static String? _normalize(String? raw) {
+  ///
+  /// requireHttps 를 켜면 평문 주소를 거른다. 원격 설정과 캐시에는 켜서 쓴다 —
+  /// 그 값은 앱 밖에서 정해지므로, 평문을 허용하면 그 주소로 토큰이 그대로
+  /// 나간다. 빌드할 때 박아 넣는 값에는 켜지 않는다. 개발 중에는 컴퓨터에
+  /// 띄운 평문 서버를 봐야 하고, 그 값은 빌드하는 사람이 정한 것이다.
+  static String? _normalize(String? raw, {bool requireHttps = false}) {
     if (raw == null) return null;
     final trimmed = raw.trim();
     if (trimmed.isEmpty) return null;
     final uri = Uri.tryParse(trimmed);
     if (uri == null) return null;
     if (uri.scheme != 'http' && uri.scheme != 'https') return null;
+    if (requireHttps && uri.scheme != 'https') return null;
     if (uri.host.isEmpty) return null;
     var normalized = trimmed;
     while (normalized.endsWith('/')) {
@@ -179,6 +185,12 @@ class AppConfig {
     }
     return normalized.isEmpty ? null : normalized;
   }
+
+  /// 주소 판정을 검사에서 그대로 부를 수 있게 열어 둔다. 이 판정이 무너지면
+  /// 토큰이 어디로 나가는지가 바뀌는데, 그 사실은 화면만 봐서는 드러나지 않는다.
+  @visibleForTesting
+  static String? debugNormalize(String? raw, {bool requireHttps = false}) =>
+      _normalize(raw, requireHttps: requireHttps);
 
   Future<String?> _readCache() async {
     try {
