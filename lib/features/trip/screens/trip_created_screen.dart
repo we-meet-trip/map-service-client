@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:math';
+import '../widgets/weather_alert_banner.dart';
+import '../../../data/models/weather_alert.dart';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../core/naver_map/naver_map_adapter.dart';
@@ -52,6 +54,13 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
   /// 저장하면 그때 채워진다. 생성자 필드를 그대로 쓰면 저장에 성공해도
   /// 값이 계속 비어 있어, 저장을 마친 사용자에게 시작할 방법이 없어진다.
   late SavedTrip? _startTarget = widget.savedTrip;
+
+  /// 화면이 들고 있는 알림. 서버 응답을 그대로 쓰지 않고 사본을 두는 이유는,
+  /// 재추천·무시 뒤 화면에서 즉시 사라져야 하기 때문이다(다시 조회하지 않음).
+  late WeatherAlert? _weatherAlert = widget.savedTrip?.weatherAlert;
+
+  /// 재추천 진행 중. 동기 호출이라 최대 수십 초 걸린다.
+  bool _replanBusy = false;
 
   late final List<_ScheduleStop> _stops;
   late final int _totalDurationMinutes;
@@ -224,6 +233,15 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
                     children: [
                       saved != null ? _buildSavedTripHeader(saved) : _buildTitle(),
                       const SizedBox(height: 16),
+                      if (_weatherAlert != null) ...[
+                        WeatherAlertBanner(
+                          alert: _weatherAlert!,
+                          busy: _replanBusy,
+                          onReplan: _replanForWeather,
+                          onDismiss: _dismissWeatherAlert,
+                        ),
+                        const SizedBox(height: 16),
+                      ],
                       if (_warnings.isNotEmpty) ...[
                         _buildWarningsNotice(),
                         const SizedBox(height: 16),
@@ -257,6 +275,51 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
   /// 열렸든 서버가 준 문장을 그대로 보여준다.
   List<String> get _warnings =>
       widget.response?.warnings ?? widget.savedTrip?.warnings ?? const [];
+
+  /// 날씨가 바뀐 일정을 지금 조건으로 다시 짠다.
+  ///
+  /// 서버가 완성된 일정을 한 번에 돌려주므로(동기), 결과를 받으면 이 화면을
+  /// 새 결과로 교체한다. 실패하면 원래 일정을 그대로 두고 안내만 한다 —
+  /// 다시 짜다 실패했다고 보던 코스를 잃으면 안 된다.
+  Future<void> _replanForWeather() async {
+    final scheduleId = widget.savedTrip?.scheduleId;
+    if (scheduleId == null || _replanBusy) return;
+
+    setState(() => _replanBusy = true);
+    try {
+      final response = await TripApiService.instance.replanTrip(scheduleId);
+      if (!mounted) return;
+      setState(() {
+        _weatherAlert = null;
+        _replanBusy = false;
+      });
+      // 새 결과는 아직 저장된 일정이 아니다. 생성 직후와 같은 화면으로 보여
+      // 사용자가 확인하고 저장할지 정하게 한다.
+      context.push('/saved/trip/replanned', extra: response);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _replanBusy = false);
+      _toast(e is TripApiException
+          ? '다시 추천하지 못했어요: ${e.message}'
+          : '다시 추천하지 못했어요. 잠시 후 시도해주세요.');
+    }
+  }
+
+  /// 알림을 받아들이지 않고 지운다. 코스는 그대로 둔다.
+  Future<void> _dismissWeatherAlert() async {
+    final scheduleId = widget.savedTrip?.scheduleId;
+    if (scheduleId == null || _replanBusy) return;
+
+    // 화면에서 먼저 지운다. 서버 호출이 실패해도 되돌리지 않는 이유는,
+    // 사용자가 이미 "그대로 간다"고 정했고 알림은 다음 순회에서 다시 뜨기
+    // 때문이다 — 눌렀는데 배너가 남아 있는 쪽이 더 혼란스럽다.
+    setState(() => _weatherAlert = null);
+    try {
+      await ScheduleApiService.instance.dismissWeatherAlert(scheduleId);
+    } catch (_) {
+      // 조용히 넘긴다.
+    }
+  }
 
   Widget _buildWarningsNotice() {
     return Container(
