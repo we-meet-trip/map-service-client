@@ -1,4 +1,5 @@
 import 'api_client.dart';
+import '../../data/models/weather_alert.dart';
 import 'trip_api_service.dart';
 
 /// 일정 저장·조회·삭제.
@@ -74,6 +75,14 @@ class ScheduleApiService {
     return ScheduleDetail.fromJson(json);
   }
 
+  /// 날씨 알림을 받아들이지 않고 지운다("이대로 갈게요").
+  ///
+  /// 서버가 알림을 지우면서 기준선을 지금 예보로 옮기므로, 같은 변화가 다시
+  /// 알림으로 뜨지 않는다. 이후 예보가 또 달라지면 그때 다시 알린다.
+  Future<void> dismissWeatherAlert(int scheduleId) async {
+    await _api.post('/api/v1/schedules/$scheduleId/weather-alert/dismiss');
+  }
+
   Future<void> delete(int scheduleId) async {
     await _api.delete('/api/v1/schedules/$scheduleId');
   }
@@ -90,12 +99,16 @@ class ScheduleSummary {
   /// 여행 기간과 다르다 — 다음 달 여행을 오늘 저장하면 등록은 오늘이다.
   final DateTime? createdAt;
 
+  /// 걸려 있는 날씨 변화 알림. 없으면 null(응답에 필드가 아예 없다).
+  final WeatherAlert? weatherAlert;
+
   const ScheduleSummary({
     required this.scheduleId,
     required this.title,
     required this.dateStart,
     required this.dateEnd,
     required this.createdAt,
+    this.weatherAlert,
   });
 
   factory ScheduleSummary.fromJson(Map<String, dynamic> json) =>
@@ -105,6 +118,8 @@ class ScheduleSummary {
         dateStart: _date(json['date_start']),
         dateEnd: _date(json['date_end']),
         createdAt: _date(json['created_at']),
+        weatherAlert: WeatherAlert.fromJson(
+            json['weather_alert'] as Map<String, dynamic>?),
       );
 }
 
@@ -123,6 +138,9 @@ class ScheduleDetail {
   /// 이 일정을 처음 따라가기 시작한 시각. 시작한 적이 없으면 null.
   final DateTime? startedAt;
 
+  /// 걸려 있는 날씨 변화 알림. 없으면 null.
+  final WeatherAlert? weatherAlert;
+
   /// 추천 당시 반영하지 못한 조건 안내. 생성 화면과 같은 안내를 저장 후
   /// 재열람에서도 보여준다. 없으면 빈 목록.
   final List<String> warnings;
@@ -138,6 +156,7 @@ class ScheduleDetail {
     required this.createdAt,
     this.startedAt,
     this.warnings = const [],
+    this.weatherAlert,
   });
 
   factory ScheduleDetail.fromJson(Map<String, dynamic> json) => ScheduleDetail(
@@ -158,6 +177,8 @@ class ScheduleDetail {
                 .where((line) => line.trim().isNotEmpty)
                 .toList() ??
             const [],
+        weatherAlert: WeatherAlert.fromJson(
+            json['weather_alert'] as Map<String, dynamic>?),
       );
 }
 

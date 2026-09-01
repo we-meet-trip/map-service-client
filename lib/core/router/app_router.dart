@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../api/trip_api_service.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../common/layout/main_layout.dart';
@@ -211,6 +212,17 @@ final appRouter = GoRouter(
                     savedTrip: state.extra as SavedTrip?,
                   ),
                   routes: [
+                    // 날씨 변화로 다시 짠 결과. 아직 저장된 일정이 아니라
+                    // 생성 직후와 같은 화면으로 보여 주고, 사용자가 저장할지
+                    // 정하게 한다. 저장 탭 아래 두어 뒤로가면 원래 일정으로
+                    // 돌아오게 한다.
+                    GoRoute(
+                      path: 'replanned',
+                      builder: (context, state) => TripCreatedScreen(
+                        showBackButton: true,
+                        response: state.extra as TripGenerateResponse?,
+                      ),
+                    ),
                     GoRoute(
                       path: 'directions',
                       builder: (context, state) => TripDirectionsScreen(
