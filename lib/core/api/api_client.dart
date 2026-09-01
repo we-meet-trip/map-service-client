@@ -49,8 +49,13 @@ class ApiClient {
           {Map<String, String>? query}) =>
       _send('GET', path, query: query);
 
-  Future<Map<String, dynamic>> post(String path, {Object? body}) =>
-      _send('POST', path, body: body);
+  /// 오래 걸리는 경로는 기다리는 시간을 따로 준다. 서버가 먼저 끊고 사유를
+  /// 담은 응답을 줄 수 있어야 하므로, 그런 경로는 서버 대기 상한보다 길게
+  /// 잡는다 — 짧으면 아직 살아 있는 요청을 이쪽에서 먼저 버려, 곧 도착할
+  /// 결과를 못 받고 실패로 표시한다.
+  Future<Map<String, dynamic>> post(String path,
+          {Object? body, Duration? timeout}) =>
+      _send('POST', path, body: body, timeout: timeout);
 
   Future<Map<String, dynamic>> patch(String path, {Object? body}) =>
       _send('PATCH', path, body: body);
@@ -63,6 +68,7 @@ class ApiClient {
     String path, {
     Map<String, String>? query,
     Object? body,
+    Duration? timeout,
     bool retried = false,
   }) async {
     final uri = Uri.parse('$kApiBaseUrl$path').replace(
@@ -80,7 +86,7 @@ class ApiClient {
       if (body != null) {
         request.body = jsonEncode(body);
       }
-      final streamed = await request.send().timeout(_timeout);
+      final streamed = await request.send().timeout(timeout ?? _timeout);
       response = await http.Response.fromStream(streamed);
     } on TimeoutException {
       throw const ApiException(
@@ -94,7 +100,7 @@ class ApiClient {
       final refreshed = await AuthStore.instance.refresh();
       if (refreshed) {
         return _send(method, path,
-            query: query, body: body, retried: true);
+            query: query, body: body, timeout: timeout, retried: true);
       }
     }
 

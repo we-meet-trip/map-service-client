@@ -1,9 +1,6 @@
 import 'dart:async';
-import 'dart:convert';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:http/http.dart' as http;
 
-import '../config/app_config.dart';
+import 'api_client.dart';
 
 // ─── Request ──────────────────────────────────────────────────
 
@@ -334,8 +331,6 @@ class TripApiService {
   TripApiService._();
   static final TripApiService instance = TripApiService._();
 
-  static String get _baseUrl => kApiBaseUrl;
-
   // 여행 생성은 LLM 여러 번 호출로 수 초~2분 소요된다. 무한 대기를 막되,
   // 서버가 먼저 끊고 사유를 담은 응답을 줄 수 있도록 서버 대기 상한보다
   // 길게 잡는다(서버 150초). 이 값이 서버보다 짧으면 서버가 아직 살아 있는
@@ -353,54 +348,31 @@ class TripApiService {
 
   /// 일정 응답을 돌려주는 두 경로가 공유하는 전송부.
   ///
-  /// 오류 본문 형태가 서버 계층마다 달라, 알아볼 수 있는 키를 순서대로
-  /// 찾아본다. 어느 것도 없으면 상태 코드만 남긴다.
+  /// 공통 통로로 보낸다. 직접 부르면 토큰이 붙지 않아, 서버가 인증을 켜는
+  /// 순간 이 경로만 401 이 된다 — 그런데 이 경로는 앱에서 일정을 만드는
+  /// 유일한 길이라 그 화면만 죽는 것이 아니라 앱의 핵심이 죽는다. 만료된
+  /// 토큰을 갱신하고 다시 보내는 것도 그 통로에만 있다.
+  ///
+  /// 오류 본문 형태가 서버 계층마다 다른데, 그 접기도 공통 통로가 이미
+  /// 한다. 여기서는 이 화면이 쓰는 예외 형태로 옮기기만 한다.
   Future<TripGenerateResponse> _postTrip(
     String path,
     Map<String, dynamic> body,
   ) async {
-    final uri = Uri.parse('$_baseUrl$path');
-    final http.Response response;
     try {
-      response = await http
-          .post(
-            uri,
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode(body),
-          )
-          .timeout(_requestTimeout);
-    } on TimeoutException {
-      throw TripApiException(
-        error: 'REQUEST_TIMEOUT',
-        message: '여행 생성이 지연되고 있어요. 잠시 후 다시 시도해주세요.',
-        statusCode: 408,
-      );
-    }
-
-    Map<String, dynamic> parsed;
-    try {
-      parsed = jsonDecode(response.body) as Map<String, dynamic>;
-    } on FormatException {
-      // 본문이 비었거나 JSON 이 아닌 응답(게이트웨이 오류 등).
-      throw TripApiException(
-        error: 'INVALID_RESPONSE',
-        message: '서버 응답을 읽지 못했어요. 잠시 후 다시 시도해주세요.',
-        statusCode: response.statusCode,
-      );
-    }
-
-    if (response.statusCode == 200) {
+      final parsed = await ApiClient.instance
+          .post(path, body: body, timeout: _requestTimeout);
       return TripGenerateResponse.fromJson(parsed);
+    } on ApiException catch (e) {
+      throw TripApiException(
+        error: e.code,
+        // 기다리다 끊긴 경우만 이 화면의 말로 바꾼다. 나머지는 서버가 준
+        // 문구가 더 구체적이라 그대로 쓴다.
+        message: e.code == 'REQUEST_TIMEOUT'
+            ? '여행 생성이 지연되고 있어요. 잠시 후 다시 시도해주세요.'
+            : e.message,
+        statusCode: e.statusCode,
+      );
     }
-
-    throw TripApiException(
-      error: parsed['error'] as String? ??
-          parsed['code'] as String? ??
-          'UNKNOWN_ERROR',
-      message: parsed['message'] as String? ??
-          parsed['detail'] as String? ??
-          '알 수 없는 오류가 발생했습니다.',
-      statusCode: response.statusCode,
-    );
   }
 }
