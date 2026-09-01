@@ -49,22 +49,38 @@ import '../state/auth_store.dart';
 /// 두 곳이 어긋나 로그인한 사용자가 로그인 화면으로 튕기는 일이 없다.
 final isAuthenticated = AuthStore.instance.isLoggedIn;
 
-const _publicPrefixes = ['/splash', '/auth', '/signup'];
+/// 로그인 없이 들어올 수 있는 자리.
+///
+/// 초대가 여기 들어 있어야 한다. 초대 화면은 로그인이 안 되어 있으면 받은
+/// 토큰을 스스로 보관해 두고 로그인으로 보낸 뒤, 끝나면 그 방으로 데려간다.
+/// 이 목록에서 빠지면 그 화면이 열리기도 전에 관문이 먼저 로그인으로
+/// 돌려보내, 링크에 실려 온 토큰이 사라진다.
+const _publicPrefixes = ['/splash', '/auth', '/signup', '/invite'];
+
+/// 관문의 판단만 떼어 둔다. 화면을 띄우지 않고도 확인할 수 있어야 하기
+/// 때문이다 — 특히 초대가 열려 있는지는 링크를 눌러 보기 전에는 드러나지
+/// 않는 종류라, 검사로 못 박아 두지 않으면 조용히 되돌아간다.
+String? authRedirect({required bool authed, required String location}) {
+  final isPublic = _publicPrefixes.any((p) => location.startsWith(p));
+  if (!authed && !isPublic) return '/auth';
+  return null;
+}
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
 final appRouter = GoRouter(
   navigatorKey: _rootNavigatorKey,
   initialLocation: '/splash',
-  // refreshListenable: isAuthenticated,
-  // redirect: (context, state) {
-  //   final authed = isAuthenticated.value;
-  //   final loc = state.matchedLocation;
-  //   final isPublic = _publicPrefixes.any((p) => loc.startsWith(p));
+  // 로그인하지 않은 사람을 로그인 자리로 보낸다.
   //
-  //   if (!authed && !isPublic) return '/auth';
-  //   return null;
-  // },
+  // 서버가 인증을 켜면 토큰 없는 호출은 전부 401 이 되는데, 화면은 그것을
+  // "잠시 후 다시 시도" 로만 보여 준다. 그러면 무엇이 문제인지도, 어디서
+  // 로그인하는지도 알 길이 없이 앱 전체가 조용히 멎은 것처럼 보인다.
+  refreshListenable: isAuthenticated,
+  redirect: (context, state) => authRedirect(
+    authed: isAuthenticated.value,
+    location: state.matchedLocation,
+  ),
   routes: [
     GoRoute(
       path: '/splash',
