@@ -183,18 +183,21 @@ class _RouteOptionCard extends StatelessWidget {
   static IconData _modeIcon(TransitLegType type) => switch (type) {
         TransitLegType.subway => Icons.directions_subway_filled_rounded,
         TransitLegType.bus => Icons.directions_bus_rounded,
+        TransitLegType.intercity => Icons.airport_shuttle_rounded,
         TransitLegType.walk => Icons.directions_walk_rounded,
       };
 
   static Color _modeColor(TransitLegType type) => switch (type) {
         TransitLegType.subway => AppColors.secondaryScale[500]!,
         TransitLegType.bus => AppColors.blueScale[500]!,
+        TransitLegType.intercity => AppColors.tealScale[400]!,
         TransitLegType.walk => AppColors.neutralScale[300]!,
       };
 
   static String _modeLabel(TransitLegType type) => switch (type) {
         TransitLegType.subway => '지하철',
         TransitLegType.bus => '버스',
+        TransitLegType.intercity => '시외버스',
         TransitLegType.walk => '도보',
       };
 

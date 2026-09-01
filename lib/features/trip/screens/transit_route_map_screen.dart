@@ -40,6 +40,7 @@ class _TransitRouteMapScreenState extends State<TransitRouteMapScreen> {
   static Color _legColor(TransitLegType type) => switch (type) {
         TransitLegType.subway => AppColors.secondaryScale[500]!,
         TransitLegType.bus => AppColors.blueScale[500]!,
+        TransitLegType.intercity => AppColors.tealScale[400]!,
         TransitLegType.walk => AppColors.neutralScale[300]!,
       };
 
@@ -222,12 +223,14 @@ class _LegTile extends StatelessWidget {
   IconData get _icon => switch (leg.type) {
         TransitLegType.subway => Icons.directions_subway_filled_rounded,
         TransitLegType.bus => Icons.directions_bus_rounded,
+        TransitLegType.intercity => Icons.airport_shuttle_rounded,
         TransitLegType.walk => Icons.directions_walk_rounded,
       };
 
   Color get _iconColor => switch (leg.type) {
         TransitLegType.subway => AppColors.secondaryScale[500]!,
         TransitLegType.bus => AppColors.blueScale[500]!,
+        TransitLegType.intercity => AppColors.tealScale[400]!,
         TransitLegType.walk => AppColors.neutralScale[300]!,
       };
 

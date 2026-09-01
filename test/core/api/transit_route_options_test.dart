@@ -227,4 +227,40 @@ void main() {
       expect(option.busDistanceRatio, 1.0);
     });
   });
+
+  group('시외버스', () {
+    test('시외버스 구간을 도보가 아니라 제 항목으로 연다', () {
+      // 이 매핑이 없으면 도시 간 이동이 "도보 217분"으로 표시된다.
+      final leg = TransitRouteLeg.fromJson(
+        legJson(type: 'intercity', lineName: '시외버스', stationCount: null),
+      );
+
+      expect(leg.type, TransitLegType.intercity);
+      expect(leg.lineName, '시외버스');
+    });
+
+    test('modes 에 시외버스가 실린다', () {
+      final option = TransitRouteOption.fromJson(
+        optionJson(
+          modes: ['intercity'],
+          legs: [legJson(type: 'intercity')],
+        ),
+      );
+
+      expect(option.modes, [TransitLegType.intercity]);
+      expect(option.legs.single.type, TransitLegType.intercity);
+    });
+
+    test('지하철·시내버스와 섞여도 순서대로 연다', () {
+      final option = TransitRouteOption.fromJson(
+        optionJson(modes: ['subway', 'bus', 'intercity']),
+      );
+
+      expect(option.modes, [
+        TransitLegType.subway,
+        TransitLegType.bus,
+        TransitLegType.intercity,
+      ]);
+    });
+  });
 }
