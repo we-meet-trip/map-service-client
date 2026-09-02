@@ -263,4 +263,37 @@ void main() {
       ]);
     });
   });
+
+  group('고속버스', () {
+    test('고속버스 구간을 도보가 아니라 제 항목으로 연다', () {
+      // 이 매핑이 없으면 서울→부산 같은 도시 간 이동이 "도보 190km"로
+      // 표시된다. 시외버스와 뭉치지 않는 건 터미널·요금 체계가 달라서다.
+      final leg = TransitRouteLeg.fromJson(
+        legJson(type: 'express', lineName: '고속버스', stationCount: null),
+      );
+
+      expect(leg.type, TransitLegType.express);
+      expect(leg.lineName, '고속버스');
+    });
+
+    test('modes 에 고속버스가 시외버스와 다른 항목으로 실린다', () {
+      final option = TransitRouteOption.fromJson(
+        optionJson(
+          modes: ['express'],
+          legs: [legJson(type: 'express')],
+        ),
+      );
+
+      expect(option.modes, [TransitLegType.express]);
+      expect(option.legs.single.type, TransitLegType.express);
+    });
+
+    test('고속버스·시외버스가 섞여도 각자 다른 항목으로 연다', () {
+      final option = TransitRouteOption.fromJson(
+        optionJson(modes: ['express', 'intercity']),
+      );
+
+      expect(option.modes, [TransitLegType.express, TransitLegType.intercity]);
+    });
+  });
 }

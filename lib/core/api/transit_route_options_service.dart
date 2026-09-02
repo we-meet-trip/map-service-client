@@ -2,10 +2,15 @@ import 'api_client.dart';
 
 /// 통합 길찾기 경로 후보에 등장하는 이동수단.
 ///
-/// intercity 는 시외버스다. 시내버스와 요금대·정류장 표기가 달라 화면에서
-/// 가른다. 이 값이 없으면 서버가 보낸 시외버스가 walk 로 떨어져, 도시 간
-/// 이동이 "도보 217분"처럼 표시된다.
-enum TransitLegType { walk, subway, bus, intercity }
+/// express 는 고속버스, intercity 는 시외버스다. 시내버스와 요금대·정류장
+/// 표기가 다르고, 둘 사이도 터미널과 요금 체계가 달라 화면에서 가른다.
+///
+/// 이 값들이 없으면 서버가 보낸 구간이 walk 로 떨어져, 도시 간 이동이
+/// "도보 217분"처럼 표시된다.
+///
+/// 열차·항공은 아직 없다. 서버가 종류로는 가르지만 지하철·버스 버튼 양쪽에서
+/// 빼므로 이 화면까지 오지 않는다. 그 둘을 보여줄 화면이 생길 때 함께 넣는다.
+enum TransitLegType { walk, subway, bus, express, intercity }
 
 /// 화면이 고른 이동수단. 같은 엔드포인트를 버튼별로 다르게 부른다.
 ///
@@ -65,6 +70,7 @@ class TransitRouteLeg {
       type: switch (json['type'] as String?) {
         'subway' => TransitLegType.subway,
         'bus' => TransitLegType.bus,
+        'express' => TransitLegType.express,
         'intercity' => TransitLegType.intercity,
         _ => TransitLegType.walk,
       },
@@ -135,6 +141,7 @@ class TransitRouteOption {
               .map((m) => switch (m) {
                     'subway' => TransitLegType.subway,
                     'bus' => TransitLegType.bus,
+                    'express' => TransitLegType.express,
                     'intercity' => TransitLegType.intercity,
                     _ => TransitLegType.walk,
                   })
