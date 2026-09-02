@@ -22,12 +22,46 @@ set -uo pipefail
 dir="${RESOURCE_DIR:-hosting}"
 env_file="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/.env"
 
-# 서버에서만 써야 하는 키. 이 목록에 없는 값은 검사하지 않는다.
-SERVER_KEYS=(KAKAO_REST_API_KEY ODSAY_API_KEY_IOS ODSAY_API_KEY_ANDROID VISION_SERVER_HOST)
+found=0
+
+# 서버에서만 써야 하는 키. 지도 클라이언트 아이디처럼 웹에 있어야 정상인
+# 값은 여기 넣지 않는다.
+SERVER_KEYS=(KAKAO_REST_API_KEY VISION_SERVER_HOST)
+
+# 목록이 낡는 것을 막는다.
+#
+# 이름만 적어 두면 환경파일에서 사라진 키가 목록에 남는데, 그런 키는 값이 비어
+# 아래에서 건너뛴다. 그러면 검사가 도는 것처럼 보이면서 실제로는 그 항목을
+# 아무것도 안 본다. 목록에 있는데 파일에 없으면 그 자체를 실패로 본다.
+missing=""
+for key in "${SERVER_KEYS[@]}"; do
+  grep -qE "^$key=" "$env_file" 2>/dev/null || missing="$missing $key"
+done
+if [ -n "$missing" ]; then
+  echo "✗ 검사 목록에 있는데 환경파일에 없는 키:$missing"
+  echo "    목록이 낡았다. 이 상태로는 그 키를 검사하지 못한다."
+  found=1
+fi
+
+# 그리고 환경파일에 없는 것도 본다. 발급처 키가 코드에 글자 그대로 박히면
+# 환경파일에는 흔적이 없어 값 대조로는 영영 안 걸린다. 그 모양을 직접 찾는다.
+LITERAL_PATTERNS=(
+  # data.go.kr 계열 발급키: 64자 이상의 영숫자·기호 덩어리가 따옴표 안에 있는 것
+  "SERVICE_KEY[[:space:]]*=[[:space:]]*['\"][A-Za-z0-9%+/=]{40,}"
+  # 흔한 발급처 키 앞머리
+  "AIza[0-9A-Za-z_-]{30,}"
+)
 
 [ -d "$dir" ] || exit 0
 
-found=0
+# 0) 코드에 글자 그대로 박힌 키
+for pat in "${LITERAL_PATTERNS[@]}"; do
+  if grep -rqE -- "$pat" "$dir" 2>/dev/null; then
+    echo "✗ 발급처 키로 보이는 값이 $dir 안에 글자 그대로 들어 있다."
+    grep -rlE -- "$pat" "$dir" 2>/dev/null | sed 's/^/    /'
+    found=1
+  fi
+done
 
 # 1) 값 대조
 if [ -f "$env_file" ]; then
