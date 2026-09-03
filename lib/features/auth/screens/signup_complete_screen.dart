@@ -4,10 +4,10 @@ import 'package:go_router/go_router.dart';
 import '../../../common/widgets/next_button.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/auth_api_service.dart';
-import '../../../core/state/trip_repository.dart';
 import '../../../core/state/user_repository.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../common/theme/app_text_styles.dart';
+import '../post_login_route.dart';
 
 /// 가입 마지막 화면.
 ///
@@ -60,11 +60,7 @@ class _SignupCompleteScreenState extends State<SignupCompleteScreen> {
     repo.signUpEmail = null;
     repo.signUpPassword = null;
     setState(() => _submitting = false);
-    if (TripRepository.instance.pendingTrip != null) {
-      context.go('/trip');
-    } else {
-      context.go('/');
-    }
+    context.go(postLoginRoute(context));
   }
 
   @override

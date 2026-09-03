@@ -1,20 +1,20 @@
-import 'dart:math';
+/// 발급된 초대 링크.
+class InviteLink {
+  const InviteLink({required this.url, required this.expiresAt});
 
-abstract class InviteLinkRepository {
-  Future<String> generateInviteLink(String roomId, String roomTitle);
+  /// 그대로 공유하면 되는 주소. 서버가 만든 것을 그대로 쓴다.
+  final String url;
+
+  /// 이 링크가 언제까지 유효한지.
+  final DateTime? expiresAt;
 }
 
-class MockInviteLinkRepository implements InviteLinkRepository {
-  static final _random = Random();
-
-  @override
-  Future<String> generateInviteLink(String roomId, String roomTitle) async {
-    await Future.delayed(const Duration(milliseconds: 300));
-    final slug = roomTitle.trim().replaceAll(' ', '-').toLowerCase();
-    final token = List.generate(6, (_) {
-      const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-      return chars[_random.nextInt(chars.length)];
-    }).join();
-    return 'map-app/invite-$slug-$token';
-  }
+/// 초대 링크 발급기.
+abstract class InviteLinkRepository {
+  /// 방의 초대 링크를 발급한다.
+  ///
+  /// 부를 때마다 새 링크가 나오고 **이전 링크는 즉시 죽는다.** 화면은 결과를
+  /// 들고 있다가 다시 보여 줘야 하며, 열 때마다 부르면 방금 보낸 주소를
+  /// 매번 끊게 된다.
+  Future<InviteLink> generateInviteLink(int roomId);
 }

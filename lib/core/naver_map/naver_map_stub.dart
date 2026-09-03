@@ -17,6 +17,7 @@ import 'dart:ui_web' as ui_web;
 import 'package:flutter/material.dart';
 import 'package:web/web.dart' as web;
 
+import 'map_pointer_web.dart';
 import 'web/naver_loader.dart';
 import 'web/naver_web_controller.dart';
 
@@ -81,18 +82,26 @@ class NMapType {
   const NMapType._();
 }
 
+/// 지도 제공자 로고를 붙일 모서리.
+///
+/// 로고는 지울 수 없고 자리만 옮길 수 있다. 화면 아래쪽에 시트가 덮이는
+/// 배치에서 로고가 가려지지 않도록 화면이 자리를 골라 넘긴다.
+enum NLogoAlign { leftBottom, rightBottom, leftTop, rightTop }
+
 class NaverMapViewOptions {
   final NCameraPosition? initialCameraPosition;
   final bool scrollGesturesEnable;
   final bool zoomGesturesEnable;
   final bool rotationGesturesEnable;
   final NMapType mapType;
+  final NLogoAlign logoAlign;
   const NaverMapViewOptions({
     this.initialCameraPosition,
     this.scrollGesturesEnable = true,
     this.zoomGesturesEnable = true,
     this.rotationGesturesEnable = true,
     this.mapType = const NMapType._(),
+    this.logoAlign = NLogoAlign.leftBottom,
   });
 }
 
@@ -158,45 +167,60 @@ class NOverlayImage {
 
 class NMarker {
   final String id;
-  NLatLng position;
+  NLatLng _position;
   final NOverlayImage? icon;
-  void Function(NMarker overlay)? onTap;
-
-  /// 지도에 올린 뒤 값을 바꿀 때 그리는 쪽이 받아 갈 자리.
-  /// 웹 컨트롤러가 마커를 지도에 붙이면서 채워 넣는다. 비어 있으면 값만
-  /// 바뀌고 화면은 그대로다 — 지도에 올리기 전에는 그릴 대상이 없다.
-  void Function(NLatLng position)? onPositionChanged;
-  void Function(bool isVisible)? onVisibilityChanged;
-  void Function(double angle)? onAngleChanged;
-
-  /// 아이콘을 어디에 걸고, 얼마로 그리고, 얼마나 돌릴지.
-  /// 웹 어댑터는 아이콘을 문자열로 그려 넣어 이 셋을 쓰지 않지만, 앱과 같은
-  /// 자리에서 마커를 만들 수 있어야 화면 코드가 갈라지지 않는다.
   final NPoint? anchor;
   final Size? size;
-  final double? angle;
+  double _angle;
+  bool _isVisible;
+  void Function(NMarker overlay)? onTap;
 
   NMarker({
     required this.id,
-    required this.position,
+    required NLatLng position,
     this.icon,
     this.anchor,
     this.size,
-    this.angle,
-  });
+    double angle = 0,
+  })  : _position = position,
+        _angle = angle,
+        _isVisible = true;
+
+  /// 지도에 올린 뒤 값이 바뀌었음을 알리는 통로.
+  ///
+  /// 방향과 표시 여부는 마커를 올린 뒤에도 계속 바뀐다 — 길안내 화면은 기기가
+  /// 향한 쪽이 바뀔 때마다 각도를 다시 준다. 올릴 때 한 번만 읽으면 그 뒤
+  /// 변화가 화면에 닿지 않아, 방향 표시가 처음 각도에 멈춘 채로 남는다.
+  /// 지도를 그리는 쪽이 여기에 자기 갱신을 걸어 둔다.
+  void Function()? onChanged;
+
+  /// 지금 자리. 지도에 마커를 올릴 때 읽는다.
+  NLatLng get position => _position;
+
+  /// 지금 방향(도). 0 이 위쪽이다.
+  double get angle => _angle;
+
+  /// 지금 표시 여부.
+  bool get isVisible => _isVisible;
 
   void setOnTapListener(void Function(NMarker overlay) listener) {
     onTap = listener;
   }
 
-  void setPosition(NLatLng value) {
-    position = value;
-    onPositionChanged?.call(value);
+  void setPosition(NLatLng position) {
+    _position = position;
+    onChanged?.call();
   }
 
-  void setIsVisible(bool value) => onVisibilityChanged?.call(value);
+  void setIsVisible(bool isVisible) {
+    _isVisible = isVisible;
+    onChanged?.call();
+  }
 
-  void setAngle(double value) => onAngleChanged?.call(value);
+  void setAngle(double angle) {
+    _angle = angle;
+    onChanged?.call();
+  }
 }
 
 enum NOverlayType {
@@ -301,12 +325,33 @@ class _NaverMapState extends State<NaverMap> {
         ..style.width = '100%'
         ..style.height = '100%';
       _host = div;
+      _applyPointer();
       return div;
     });
+    naverMapPointerEnabled.addListener(_applyPointer);
+  }
+
+  /// 지도 요소가 손짓을 받을지 켜고 끈다.
+  ///
+  /// 지도를 담는 칸은 우리 요소 하나가 아니라 그것을 감싼 자리까지다.
+  /// 감싼 자리를 열어 두면 손짓이 거기서 멈춰 시트까지 닿지 않는다.
+  void _applyPointer() {
+    final value = naverMapPointerEnabled.value ? 'auto' : 'none';
+    web.Element? element = _host;
+    var depth = 0;
+    while (element != null && depth < 6) {
+      final tag = element.tagName.toUpperCase();
+      if (identical(element, _host) || tag.startsWith('FLT-PLATFORM-VIEW')) {
+        (element as web.HTMLElement).style.pointerEvents = value;
+      }
+      element = element.parentElement;
+      depth++;
+    }
   }
 
   @override
   void dispose() {
+    naverMapPointerEnabled.removeListener(_applyPointer);
     _resizeObserver?.disconnect();
     // 붙일 때와 같은 함수 객체·같은 캡처 값으로 떼야 실제로 떨어진다.
     final gesture = _gestureHandler;

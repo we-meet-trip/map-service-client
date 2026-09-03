@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../common/constants/category_tags.dart';
 import '../../../common/theme/app_colors.dart';
+import '../../../common/widgets/place_photo_strip.dart';
+import '../../../core/api/place_photo_api_service.dart';
 import '../../../core/api/review_api_service.dart';
 
 /// 장소 상세를 아래에서 올라오는 시트로 보여 준다.
@@ -11,13 +14,19 @@ import '../../../core/api/review_api_service.dart';
 /// 않는다 — 요약은 장소를 눌러 자세히 볼 때 필요한 정보다. 서버가 장소별로
 /// 하루 동안 결과를 들고 있어 두 번째 클릭부터는 즉시 나온다.
 ///
-/// 별점·사진·영업시간은 화면에 두지 않는다. 지금 쓰는 장소 출처가 그 값을 주지
+/// 사진은 [latitude]·[longitude] 가 함께 올 때만 받아 온다. 이름만으로 찾으면
+/// 같은 상호의 다른 동네 지점 사진이 오기 때문이다. 좌표가 없거나 사진을 못
+/// 구하면 사진 영역째 접히므로, 늘 비어 있는 칸이 남지 않는다.
+///
+/// 별점·영업시간은 화면에 두지 않는다. 지금 쓰는 장소 출처가 그 값을 주지
 /// 않아서, 자리를 만들어 두면 늘 비어 있는 칸이 남는다.
 Future<void> showPlaceDetailSheet(
   BuildContext context, {
   required String name,
   required String address,
   String? category,
+  double? latitude,
+  double? longitude,
 }) {
   return showModalBottomSheet(
     context: context,
@@ -27,6 +36,8 @@ Future<void> showPlaceDetailSheet(
       name: name,
       address: address,
       category: category,
+      latitude: latitude,
+      longitude: longitude,
     ),
   );
 }
@@ -36,11 +47,15 @@ class _PlaceDetailSheet extends StatefulWidget {
     required this.name,
     required this.address,
     required this.category,
+    required this.latitude,
+    required this.longitude,
   });
 
   final String name;
   final String address;
   final String? category;
+  final double? latitude;
+  final double? longitude;
 
   @override
   State<_PlaceDetailSheet> createState() => _PlaceDetailSheetState();
@@ -54,10 +69,17 @@ class _PlaceDetailSheetState extends State<_PlaceDetailSheet> {
   /// 되고, 그 뒤로는 5건씩 늘어난다.
   static const _morePageSize = 5;
 
+  /// 사진 목록의 높이와 타일 폭.
+  static const _photoStripHeight = 140.0;
+  static const _photoTileWidth = 180.0;
+
   final _api = ReviewApiService.instance;
+  final _photoApi = PlacePhotoApiService.instance;
 
   List<String> _bullets = const [];
   bool _summaryLoading = false;
+
+  List<PlacePhoto> _photos = const [];
 
   final List<BlogReview> _reviews = [];
   bool _reviewsLoading = true;
@@ -68,7 +90,23 @@ class _PlaceDetailSheetState extends State<_PlaceDetailSheet> {
   void initState() {
     super.initState();
     _loadSummary();
+    _loadPhotos();
     _loadFirstPage();
+  }
+
+  /// 사진을 받아 온다. 좌표가 없으면 아예 요청하지 않는다 — 이름만으로 찾은
+  /// 사진은 다른 동네 지점의 것일 수 있고, 서버 쪽 조회에도 비용이 든다.
+  Future<void> _loadPhotos() async {
+    final lat = widget.latitude;
+    final lng = widget.longitude;
+    if (lat == null || lng == null) return;
+    final photos = await _photoApi.fetchPhotos(
+      widget.name,
+      latitude: lat,
+      longitude: lng,
+    );
+    if (!mounted || photos.isEmpty) return;
+    setState(() => _photos = photos);
   }
 
   Future<void> _loadSummary() async {
@@ -126,6 +164,7 @@ class _PlaceDetailSheetState extends State<_PlaceDetailSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final tag = tagForCategory(widget.category);
     return DraggableScrollableSheet(
       initialChildSize: 0.72,
       minChildSize: 0.4,
@@ -164,7 +203,7 @@ class _PlaceDetailSheetState extends State<_PlaceDetailSheet> {
                     fontSize: 13, color: AppColors.neutralScale[400]),
               ),
             ],
-            if (widget.category != null && widget.category!.isNotEmpty) ...[
+            if (tag != null) ...[
               const SizedBox(height: 12),
               Align(
                 alignment: Alignment.centerLeft,
@@ -176,7 +215,7 @@ class _PlaceDetailSheetState extends State<_PlaceDetailSheet> {
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
-                    widget.category!,
+                    tag,
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -186,6 +225,7 @@ class _PlaceDetailSheetState extends State<_PlaceDetailSheet> {
                 ),
               ),
             ],
+            _buildPhotos(),
             const SizedBox(height: 24),
             _buildSummary(),
             const SizedBox(height: 24),
@@ -195,6 +235,15 @@ class _PlaceDetailSheetState extends State<_PlaceDetailSheet> {
       ),
     );
   }
+
+  /// 사진을 크게 본다.
+  ///
+  /// 사진 영역. 목록·크게보기·제공자 표기는 공용 위젯이 맡는다.
+  Widget _buildPhotos() => PlacePhotoStrip(
+        photos: _photos,
+        stripHeight: _photoStripHeight,
+        tileWidth: _photoTileWidth,
+      );
 
   /// 요약 영역. 근거를 못 구했으면 영역째 접는다.
   Widget _buildSummary() {

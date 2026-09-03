@@ -44,13 +44,14 @@
                     android:host="${deepLinkHost}"
                     android:pathPrefix="/invite" />
             </intent-filter>
-            <!-- 개발/테스트: 커스텀 URI 스킴 (wemeettrip://invite/TOKEN) -->
+            <!-- 앱 전용 주소 (mapservice://invite/TOKEN). 도메인 검증이 필요 없어
+                 개발 중 확인에 쓰고, iOS 에서는 유일하게 동작하는 길이다. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
-                    android:scheme="wemeettrip"
+                    android:scheme="mapservice"
                     android:host="invite" />
             </intent-filter>
             <!-- 카카오 로그인 복귀 주소 -->
@@ -66,8 +67,14 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- 지도 인증 키. 이름이 곧 인증 방식이다 — 지도 SDK 는 CLIENT_ID 를
+             예전 방식(ncpClientId)으로, NCP_KEY_ID 를 지금 방식(ncpKeyId)으로
+             읽는다. 지금 콘솔에서 발급하는 키는 뒤쪽이라, 앞쪽 이름으로 적으면
+             키가 맞아도 인증이 서지 않는다. 화면에는 오류 대신 빈 지도가
+             남아(마커는 그려진다) 원인을 찾기 어렵다.
+             웹 쪽도 같은 키를 ncpKeyId 로 넘긴다(naver_loader.dart). -->
         <meta-data
-            android:name="com.naver.maps.map.CLIENT_ID"
+            android:name="com.naver.maps.map.NCP_KEY_ID"
             android:value="${naverMapClientId}" />
     </application>
     <!-- Required to query activities that can process text, see:
@@ -79,6 +86,13 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+        <!-- 음성 입력. 안드로이드 11부터는 다른 앱이 보이지 않는 것이 기본이라,
+             음성 인식 서비스를 여기에 적어 두지 않으면 기기에 인식기가 깔려 있어도
+             찾지 못한다. 그 경우 음성 기능은 시작 단계에서 조용히 거절당하고,
+             마이크는 권한과 무관하게 계속 꺼진 상태로 남는다. -->
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
         </intent>
     </queries>
 </manifest>

@@ -1,14 +1,10 @@
-[
-  {
-    "relation": [
-      "delegate_permission/common.handle_all_urls"
-    ],
-    "target": {
-      "namespace": "android_app",
-      "package_name": "kr.mapservice.client",
-      "sha256_cert_fingerprints": [
-        "F7:49:F8:9D:94:5A:62:71:70:A7:9D:01:D7:C0:8A:0E:BF:67:DF:AA:97:E8:02:1A:66:CE:49:11:89:16:68:39"
-      ]
-    }
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "kr.mapservice.client",
+    "sha256_cert_fingerprints": [
+      "F7:49:F8:9D:94:5A:62:71:70:A7:9D:01:D7:C0:8A:0E:BF:67:DF:AA:97:E8:02:1A:66:CE:49:11:89:16:68:39"
+    ]
   }
-]
+}]

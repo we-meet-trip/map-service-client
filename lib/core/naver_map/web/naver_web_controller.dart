@@ -147,14 +147,26 @@ class NaverMapController {
   }
 
   void _addMarker(NMarker m) {
+    JSObject icon() => jsObject({
+          'content': _markerHtml(_labelFromId(m.id), m.angle).toJS,
+          'anchor': JsPoint(18, 18),
+        });
+
     final marker = JsMarker(jsObject({
       'position': JsLatLng(m.position.latitude, m.position.longitude),
-      'map': _map,
-      'icon': jsObject({
-        'content': _markerHtml(_labelFromId(m.id)).toJS,
-        'anchor': JsPoint(18, 18),
-      }),
+      'map': m.isVisible ? _map : null,
+      'icon': icon(),
     }));
+
+    // 올린 뒤에도 바뀌는 값들을 따라간다. 길안내 화면은 기기가 향한 쪽이
+    // 바뀔 때마다 각도를 다시 주는데, 올릴 때 한 번만 읽으면 방향 표시가
+    // 처음 각도에 멈춘 채로 남는다.
+    m.onChanged = () {
+      marker.setPosition(JsLatLng(m.position.latitude, m.position.longitude));
+      marker.setIcon(icon());
+      marker.setMap(m.isVisible ? _map : null);
+    };
+
     // 마커를 눌러 고르는 화면이 있어 클릭을 듣는다. 지도에서 뗄 때 리스너도
     // 함께 떼지 않으면 사라진 마커와 그 마커가 붙들고 있는 화면 상태가
     // 계속 살아남는다.
@@ -167,20 +179,12 @@ class NaverMapController {
         ((JSAny? _) => onTap(m)).toJS,
       );
     }
-    // 올린 뒤 자리를 옮기거나 감추는 화면이 있다. 그리는 쪽을 여기서 이어 준다.
-    m.onPositionChanged =
-        (p) => marker.setPosition(JsLatLng(p.latitude, p.longitude));
-    m.onVisibilityChanged = (visible) => marker.setMap(visible ? _map : null);
-    // 방향은 아이콘 자체를 돌려야 하는데 아이콘을 문자열로 그려 넣고 있어
-    // 여기서는 다루지 않는다. 앱에서는 플러그인이 처리한다.
-    m.onAngleChanged = null;
-
     _overlays.add(_Tracked(() {
       if (listener != null) {
         naverEventRemoveListener(listener);
       }
-      m.onPositionChanged = null;
-      m.onVisibilityChanged = null;
+      // 뗀 마커가 계속 갱신을 부르면 지도에서 사라진 것이 되살아난다.
+      m.onChanged = null;
       marker.setMap(null);
     }, null));
   }
@@ -266,9 +270,23 @@ JsMap _createJsMap(web.HTMLElement host, NaverMapViewOptions options) {
       'scaleControl': false.toJS,
       'mapTypeControl': false.toJS,
       'logoControl': true.toJS,
+      'logoControlOptions': jsObject({
+        'position': _logoPosition(options.logoAlign).toJS,
+      }),
     }),
   );
 }
+
+/// 로고 자리를 JS 지도가 쓰는 이름으로 옮긴다.
+///
+/// 지도 객체를 만들 때 이름 문자열로 넘긴다 — 위치 상수를 읽으려면 스크립트가
+/// 이미 실행돼 있어야 하는데, 이 함수는 그 직전에도 불릴 수 있다.
+String _logoPosition(NLogoAlign align) => switch (align) {
+      NLogoAlign.leftBottom => 'BOTTOM_LEFT',
+      NLogoAlign.rightBottom => 'BOTTOM_RIGHT',
+      NLogoAlign.leftTop => 'TOP_LEFT',
+      NLogoAlign.rightTop => 'TOP_RIGHT',
+    };
 
 JSArray<JsLatLng> _toJsCoords(List<NLatLng> coords) =>
     [for (final c in coords) JsLatLng(c.latitude, c.longitude)].toJS;
@@ -282,15 +300,22 @@ String _labelFromId(String id) {
 }
 
 /// Reproduces trip_created_screen's `_buildNumberMarker` as an HTML badge.
-String _markerHtml(String label) {
+/// 마커 한 개의 내용. [angle] 은 기기가 향한 쪽(도)이며 0 이 위쪽이다.
+///
+/// 회전은 내용에 얹는다. 지도 라이브러리가 마커 자체를 돌려 주지 않아,
+/// 돌아간 모습이 필요한 마커(길안내의 방향 표시)는 이 자리에서 돌린다.
+String _markerHtml(String label, [double angle = 0]) {
   final border = _hex(AppColors.primaryScale[400]!);
   final text = _hex(AppColors.primaryScale[500]!);
+  final rotate = angle == 0
+      ? ''
+      : 'transform:rotate(${angle.toStringAsFixed(1)}deg);';
   return '<div style="width:36px;height:36px;border-radius:50%;'
       'background:#ffffff;border:2px solid $border;'
       'box-shadow:0 2px 4px rgba(32,31,33,0.15);'
       'display:flex;align-items:center;justify-content:center;'
       'font-weight:700;font-size:14px;color:$text;'
-      'font-family:sans-serif;">$label</div>';
+      'font-family:sans-serif;$rotate">$label</div>';
 }
 
 String _hex(Color c) {

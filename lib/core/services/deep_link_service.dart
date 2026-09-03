@@ -23,23 +23,32 @@ class DeepLinkService {
   }
 
   static void _route(Uri uri, GoRouter router) {
+    final route = routeOf(uri);
+    if (route != null) router.go(route);
+  }
+
+  /// 들어온 주소가 앱 안의 어느 화면을 가리키는지. 해당 없으면 null.
+  ///
+  /// 받는 형태는 둘이다. 웹 주소는 안드로이드에서 도메인 검증을 거쳐 앱으로
+  /// 오고, 앱 전용 주소는 검증이 필요 없어 iOS 와 개발 중 확인에 쓴다. 둘의
+  /// 이름이 어긋나면 한쪽 기기에서만 링크가 조용히 무시된다.
+  static String? routeOf(Uri uri) {
     String? token;
 
-    // HTTPS App Link: https://domain.com/invite/TOKEN
+    // 웹 주소: https://도메인/invite/TOKEN
     if ((uri.scheme == 'https' || uri.scheme == 'http') &&
         uri.pathSegments.length >= 2 &&
         uri.pathSegments[0] == 'invite') {
       token = uri.pathSegments[1];
     }
-    // 커스텀 스킴: wemeettrip://invite/TOKEN
-    else if (uri.scheme == 'wemeettrip' &&
+    // 앱 전용 주소: mapservice://invite/TOKEN
+    else if (uri.scheme == 'mapservice' &&
         uri.host == 'invite' &&
         uri.pathSegments.isNotEmpty) {
       token = uri.pathSegments[0];
     }
 
-    if (token != null && token.isNotEmpty) {
-      router.go('/invite/$token');
-    }
+    if (token == null || token.isEmpty) return null;
+    return '/invite/$token';
   }
 }

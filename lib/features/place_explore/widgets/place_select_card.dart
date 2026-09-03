@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import '../../../common/constants/category_tags.dart';
 import '../../../common/theme/app_colors.dart';
 import '../models/place_detail.dart';
 
@@ -17,6 +18,7 @@ class PlaceSelectCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tag = tagForCategory(detail.category);
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -64,21 +66,23 @@ class PlaceSelectCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryScale[0],
-                      borderRadius: BorderRadius.circular(100),
-                    ),
-                    child: Text(
-                      detail.category,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.primaryScale[400],
+                  if (tag != null)
+                    Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryScale[0],
+                        borderRadius: BorderRadius.circular(100),
+                      ),
+                      child: Text(
+                        tag,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primaryScale[400],
+                        ),
                       ),
                     ),
-                  ),
                 ],
               ),
             ),

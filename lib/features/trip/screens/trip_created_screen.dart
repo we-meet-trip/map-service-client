@@ -1,15 +1,15 @@
+import 'dart:async';
 import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../core/naver_map/naver_map_adapter.dart';
+import '../../../core/naver_map/naver_map_bootstrap.dart';
 import 'package:go_router/go_router.dart';
-import 'package:geolocator/geolocator.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../common/theme/app_icons.dart';
 import '../widgets/transport_theme.dart';
 import '../../../common/widgets/next_button.dart';
 import '../../../common/widgets/prev_button.dart';
-import '../../../common/widgets/app_confirm_dialog.dart';
 import '../../../core/state/trip_repository.dart';
 import '../../../common/widgets/text_field.dart';
 import '../../../core/api/api_client.dart';
@@ -298,54 +298,33 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
   // ── 지도 영역 ────────────────────────────────────────────────
 
   Widget _buildMapArea() {
+    // 지도 식별자가 다음 것으로 바뀌면 지도를 다시 만든다. 인증 판정은 지도를
+    // 그릴 때 오는데, 그때 이미 만들어진 지도는 처음 식별자로 인증을 끝낸
+    // 뒤라 스스로 다시 묻지 않는다 — 다시 만들지 않으면 첫 진입 화면만 계속
+    // 비어 있고 나갔다 들어와야 나온다.
     return SizedBox(
       width: double.infinity,
       height: 280,
-      child: NaverMap(
-        options: NaverMapViewOptions(
-          initialCameraPosition: NCameraPosition(
-            target: _selectedDayStops.isNotEmpty
-                ? _selectedDayStops.first.latLng
-                : _stops.first.latLng,
-            zoom: 14,
+      child: ValueListenableBuilder<int>(
+        valueListenable: naverMapAuthGeneration,
+        builder: (context, generation, _) => NaverMap(
+          key: ValueKey('created-map-$generation'),
+          options: NaverMapViewOptions(
+            initialCameraPosition: NCameraPosition(
+              target: _selectedDayStops.isNotEmpty
+                  ? _selectedDayStops.first.latLng
+                  : _stops.first.latLng,
+              zoom: 14,
+            ),
+            scrollGesturesEnable: true,
+            zoomGesturesEnable: true,
+            rotationGesturesEnable: false,
+            mapType: NMapType.basic,
           ),
-          scrollGesturesEnable: true,
-          zoomGesturesEnable: true,
-          rotationGesturesEnable: false,
-          mapType: NMapType.basic,
+          onMapReady: _onMapReady,
         ),
-        onMapReady: _onMapReady,
       ),
     );
-  }
-
-  Future<void> _onMapTapped(NLatLng latLng) async {
-    final controller = _mapController;
-    if (controller == null) return;
-
-    // 현재 GPS 위치 가져오기
-    try {
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) return;
-
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) return;
-      }
-      if (permission == LocationPermission.deniedForever) return;
-
-      final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
-
-      final locationOverlay = controller.getLocationOverlay();
-      locationOverlay.setIsVisible(true);
-      locationOverlay.setPosition(NLatLng(position.latitude, position.longitude));
-      locationOverlay.setBearing(position.heading);
-    } catch (_) {
-      // 위치 권한 없거나 실패 시 무시
-    }
   }
 
   Widget _buildMapAreaWithBackButton() {
@@ -388,25 +367,56 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
     await _renderDayOverlays(controller);
   }
 
+  // 한 번에 한 벌만 그린다. 일차를 바꿀 때와 지도가 준비될 때 각각 들어오는데,
+  // 지도를 다시 만들면 그 둘이 겹친다. 마커 아이콘은 위젯을 그림 파일로 구워
+  // 만들고 그 굽는 자리가 앱 전체에 하나뿐이라, 겹쳐 돌면 서로의 파일을 지우고
+  // 그 그림을 지도에 얹으려다 iOS 에서 앱이 죽는다.
+  int _renderPass = 0;
+  Future<void>? _renderInFlight;
+
   Future<void> _renderDayOverlays(NaverMapController controller) async {
+    // 번호를 먼저 올린다. 앞서 돌던 그리기가 이 값을 보고 다음 대기 지점에서
+    // 스스로 물러난다.
+    final pass = ++_renderPass;
+    final previous = _renderInFlight;
+    final done = Completer<void>();
+    _renderInFlight = done.future;
+    try {
+      if (previous != null) await previous;
+      await _renderDayOverlaysPass(controller, pass);
+    } finally {
+      done.complete();
+      if (identical(_renderInFlight, done.future)) _renderInFlight = null;
+    }
+  }
+
+  Future<void> _renderDayOverlaysPass(
+      NaverMapController controller, int pass) async {
     final stops = _selectedDayStops;
-    if (stops.isEmpty) return;
+    if (stops.isEmpty || !mounted) return;
+    // 지도가 바뀌었는지도 함께 본다. 번호만으로는 같은 순번에서 지도가 갈린
+    // 경우를 못 가른다.
+    bool stale() =>
+        !mounted || pass != _renderPass || _mapController != controller;
 
     await controller.clearOverlays();
+    if (stale()) return;
 
     // 번호 마커 추가
     for (int i = 0; i < stops.length; i++) {
-      if (!mounted) return;
+      if (!mounted || stale()) return;
       final icon = await NOverlayImage.fromWidget(
         widget: _buildNumberMarker('${i + 1}'),
         size: const Size(36, 36),
         context: context,
       );
+      if (stale()) return;
       await controller.addOverlay(NMarker(
         id: 'stop_$i',
         position: stops[i].latLng,
         icon: icon,
       ));
+      if (stale()) return;
     }
 
     // 경로 폴리라인 추가 — 구간마다 도로 추종 path 가 있으면 그 좌표를,
@@ -442,6 +452,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
         outlineColor: Colors.white,
         outlineWidth: 2,
       ));
+      if (stale()) return;
     }
 
     // 경로 전체(마커+도로 굴곡 포함)가 보이도록 fitBounds. 경로가 없으면 stop 기준.
@@ -736,6 +747,8 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
                     name: stop.name,
                     address: stop.address,
                     category: stop.category,
+                    latitude: stop.latLng.latitude,
+                    longitude: stop.latLng.longitude,
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1063,41 +1076,108 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => AppConfirmDialog(
-        content: RichText(
-          textAlign: TextAlign.center,
-          text: TextSpan(
-            style: TextStyle(
-              fontSize: 18,
-              color: AppColors.neutralScale[600],
-              height: 1.5,
-            ),
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        backgroundColor: Colors.white,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 32, 24, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              TextSpan(
-                text: '"$name"',
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.primaryScale[500],
+              RichText(
+                textAlign: TextAlign.center,
+                text: TextSpan(
+                  style: TextStyle(
+                    fontSize: 18,
+                    color: AppColors.neutralScale[600],
+                    height: 1.5,
+                  ),
+                  children: [
+                    TextSpan(
+                      text: '"$name"',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primaryScale[500],
+                      ),
+                    ),
+                    const TextSpan(
+                      text: '\n일정이 저장되었어요!',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ],
                 ),
               ),
-              const TextSpan(
-                text: '\n일정이 저장되었어요!',
-                style: TextStyle(fontWeight: FontWeight.w600),
+              const SizedBox(height: 28),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: [
+                      AppColors.gradientScale[200]!,
+                      AppColors.gradientScale[600]!,
+                    ]),
+                    borderRadius: BorderRadius.circular(50),
+                  ),
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                      // 목록이 아니라 일정 선택으로 보낸다. 목록으로 보내면
+                      // 방을 만드는 화면을 사용자가 다시 찾아 들어가야 한다.
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (context.mounted) context.go('/chat/new');
+                      });
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      shadowColor: Colors.transparent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(50),
+                      ),
+                    ),
+                    child: const Text(
+                      '대화방 생성하기',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
               ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: OutlinedButton(
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                    TripRepository.instance.requestedTab.value = 0;
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (context.mounted) context.go('/saved');
+                    });
+                  },
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: AppColors.neutralScale[200]!),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(50),
+                    ),
+                  ),
+                  child: Text(
+                    '닫기',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.neutralScale[500],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
             ],
           ),
         ),
-        cancelLabel: '닫기',
-        confirmLabel: '보러가기',
-        onConfirm: () {
-          Navigator.of(ctx).pop();
-          TripRepository.instance.requestedTab.value = 0;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (context.mounted) {
-              context.go('/saved');
-            }
-          });
-        },
       ),
     );
   }

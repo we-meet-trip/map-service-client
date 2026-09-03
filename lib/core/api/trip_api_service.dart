@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'api_client.dart';
 
 // ─── Request ──────────────────────────────────────────────────
@@ -64,12 +62,18 @@ class SelectedPlace {
   final double longitude;
   final int day;
 
+  /// 장소 분류. 고른 장소로 동선만 다시 만들 때, 서버는 이 장소를 새로
+  /// 찾아보지 않아 분류를 알 방법이 없다. 처음 받았던 값을 그대로 실어
+  /// 보내야 결과 화면의 분류 칩이 남는다. 모르면 싣지 않는다.
+  final String? category;
+
   const SelectedPlace({
     required this.name,
     required this.address,
     required this.latitude,
     required this.longitude,
     required this.day,
+    this.category,
   });
 
   Map<String, dynamic> toJson() => {
@@ -78,6 +82,7 @@ class SelectedPlace {
         'lat': latitude,
         'lng': longitude,
         'day': day,
+        if (category != null && category!.isNotEmpty) 'category': category,
       };
 }
 
@@ -348,30 +353,35 @@ class TripApiService {
 
   /// 일정 응답을 돌려주는 두 경로가 공유하는 전송부.
   ///
-  /// 공통 통로로 보낸다. 직접 부르면 토큰이 붙지 않아, 서버가 인증을 켜는
-  /// 순간 이 경로만 401 이 된다 — 그런데 이 경로는 앱에서 일정을 만드는
-  /// 유일한 길이라 그 화면만 죽는 것이 아니라 앱의 핵심이 죽는다. 만료된
-  /// 토큰을 갱신하고 다시 보내는 것도 그 통로에만 있다.
-  ///
-  /// 오류 본문 형태가 서버 계층마다 다른데, 그 접기도 공통 통로가 이미
-  /// 한다. 여기서는 이 화면이 쓰는 예외 형태로 옮기기만 한다.
+  /// 오류 본문 형태가 서버 계층마다 달라, 알아볼 수 있는 키를 순서대로
+  /// 찾아본다. 어느 것도 없으면 상태 코드만 남긴다.
   Future<TripGenerateResponse> _postTrip(
     String path,
     Map<String, dynamic> body,
   ) async {
+    // 공통 통로로 보낸다. 직접 보내면 토큰이 실리지 않고 만료 갱신도 없어,
+    // 서버에서 인증을 켜는 순간 일정 생성과 동선 재생성이 함께 막힌다.
+    // 앱에서 가장 오래 걸리는 요청이라 기다리는 시간은 여기서 따로 준다.
     try {
       final parsed = await ApiClient.instance
           .post(path, body: body, timeout: _requestTimeout);
       return TripGenerateResponse.fromJson(parsed);
     } on ApiException catch (e) {
+      // 공통 통로가 이미 오류 본문의 키를 순서대로 훑어 접어 준다. 여기서는
+      // 화면이 기다리는 예외 형태로만 바꾼다.
       throw TripApiException(
-        error: e.code,
-        // 기다리다 끊긴 경우만 이 화면의 말로 바꾼다. 나머지는 서버가 준
-        // 문구가 더 구체적이라 그대로 쓴다.
-        message: e.code == 'REQUEST_TIMEOUT'
+        error: e.statusCode == 408 ? 'REQUEST_TIMEOUT' : e.code,
+        message: e.statusCode == 408
             ? '여행 생성이 지연되고 있어요. 잠시 후 다시 시도해주세요.'
             : e.message,
         statusCode: e.statusCode,
+      );
+    } on FormatException {
+      // 본문이 비었거나 JSON 이 아닌 응답(게이트웨이 오류 등).
+      throw TripApiException(
+        error: 'INVALID_RESPONSE',
+        message: '서버 응답을 읽지 못했어요. 잠시 후 다시 시도해주세요.',
+        statusCode: 502,
       );
     }
   }
