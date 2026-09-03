@@ -101,3 +101,4 @@ coverage/
 # 원본이고, 사라지면 초대 링크가 앱으로 열리지 않는다.
 hosting/*
 !hosting/.well-known/
+!hosting/legal/

@@ -53,12 +53,16 @@ flutter build web --release 2>&1 | tail -4
 [ -f "$OUT_DIR/index.html" ] || fail "$OUT_DIR/index.html 없음"
 
 echo "== [4/5] 게시 디렉터리에 설치 =="
-# --delete 로 옛 산출물을 치우되, 이 스크립트가 만들지 않는 두 항목은 남긴다.
+# --delete 로 옛 산출물을 치우되, 이 스크립트가 만들지 않는 항목들은 남긴다.
+# legal/ 은 방침·약관 문서, invite/ 는 초대 안내 페이지다 — 웹 빌드 산출물이
+# 아니라서 제외하지 않으면 다음 빌드 때 지워진다.
 rsync -a --delete \
   --exclude 'app_config.json' \
   --exclude '.well-known/' \
+  --exclude 'legal/' \
+  --exclude 'invite/' \
   "$OUT_DIR/" "$HOSTING_DIR/" || fail "게시 디렉터리 설치 실패"
-echo "  ✓ $HOSTING_DIR 갱신 (주소 파일·링크 검증 파일 보존)"
+echo "  ✓ $HOSTING_DIR 갱신 (주소·링크 검증·방침·초대 파일 보존)"
 
 restore_env
 trap - EXIT INT TERM
