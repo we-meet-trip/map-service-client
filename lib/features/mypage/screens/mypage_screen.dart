@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../../../common/utils/support_mail.dart';
 import '../../../core/api/auth_api_service.dart';
 import '../../../core/state/auth_store.dart';
 import '../../../common/theme/app_colors.dart';
@@ -103,10 +105,9 @@ class MypageScreen extends StatelessWidget {
         ),
         const SizedBox(height: 28),
         _MenuItem(label: '관심사 설정', onTap: () => context.push('/mypage/interests')),
-        _MenuItem(label: '알림 설정', onTap: () => context.push('/mypage/notifications')),
         Container(height: 9, width: double.infinity, color: AppColors.mypageDivider),
-        _MenuItem(label: '공지/이벤트', onTap: () => _showComingSoon(context)),
-        _MenuItem(label: '고객센터', onTap: () => _showComingSoon(context)),
+        _MenuItem(label: '고객센터', onTap: () => _openSupportMail(context)),
+        _MenuItem(label: '약관 및 정책', onTap: () => _showPolicies(context)),
         const Spacer(),
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
@@ -147,9 +148,43 @@ class MypageScreen extends StatelessWidget {
     );
   }
 
-  static void _showComingSoon(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('준비 중인 기능이에요.')),
+  static Future<void> _openSupportMail(BuildContext context) async {
+    final opened = await launchSupportMail(subject: '[MAP 문의]');
+    if (!opened && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('메일 앱을 열 수 없어요. $supportEmail 로 보내 주세요.')),
+      );
+    }
+  }
+
+  /// 약관 문서 목록. 항목을 고르면 브라우저로 연다.
+  static void _showPolicies(BuildContext context) {
+    const docs = {
+      '개인정보처리방침': 'privacy.html',
+      '이용약관': 'terms.html',
+      '위치기반서비스 이용약관': 'location-terms.html',
+    };
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => SimpleDialog(
+        title: const Text('약관 및 정책'),
+        children: [
+          for (final e in docs.entries)
+            SimpleDialogOption(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                launchUrl(
+                  Uri.parse('https://mapcenter-b59ca.web.app/legal/${e.value}'),
+                  mode: LaunchMode.externalApplication,
+                );
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Text(e.key, style: const TextStyle(fontSize: 15)),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
