@@ -187,12 +187,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
         if (mounted) _showSaveBottomSheet(context);
       });
     }
-    return Stack(
-      children: [
-        _buildBody(context),
-        const DraggableVisionButton(),
-      ],
-    );
+    return _buildBody(context);
   }
 
   Widget _buildBody(BuildContext context) {
@@ -364,7 +359,6 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
   }
 
   // ── 지도 영역 ────────────────────────────────────────────────
-  // (Stack의 두 번째 자식 DraggableVisionButton은 build()에서 추가됨)
 
   Widget _buildMapArea() {
     // 지도 식별자가 다음 것으로 바뀌면 지도를 다시 만든다. 인증 판정은 지도를

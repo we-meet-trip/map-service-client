@@ -30,6 +30,8 @@ class VisionScreen extends StatefulWidget {
 
 class _VisionScreenState extends State<VisionScreen> {
   CameraController? _cameraController;
+  CameraDescription? _backCamera;
+  CameraDescription? _frontCamera;
   final _wsService = VisionWsService();
   final _stt = SpeechToText();
   StreamSubscription? _responseSub;
@@ -64,8 +66,34 @@ class _VisionScreenState extends State<VisionScreen> {
   Future<void> _initCamera() async {
     final cameras = await availableCameras();
     if (cameras.isEmpty) return;
+    // cameras.first 는 기기별로 전면이 0번일 수 있어 후면을 명시적으로 찾는다.
+    _backCamera = cameras.firstWhere(
+      (c) => c.lensDirection == CameraLensDirection.back,
+      orElse: () => cameras.first,
+    );
+    final frontMatches =
+        cameras.where((c) => c.lensDirection == CameraLensDirection.front);
+    _frontCamera = frontMatches.isEmpty ? null : frontMatches.first;
     _cameraController = CameraController(
-      cameras.first,
+      _backCamera!,
+      ResolutionPreset.high,
+      enableAudio: false,
+    );
+    await _cameraController!.initialize();
+    if (mounted) setState(() => _cameraReady = true);
+  }
+
+  Future<void> _switchCamera() async {
+    final current = _cameraController?.description;
+    if (current == null) return;
+    final target = current.lensDirection == CameraLensDirection.back
+        ? _frontCamera
+        : _backCamera;
+    if (target == null) return;
+    setState(() => _cameraReady = false);
+    await _cameraController!.dispose();
+    _cameraController = CameraController(
+      target,
       ResolutionPreset.high,
       enableAudio: false,
     );
@@ -327,7 +355,11 @@ class _VisionScreenState extends State<VisionScreen> {
                   onTap: () => context.pop(),
                 ),
                 Expanded(child: Center(child: _modeToggle())),
-                const SizedBox(width: 34),
+                _circleButton(
+                  child: const Icon(Icons.cameraswitch,
+                      color: Colors.white, size: 18),
+                  onTap: _switchCamera,
+                ),
               ],
             ),
             if (_lastResult?.identifyResult != null) ...[
