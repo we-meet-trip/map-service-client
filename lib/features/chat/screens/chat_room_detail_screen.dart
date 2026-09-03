@@ -3,15 +3,20 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../common/theme/app_colors.dart';
+import '../../../common/utils/support_mail.dart';
+import '../../../common/widgets/app_confirm_dialog.dart';
+import '../../../core/state/auth_store.dart';
 import '../../../core/state/trip_repository.dart';
 import '../../../data/models/chat_message.dart';
 import '../../../data/models/chat_room.dart';
 import '../../../data/repositories/chat_repository.dart';
 import '../providers/chat_room_detail_provider.dart';
+import '../providers/chat_room_list_provider.dart';
 import 'chat_room_missing_screen.dart';
 import '../widgets/chat_bubble.dart';
 import '../widgets/chat_detail_header.dart';
 import '../widgets/chat_input_bar.dart';
+import '../widgets/chat_room_menu_sheet.dart';
 import '../widgets/invite_link_bottom_sheet.dart';
 import '../widgets/schedule_link_button.dart';
 
@@ -120,6 +125,215 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
     if (mounted) setState(() => _isSheetOpen = false);
   }
 
+  /// 방 메뉴를 연다. 참가자 목록에서 내가 방장인지 판별해 '내보내기'를
+  /// 방장에게만 보여준다.
+  Future<void> _showMenuSheet() async {
+    final repository = context.read<ChatRepository>();
+    List<ChatUser> participants = const [];
+    try {
+      participants = await repository.getParticipants(widget.roomId);
+    } catch (_) {
+      // 참가자를 못 받아도 나가기·신고는 가능해야 하므로 시트는 연다.
+      // 방장 판별만 못 하니 '내보내기'가 빠질 뿐이다.
+    }
+    if (!mounted) return;
+    final me = AuthStore.instance.userId;
+    final isOwner =
+        me != null && participants.any((p) => p.userId == me && p.isOwner);
+
+    setState(() => _isSheetOpen = true);
+    await showModalBottomSheet<void>(
+      context: context,
+      barrierColor: Colors.transparent,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) => ChatRoomMenuSheet(
+        onLeave: () {
+          Navigator.of(sheetContext).pop();
+          _confirmLeave(isOwner: isOwner);
+        },
+        onReport: () {
+          Navigator.of(sheetContext).pop();
+          _reportRoom();
+        },
+        onKick: isOwner
+            ? () {
+                Navigator.of(sheetContext).pop();
+                _showKickSheet(participants);
+              }
+            : null,
+      ),
+    );
+    if (mounted) setState(() => _isSheetOpen = false);
+  }
+
+  /// 확인을 받고 방에서 나간다. 방장이 나가면 서버가 방을 종료하므로
+  /// 확인 문구부터 다르게 보여준다.
+  Future<void> _confirmLeave({required bool isOwner}) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AppConfirmDialog(
+        content: Text(
+          isOwner
+              ? '방장이 나가면 방이 종료됩니다.\n채팅방을 나갈까요?'
+              : '채팅방을 나갈까요?',
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF1C1C28),
+          ),
+        ),
+        confirmLabel: '나가기',
+        onConfirm: () => Navigator.of(dialogContext).pop(true),
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    final listProvider = context.read<ChatRoomListProvider>();
+    try {
+      await context.read<ChatRepository>().leave(widget.roomId);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('채팅방을 나가지 못했어요. 잠시 후 다시 시도해주세요.')),
+        );
+      }
+      return;
+    }
+    // 목록 갱신이 실패해도 나가기 자체는 이미 끝났으므로 이동은 막지 않는다.
+    try {
+      await listProvider.loadRooms();
+    } catch (_) {}
+    if (mounted) context.go('/chat');
+  }
+
+  /// 신고는 메일 양식으로 받는다. 빈칸은 사용자가 채워 보낸다.
+  void _reportRoom() {
+    launchSupportMail(
+      subject: '[MAP 신고] 채팅방 ${widget.roomId}',
+      body: '방 제목: ${_current?.title ?? ''}\n'
+          '신고 대상: \n'
+          '신고 사유: \n'
+          '발생 시각: \n',
+    );
+  }
+
+  /// 내보낼 수 있는 사람: 아직 방에 있고 내가 아닌 참가자.
+  static List<ChatUser> _kickable(List<ChatUser> participants, int? me) =>
+      participants.where((p) => p.isActive && p.userId != me).toList();
+
+  /// 방장이 참가자를 내보내는 시트. 내보낸 뒤 목록을 다시 받아 그린다.
+  /// 방장 여부의 최종 판정은 서버가 하므로 거절되면 안내만 띄운다.
+  Future<void> _showKickSheet(List<ChatUser> participants) async {
+    final repository = context.read<ChatRepository>();
+    final messenger = ScaffoldMessenger.of(context);
+    final me = AuthStore.instance.userId;
+    var candidates = _kickable(participants, me);
+
+    setState(() => _isSheetOpen = true);
+    await showModalBottomSheet<void>(
+      context: context,
+      barrierColor: Colors.transparent,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) => Container(
+          padding: EdgeInsets.fromLTRB(
+            24,
+            12,
+            24,
+            16 + MediaQuery.of(sheetContext).padding.bottom,
+          ),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.neutralScale[100],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                '내보내기',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1C1C28),
+                ),
+              ),
+              const SizedBox(height: 8),
+              if (candidates.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Text(
+                    '내보낼 참가자가 없어요',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppColors.neutralScale[300],
+                    ),
+                  ),
+                )
+              else
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (final p in candidates)
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () async {
+                              try {
+                                await repository.kick(widget.roomId, p.userId);
+                                final refreshed = await repository
+                                    .getParticipants(widget.roomId);
+                                if (!sheetContext.mounted) return;
+                                setSheetState(() =>
+                                    candidates = _kickable(refreshed, me));
+                              } catch (_) {
+                                messenger.showSnackBar(
+                                  const SnackBar(
+                                    content:
+                                        Text('내보내지 못했어요. 잠시 후 다시 시도해주세요.'),
+                                  ),
+                                );
+                              }
+                            },
+                            child: Container(
+                              width: double.infinity,
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 16),
+                              alignment: Alignment.center,
+                              child: Text(
+                                p.nickname,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF1C1C28),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (mounted) setState(() => _isSheetOpen = false);
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_missing) return const ChatRoomMissingScreen();
@@ -134,6 +348,8 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
               participants: _current?.participants ?? const [],
               onBack: () => context.pop(),
               onShare: _isUpcoming ? _showInviteSheet : null,
+              // 지난 방에서도 나가기·신고는 해야 하므로 조건 없이 연다.
+              onMenu: _showMenuSheet,
             ),
             Expanded(
               child: Stack(

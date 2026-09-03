@@ -85,6 +85,12 @@ class ApiChatRepository implements ChatRepository {
         .toList();
   }
 
+  @override
+  Future<void> leave(int roomId) => _api.leave(roomId);
+
+  @override
+  Future<void> kick(int roomId, int userId) => _api.kick(roomId, userId);
+
   ChatRoom _toRoom(ChatRoomResponse r) => ChatRoom(
         id: r.roomId,
         scheduleId: r.scheduleId,
