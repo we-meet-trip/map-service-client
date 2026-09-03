@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:go_router/go_router.dart';
 
 import '../theme/app_colors.dart';
@@ -30,10 +31,13 @@ class _DraggableVisionButtonState extends State<DraggableVisionButton> {
   void _onDragEnd(DraggableDetails details) {
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
-    final renderBox = context.findRenderObject() as RenderBox?;
-    if (renderBox == null) return;
 
-    final local = renderBox.globalToLocal(details.offset);
+    // 부모 Stack 기준으로 좌표 변환
+    final stackBox =
+        context.findAncestorRenderObjectOfType<RenderStack>();
+    if (stackBox == null) return;
+
+    final local = stackBox.globalToLocal(details.offset);
     double x = local.dx;
     double y = local.dy;
 

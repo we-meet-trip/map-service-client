@@ -77,8 +77,6 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
     _days = _stops.map((s) => s.day).toSet().toList()..sort();
     _selectedDay = _days.isNotEmpty ? _days.first : 1;
     // 로그인 후 복귀 시 자동으로 저장 바텀시트 열기
-      _days = _stops.map((s) => s.day).toSet().toList()..sort();
-      _selectedDay = _days.isNotEmpty ? _days.first : 1;
     if (TripRepository.instance.autoSaveOnNext && isAuthenticated.value) {
       TripRepository.instance.autoSaveOnNext = false;
       _shouldAutoSave = true;
@@ -180,12 +178,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
         if (mounted) _showSaveBottomSheet(context);
       });
     }
-    return Stack(
-      children: [
-        _buildBody(context),
-        const DraggableVisionButton(),
-      ],
-    );
+    return _buildBody(context);
   }
 
   Widget _buildBody(BuildContext context) {
@@ -303,7 +296,6 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
   }
 
   // ── 지도 영역 ────────────────────────────────────────────────
-  // (Stack의 두 번째 자식 DraggableVisionButton은 build()에서 추가됨)
 
   Widget _buildMapArea() {
     return SizedBox(
