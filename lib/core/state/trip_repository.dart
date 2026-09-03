@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../../data/models/weather_alert.dart';
 import '../api/schedule_api_service.dart';
 import '../api/trip_api_service.dart';
 
@@ -86,6 +87,9 @@ class SavedTrip {
   /// 보여준다. 없으면 빈 목록.
   final List<String> warnings;
 
+  /// 걸려 있는 날씨 변화 알림. 없으면 null.
+  final WeatherAlert? weatherAlert;
+
   SavedTrip({
     this.scheduleId,
     required this.name,
@@ -97,6 +101,7 @@ class SavedTrip {
     required this.totalDurationMinutes,
     this.chatRoomId,
     this.warnings = const [],
+    this.weatherAlert,
   });
 
   String get id => scheduleId?.toString() ?? '';
@@ -126,6 +131,7 @@ class SavedTrip {
       stops: d.stops,
       totalDurationMinutes: d.totalDurationMinutes,
       warnings: d.warnings,
+      weatherAlert: d.weatherAlert,
     );
   }
 }

@@ -351,6 +351,13 @@ class TripApiService {
   Future<TripGenerateResponse> routeTrip(TripRouteRequest request) =>
       _postTrip('/api/v1/trip/route', request.toJson());
 
+  /// 저장된 일정을 지금 날씨로 다시 짠다("다시 추천받기").
+  ///
+  /// 조건(지역·기간·이동수단)은 서버가 저장된 일정에서 꺼내 쓰므로 식별자만
+  /// 보낸다. 응답은 generate 와 같은 형태라 결과 화면을 그대로 재사용한다.
+  Future<TripGenerateResponse> replanTrip(int scheduleId) =>
+      _postTrip('/api/v1/trip/replan', {'schedule_id': scheduleId});
+
   /// 일정 응답을 돌려주는 두 경로가 공유하는 전송부.
   ///
   /// 오류 본문 형태가 서버 계층마다 달라, 알아볼 수 있는 키를 순서대로
