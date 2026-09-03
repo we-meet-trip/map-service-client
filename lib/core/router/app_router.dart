@@ -24,7 +24,7 @@ import '../../features/chat/screens/chat_screen.dart';
 import '../../features/mypage/screens/mypage_screen.dart';
 import '../../features/mypage/screens/profile_edit_screen.dart';
 import '../../features/mypage/screens/interests_edit_screen.dart';
-import '../../features/mypage/screens/notification_settings_screen.dart';
+import '../../features/notice/screens/permission_notice_screen.dart';
 import '../../features/auth/screens/auth_screen.dart';
 import '../../features/auth/screens/email_login_screen.dart';
 import '../../features/auth/screens/signup_step1_screen.dart';
@@ -44,6 +44,7 @@ import '../api/transit_route_options_service.dart';
 import '../../features/trip/screens/transit_route_options_screen.dart';
 import '../../features/trip/screens/transit_route_map_screen.dart';
 import '../../common/widgets/address_search_screen.dart';
+import '../../data/local/permission_notice_store.dart';
 import '../state/auth_store.dart';
 
 /// 로그인 여부 — 화면들이 오래 전부터 이 값을 보고 그린다.
@@ -58,12 +59,28 @@ final isAuthenticated = AuthStore.instance.isLoggedIn;
 /// 토큰을 스스로 보관해 두고 로그인으로 보낸 뒤, 끝나면 그 방으로 데려간다.
 /// 이 목록에서 빠지면 그 화면이 열리기도 전에 관문이 먼저 로그인으로
 /// 돌려보내, 링크에 실려 온 토큰이 사라진다.
-const _publicPrefixes = ['/splash', '/auth', '/signup', '/invite'];
+const _publicPrefixes = [
+  '/splash',
+  '/auth',
+  '/signup',
+  '/invite',
+  '/permission-notice',
+];
 
 /// 관문의 판단만 떼어 둔다. 화면을 띄우지 않고도 확인할 수 있어야 하기
 /// 때문이다 — 특히 초대가 열려 있는지는 링크를 눌러 보기 전에는 드러나지
 /// 않는 종류라, 검사로 못 박아 두지 않으면 조용히 되돌아간다.
-String? authRedirect({required bool authed, required String location}) {
+String? authRedirect({
+  required bool authed,
+  required bool noticeSeen,
+  required String location,
+}) {
+  // 권한 고지 관문이 로그인 관문보다 먼저다. 초대를 면제하는 이유는 위와
+  // 같다 — 여기서 먼저 돌려보내면 링크에 실려 온 초대 토큰이 사라진다.
+  const noticeExempt = ['/splash', '/permission-notice', '/invite'];
+  if (!noticeSeen && !noticeExempt.any((p) => location.startsWith(p))) {
+    return '/permission-notice';
+  }
   final isPublic = _publicPrefixes.any((p) => location.startsWith(p));
   if (!authed && !isPublic) return '/auth';
   return null;
@@ -82,12 +99,17 @@ final appRouter = GoRouter(
   refreshListenable: isAuthenticated,
   redirect: (context, state) => authRedirect(
     authed: isAuthenticated.value,
+    noticeSeen: PermissionNoticeStore.instance.confirmed,
     location: state.matchedLocation,
   ),
   routes: [
     GoRoute(
       path: '/splash',
       builder: (context, state) => const SplashScreen(),
+    ),
+    GoRoute(
+      path: '/permission-notice',
+      builder: (context, state) => const PermissionNoticeScreen(),
     ),
     GoRoute(
       path: '/invite/:token',
@@ -323,11 +345,6 @@ final appRouter = GoRouter(
                   path: 'interests',
                   parentNavigatorKey: _rootNavigatorKey,
                   builder: (context, state) => const InterestsEditScreen(),
-                ),
-                GoRoute(
-                  path: 'notifications',
-                  parentNavigatorKey: _rootNavigatorKey,
-                  builder: (context, state) => const NotificationSettingsScreen(),
                 ),
               ],
             ),
