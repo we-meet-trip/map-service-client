@@ -193,7 +193,11 @@ class _TripDirectionsScreenState extends State<TripDirectionsScreen> {
     return results.isEmpty ? null : results.first;
   }
 
-  Future<void> _onSubwayTap() async {
+  /// 대중교통 경로 후보 목록으로 이동한다.
+  ///
+  /// 지하철·버스 버튼이 같은 화면을 서로 다른 mode 로 연다. 무엇을 어떻게
+  /// 거를지는 서버가 정하므로 여기서는 어느 버튼을 눌렀는지만 넘긴다.
+  Future<void> _onTransitTap(String mode) async {
     final stops = widget.savedTrip?.stops;
     if (stops == null || stops.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -229,7 +233,7 @@ class _TripDirectionsScreenState extends State<TripDirectionsScreen> {
     }
 
     context.push(
-      '/saved/trip/directions/subway',
+      '/saved/trip/directions/transit?mode=$mode',
       extra: SubwayRouteArgs(
         originLabel: _originLabel,
         originLat: origin.latitude,
@@ -331,19 +335,20 @@ class _TripDirectionsScreenState extends State<TripDirectionsScreen> {
                 const SizedBox(height: 20),
                 _buildBigCard(
                   title: '지하철',
-                  subtitle: '가장 빠른 경로를 탐색해보세요',
+                  subtitle: '지하철로 가는 방법을 찾아보세요',
                   image: 'assets/images/transport/train.png',
                   imageSize: 68,
                   imageRight: 26,
-                  onTap: _onSubwayTap,
+                  onTap: () => _onTransitTap('subway'),
                 ),
                 const SizedBox(height: 12),
                 _buildBigCard(
                   title: '버스',
-                  subtitle: '실시간 버스 위치 확인해보세요',
+                  subtitle: '버스로 가는 방법을 찾아보세요',
                   image: 'assets/images/transport/tour_bus.png',
                   imageSize: 74,
                   imageRight: 20,
+                  onTap: () => _onTransitTap('bus'),
                 ),
                 const SizedBox(height: 12),
                 Row(

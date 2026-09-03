@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# 호스팅 배포 직전에 앱이 읽을 주소 파일이 있는지 본다.
+# 호스팅 배포 직전에 앱이 읽을 주소 파일을 본다. 있는지, 그리고 그 안의
+# 주소가 실제로 답하는지까지 본다.
 #
 # 배포는 산출물 디렉터리 내용으로 사이트를 통째로 바꾼다. 주소 파일이 없는
 # 상태로 올리면 폰이 읽을 곳이 사라지고, 그때부터 앱은 마지막에 받아 둔 옛
@@ -17,10 +18,31 @@ set -uo pipefail
 dir="${RESOURCE_DIR:-hosting}"
 target="$dir/app_config.json"
 
-if [ -f "$target" ]; then
-  exit 0
+if [ ! -f "$target" ]; then
+  echo "✗ $target 없음 — 이대로 배포하면 앱이 읽는 주소 파일이 사라진다."
+  echo "  배포는 map-service-infra/scripts/map-serve.sh 로 한다(주소를 쓴 뒤 올린다)."
+  exit 1
 fi
 
-echo "✗ $target 없음 — 이대로 배포하면 앱이 읽는 주소 파일이 사라진다."
-echo "  배포는 map-service-infra/scripts/map-serve.sh 로 한다(주소를 쓴 뒤 올린다)."
-exit 1
+url="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("api_base_url") or "")' "$target" 2>/dev/null)"
+
+if [ -z "$url" ]; then
+  echo "✗ $target 의 주소가 비어 있다."
+  exit 1
+fi
+
+case "$url" in
+  https://*) ;;
+  *) echo "✗ 주소가 https 가 아니다: $url"; exit 1 ;;
+esac
+
+# 파일이 있고 모양도 맞는데 그 끝에 아무것도 없는 경우가 실제로 있었다. 잠깐
+# 열었다 닫는 임시 주소를 적어 두고 그대로 굳으면, 앱은 옛 주소로 버티다가
+# 조용히 멈춘다. 배포는 성공으로 나온다. 그래서 한 번 물어본다.
+if ! curl -fsS -m 5 "$url/healthz" >/dev/null 2>&1; then
+  echo "✗ $url 이 답하지 않는다 — 죽은 주소를 올리려 하고 있다."
+  echo "  서버를 먼저 띄우거나, 주소를 고친 뒤 다시 하라."
+  exit 1
+fi
+
+exit 0
