@@ -8,6 +8,7 @@ import '../../data/repositories/invite_link_repository.dart';
 import '../../features/home/screens/home_screen.dart';
 import '../../features/trip/screens/trip_regenerate_screen.dart';
 import '../../features/trip/screens/trip_created_screen.dart';
+import '../../features/place_explore/screens/place_explore_result_screen.dart';
 import '../../features/place_explore/screens/place_explore_step1_screen.dart';
 import '../../features/place_explore/screens/place_explore_step2_screen.dart';
 import '../../features/place_explore/providers/place_explore_provider.dart';
@@ -17,8 +18,8 @@ import '../../features/trip/screens/search_step1_screen.dart';
 import '../../features/saved/screens/saved_screen.dart';
 import '../../features/chat/providers/chat_room_detail_provider.dart';
 import '../../features/chat/screens/chat_room_detail_screen.dart';
+import '../../features/chat/screens/chat_room_missing_screen.dart';
 import '../state/trip_repository.dart';
-import '../api/trip_api_service.dart';
 import '../../features/chat/screens/chat_screen.dart';
 import '../../features/mypage/screens/mypage_screen.dart';
 import '../../features/mypage/screens/profile_edit_screen.dart';
@@ -35,7 +36,6 @@ import '../../features/auth/screens/signup_complete_screen.dart';
 import '../../features/chat/screens/trip_selection_for_chat_screen.dart';
 import '../../features/invite/screens/invite_handler_screen.dart';
 import '../../features/splash/screens/splash_screen.dart';
-import '../../common/widgets/app_loading_screen.dart';
 import '../../features/mobility/screens/bike_scooter_location_screen.dart';
 import '../../features/vision/screens/vision_screen.dart';
 import '../../features/saved/screens/navigation_screen.dart';
@@ -199,22 +199,18 @@ final appRouter = GoRouter(
                 GoRoute(
                   path: 'place-explore/step2',
                   builder: (context, state) => PlaceExploreStep2Screen(
-                    onNext: () =>
-                        context.go('/trip/place-explore/generating'),
+                    onNext: () => context.go('/trip/place-explore/result'),
                     onPrev: () => context.go('/trip/place-explore/step1'),
                   ),
                 ),
-                GoRoute(
-                  path: 'place-explore/generating',
-                  builder: (context, state) => AppLoadingScreen(
-                    onComplete: () =>
-                        context.go('/trip/place-explore/result'),
-                  ),
-                ),
+                // 동선을 만드는 동안의 기다림도 결과 화면이 함께 맡는다.
+                // 화면을 나누면 만들어 낸 일정을 넘길 자리가 라우트 사이의
+                // 임시 값뿐이라, 새로고침 한 번에 사라진다.
                 GoRoute(
                   path: 'place-explore/result',
-                  builder: (context, state) => TripCreatedScreen(
-                    response: state.extra as TripGenerateResponse?,
+                  builder: (context, state) => PlaceExploreResultScreen(
+                    selectedIds:
+                        context.read<PlaceExploreProvider>().selectedIds,
                   ),
                 ),
               ],
@@ -290,14 +286,21 @@ final appRouter = GoRouter(
                 GoRoute(
                   path: ':id',
                   builder: (context, state) {
-                    final room = state.extra! as ChatRoom;
+                    // 목록에서 들어오면 방을 들고 오지만, 링크로 곧장 들어오거나
+                    // 브라우저에서 새로 고치면 들고 올 것이 없다. 그때 값이 있다고
+                    // 단정하면 화면이 뜨기도 전에 죽는다.
+                    final room = state.extra as ChatRoom?;
+                    final roomId = room?.id ?? int.tryParse(state.pathParameters['id'] ?? '');
+                    if (roomId == null) {
+                      return const ChatRoomMissingScreen();
+                    }
                     return ChangeNotifierProvider(
                       create: (ctx) => ChatRoomDetailProvider(
                         ctx.read<ChatRepository>(),
                         ctx.read<InviteLinkRepository>(),
-                        room.id,
+                        roomId,
                       ),
-                      child: ChatRoomDetailScreen(room: room),
+                      child: ChatRoomDetailScreen(room: room, roomId: roomId),
                     );
                   },
                 ),

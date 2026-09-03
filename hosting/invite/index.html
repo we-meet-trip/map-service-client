@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>여행 채팅방 초대</title>
+<!--
+  초대 링크를 브라우저에서 열었을 때 보여 주는 페이지.
+
+  안드로이드에서 앱 링크 검증이 통과한 기기는 이 페이지를 거치지 않고 앱이 바로
+  뜬다. 여기까지 오는 경우는 셋이다. 앱이 없거나, iOS 이거나, 카카오톡 같은 앱
+  안의 브라우저로 열렸을 때다.
+
+  마지막 경우가 실제로 가장 흔하다. 안드로이드의 카카오톡은 링크를 자기 브라우저로
+  열어 버려서 앱 링크가 뜨지 않는데, 그 안에서는 intent: 주소로만 밖으로 나갈 수
+  있다. iOS 의 앱 내 브라우저에서는 그마저도 막혀 있어 앱을 여는 길이 아예 없다.
+  그래서 이 페이지는 "앱을 받아라"로 끝나지 않고, 무엇에 초대받았는지를 여기서
+  그대로 보여 준다.
+
+  방 정보는 로그인 없이 조회할 수 있는 미리보기로 가져온다. 서버 주소는 앱이 읽는
+  것과 같은 파일에서 읽어, 주소가 바뀌어도 이 페이지를 다시 올릴 필요가 없다.
+-->
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: #F7F7FA;
+    color: #1C1C28;
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
+      "Malgun Gothic", "Segoe UI", Roboto, sans-serif;
+  }
+  .card {
+    width: 100%;
+    max-width: 380px;
+    background: #fff;
+    border-radius: 20px;
+    padding: 32px 24px;
+    text-align: center;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .06);
+  }
+  .icon { font-size: 40px; line-height: 1; }
+  h1 { font-size: 20px; font-weight: 700; margin: 16px 0 8px; }
+  .sub { font-size: 14px; color: #8F8E90; margin: 0; line-height: 1.5; }
+  .meta { font-size: 13px; color: #8F8E90; margin-top: 12px; }
+  .btn {
+    display: block;
+    width: 100%;
+    margin-top: 24px;
+    padding: 15px 16px;
+    border: 0;
+    border-radius: 12px;
+    background: #1C1C28;
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .btn[aria-disabled="true"] { background: #D9D9E0; color: #fff; pointer-events: none; }
+  .hint { font-size: 12px; color: #B0AFB4; margin-top: 14px; line-height: 1.6; }
+  .error { color: #C8383F; }
+</style>
+</head>
+<body>
+<main class="card">
+  <div class="icon" id="icon">✉️</div>
+  <h1 id="title">초대를 확인하는 중이에요</h1>
+  <p class="sub" id="sub">잠시만 기다려 주세요.</p>
+  <p class="meta" id="meta" hidden></p>
+  <a class="btn" id="open" href="#" aria-disabled="true">앱에서 열기</a>
+  <p class="hint" id="hint">앱이 열리지 않으면 앱을 설치한 뒤 다시 눌러 주세요.</p>
+</main>
+<script>
+(function () {
+  var ANDROID_PACKAGE = 'kr.mapservice.client';
+  var SCHEME = 'mapservice';
+  // 앱이 떴는지를 판정하기까지 기다리는 시간. 앱 전환은 보통 그 안에 끝나고,
+  // 이보다 짧게 잡으면 느린 기기에서 앱이 뜨는 중인데도 못 열었다고 판단한다.
+  var LAUNCH_WAIT_MS = 1600;
+
+  var els = {
+    icon: document.getElementById('icon'),
+    title: document.getElementById('title'),
+    sub: document.getElementById('sub'),
+    meta: document.getElementById('meta'),
+    open: document.getElementById('open'),
+    hint: document.getElementById('hint')
+  };
+
+  // 주소는 /invite/<토큰> 형태다. 뒤에 슬래시가 붙어 와도 견디게 걸러 낸다.
+  var parts = window.location.pathname.split('/').filter(Boolean);
+  var token = parts.length >= 2 && parts[0] === 'invite' ? parts[1] : '';
+
+  if (!token) {
+    fail('링크가 올바르지 않아요', '주소에 초대 토큰이 없어요.');
+    return;
+  }
+
+  // 안드로이드는 intent 주소가 앱 없음까지 스스로 처리하므로 지켜볼 것이 없다.
+  // 나머지 기기에서만 누른 뒤의 결과를 본다. 버튼이 열리기 전에 한 번만 걸어
+  // 두면 미리보기가 어느 쪽으로 끝나든 중복으로 걸리지 않는다.
+  if (!isAndroid()) {
+    els.open.addEventListener('click', function () {
+      if (els.open.getAttribute('aria-disabled') === 'true') return;
+      watchLaunch();
+    });
+  }
+
+  // 미리보기 판정이 끝나기 전에는 열어 두지 않는다. 느린 회선에서 이미 죽은
+  // 링크를 눌러 통과시킬 수 있기 때문이다.
+  loadPreview(token);
+
+  /**
+   * 앱을 여는 주소.
+   *
+   * 안드로이드는 intent 주소를 쓴다. 앱 안의 브라우저에서 밖으로 나갈 수 있는
+   * 거의 유일한 길이고, 앱이 없으면 fallback 주소로 되돌아온다. 그 밖의 기기는
+   * 앱 전용 주소를 그대로 쓴다.
+   */
+  function appUrl(t) {
+    var direct = SCHEME + '://invite/' + encodeURIComponent(t);
+    if (!isAndroid()) return direct;
+    return 'intent://invite/' + encodeURIComponent(t) +
+      '#Intent;scheme=' + SCHEME +
+      ';package=' + ANDROID_PACKAGE +
+      ';S.browser_fallback_url=' + encodeURIComponent(window.location.href) +
+      ';end';
+  }
+
+  function isAndroid() {
+    return /Android/i.test(navigator.userAgent);
+  }
+
+  /**
+   * 앱을 여는 데 실패했을 때 이 페이지에 남기기.
+   *
+   * 안드로이드의 intent 주소는 앱이 없으면 브라우저가 스스로 fallback 주소로
+   * 되돌려 주지만, 앱 전용 주소에는 그런 길이 없다. iOS 를 비롯한 나머지 기기는
+   * 앱이 없으면 브라우저가 "주소가 유효하지 않다"는 창 하나만 띄우고 끝나서,
+   * 무엇을 해야 하는지 알 수 없는 상태로 남는다.
+   *
+   * 앱이 떴는지를 직접 물어볼 방법은 없으므로 이 페이지가 뒤로 물러났는지를
+   * 본다. 앱으로 넘어가면 화면이 가려지고, 넘어가지 못하면 그대로 보이는 채로
+   * 남는다. 정해 둔 시간이 지나도 여전히 보이고 있으면 못 연 것으로 보고 안내를
+   * 바꾼다. 화면이 가려졌다면 앱이 뜬 것이니, 나중에 브라우저로 돌아왔을 때
+   * 엉뚱한 안내가 남지 않도록 기다리기를 접는다.
+   */
+  function watchLaunch() {
+    var timer = window.setTimeout(function () {
+      stop();
+      els.icon.textContent = '📱';
+      els.hint.textContent = '앱이 열리지 않았어요. 앱을 설치한 뒤 이 링크를 다시 열면 ' +
+        '바로 대화방으로 들어갈 수 있어요.';
+    }, LAUNCH_WAIT_MS);
+
+    function stop() {
+      window.clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onLeave);
+      window.removeEventListener('pagehide', onLeave);
+    }
+
+    function onLeave(e) {
+      // 화면이 다시 보이게 되는 전환도 같은 이름으로 오므로 가려진 때만 받는다.
+      if (e.type === 'visibilitychange' && document.visibilityState !== 'hidden') return;
+      stop();
+    }
+
+    document.addEventListener('visibilitychange', onLeave);
+    window.addEventListener('pagehide', onLeave);
+  }
+
+  function loadPreview(t) {
+    // 서버 주소는 앱이 읽는 파일과 같은 것을 본다.
+    fetch('/app_config.json', { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (cfg) {
+        var base = cfg && cfg.api_base_url;
+        if (!base) throw new Error('no base url');
+        return fetch(base.replace(/\/+$/, '') + '/api/v1/chat/invites/' + encodeURIComponent(t));
+      })
+      .then(function (r) {
+        if (r.status === 404) throw new Error('invalid');
+        if (!r.ok) throw new Error('unavailable');
+        return r.json();
+      })
+      .then(render)
+      .catch(function (e) {
+        // 방 정보를 못 읽어도 앱을 여는 길은 살아 있어야 한다.
+        if (e && e.message === 'invalid') {
+          fail('유효하지 않은 초대 링크예요', '링크가 만료되었거나 취소되었어요.');
+          return;
+        }
+        // 방 정보를 못 읽었어도 링크 자체가 죽었다고 단정할 수는 없다.
+        enableOpen();
+        els.title.textContent = '여행 채팅방에 초대받았어요';
+        els.sub.textContent = '앱에서 열면 대화방으로 들어갈 수 있어요.';
+      });
+  }
+
+  function render(data) {
+    var title = data.title || '여행 채팅방';
+    if (data.joinable === false) {
+      fail(title, '지금은 참가할 수 없는 링크예요.');
+      return;
+    }
+    enableOpen();
+    els.title.textContent = title;
+    els.sub.textContent = '함께할 사람으로 초대받았어요.';
+
+    var bits = [];
+    if (typeof data.participant_count === 'number') {
+      bits.push('현재 ' + data.participant_count + '명 참여 중');
+    }
+    var left = daysLeft(data.expires_at);
+    if (left) bits.push(left);
+    if (bits.length) {
+      els.meta.textContent = bits.join(' · ');
+      els.meta.hidden = false;
+    }
+  }
+
+  function daysLeft(expiresAt) {
+    if (!expiresAt) return '';
+    var ms = new Date(expiresAt).getTime() - Date.now();
+    if (isNaN(ms) || ms <= 0) return '';
+    if (ms < 24 * 3600 * 1000) return '⏳ 오늘까지 유효';
+    return '⏳ ' + (Math.floor(ms / (24 * 3600 * 1000)) + 1) + '일간 유효';
+  }
+
+  function enableOpen() {
+    els.open.setAttribute('href', appUrl(token));
+    els.open.setAttribute('aria-disabled', 'false');
+  }
+
+  function fail(title, sub) {
+    els.icon.textContent = '😕';
+    els.title.textContent = title;
+    els.sub.textContent = sub;
+    els.sub.className = 'sub error';
+    els.open.setAttribute('aria-disabled', 'true');
+    els.open.removeAttribute('href');
+    els.hint.textContent = '초대한 사람에게 새 링크를 요청해 주세요.';
+  }
+})();
+</script>
+</body>
+</html>

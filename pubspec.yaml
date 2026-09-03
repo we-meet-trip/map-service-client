@@ -46,6 +46,7 @@ dependencies:
   flutter_compass: ^0.8.0
   camera: ^0.11.0
   web_socket_channel: ^3.0.1
+  stomp_dart_client: ^3.0.1
   speech_to_text: ^7.0.0
   geocoding: ^3.0.0
   image_picker: ^1.1.2
@@ -60,6 +61,11 @@ dev_dependencies:
     sdk: flutter
   # 런처 아이콘 생성 도구. assets/icon/ 의 원본으로 전 밀도와 적응형을 만든다.
   flutter_launcher_icons: ^0.14.4
+  # 실기기·시뮬레이터에서 앱을 실제로 띄워 화면을 확인하는 시험에 쓴다.
+  # 위젯 시험과 달리 지도·네트워크가 진짜로 돌아, 화면에 무엇이 나오는지
+  # 그대로 본다.
+  integration_test:
+    sdk: flutter
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is

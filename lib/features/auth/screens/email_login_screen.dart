@@ -5,7 +5,7 @@ import '../../../common/widgets/next_button.dart';
 import '../../../common/widgets/text_field.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/auth_api_service.dart';
-import '../../../core/state/trip_repository.dart';
+import '../post_login_route.dart';
 
 class EmailLoginScreen extends StatefulWidget {
   const EmailLoginScreen({super.key});
@@ -67,11 +67,7 @@ class _EmailLoginScreenState extends State<EmailLoginScreen> {
     if (!mounted) return;
     setState(() => _loading = false);
 
-    if (TripRepository.instance.pendingTrip != null) {
-      context.go('/trip');
-    } else {
-      context.go('/');
-    }
+    context.go(postLoginRoute(context));
   }
 
   @override

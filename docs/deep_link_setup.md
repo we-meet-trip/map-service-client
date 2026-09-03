@@ -18,11 +18,13 @@
 
 ## 안드로이드
 
-`web/.well-known/assetlinks.json` 에 패키지와 지문이 들어 있고, 이 파일은 웹
-빌드 산출물에 함께 실려 호스팅으로 올라간다.
+`hosting/.well-known/assetlinks.json` 에 패키지와 지문이 들어 있다. 이 파일은
+호스팅에 올리는 디렉터리에 직접 두며, 웹 빌드가 덮어쓰지 않는다(`tool/build_web.sh`
+가 `.well-known/` 을 제외한다). 빌드 산출물에 실어 보내려다 매번 사라지는 일을
+막으려고 그렇게 해 두었다.
 
 ```bash
-flutter build web --release      # web/ 아래가 build/web/ 으로 복사된다
+bash tool/build_web.sh           # 맨 flutter build web 은 서버 키가 새어 나간다
 firebase deploy --only hosting
 curl -s https://mapcenter-b59ca.web.app/.well-known/assetlinks.json
 ```
@@ -41,8 +43,10 @@ adb shell pm get-app-links kr.mapservice.client
 ## 앱 전용 주소
 
 웹 주소와 별개로 `mapservice://invite/...` 로도 같은 화면을 연다. 도메인
-검증이 필요 없어 개발 중 확인에 쓴다. 안드로이드는 매니페스트, iOS 는
-`ios/Runner/Info.plist` 의 `CFBundleURLTypes` 에 등록돼 있다.
+검증이 필요 없어 개발 중 확인에 쓰고, iOS 에서는 유일하게 동작하는 길이다.
+안드로이드는 매니페스트, iOS 는 `ios/Runner/Info.plist` 의 `CFBundleURLTypes`,
+앱 안에서는 `lib/core/services/deep_link_service.dart` 가 같은 이름을 본다.
+**셋 중 하나만 달라도 그 기기에서만 링크가 조용히 무시된다.**
 
 ```bash
 adb shell am start -a android.intent.action.VIEW -d "mapservice://invite/테스트토큰"
@@ -58,6 +62,17 @@ adb shell am start -a android.intent.action.VIEW -d "mapservice://invite/테스�
 
 1. 개발자 계정에서 앱 식별자에 Associated Domains 를 켠다.
 2. Xcode 의 Runner 대상에 `applinks:mapcenter-b59ca.web.app` 을 추가한다.
-3. `web/.well-known/apple-app-site-association` 을 만들어 `/invite/*` 경로를
+3. `hosting/.well-known/apple-app-site-association` 을 만들어 `/invite/*` 경로를
    앱 식별자(`<팀ID>.kr.mapservice.client`)에 연결하고 배포한다.
    확장자 없이, `application/json` 으로 서빙되어야 한다.
+
+## 브라우저로 열렸을 때
+
+앱 링크 검증이 통과한 안드로이드 기기는 이 과정을 거치지 않고 앱이 바로 뜬다.
+브라우저까지 오는 경우는 앱이 없거나, iOS 이거나, 앱 안의 브라우저로 열렸을 때다.
+
+`hosting/invite/index.html` 이 그 자리를 받는다(`firebase.json` 의 `/invite/**`
+재작성). 이 페이지는 무인증 미리보기로 방 정보를 그 자리에서 보여 주고, 안드로이드
+에서는 `intent:` 주소로 앱을 연다 — 카카오톡 안의 브라우저에서 밖으로 나갈 수 있는
+거의 유일한 길이다. iOS 의 앱 내 브라우저는 앱을 여는 수단 자체가 없어서, 그 경우
+이 페이지가 보여 주는 정보가 사용자가 받을 수 있는 전부다.

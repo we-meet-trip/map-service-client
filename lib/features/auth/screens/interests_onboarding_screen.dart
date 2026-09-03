@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../post_login_route.dart';
 
 import '../../../common/constants/interests.dart';
 import '../../../common/constants/trip_themes.dart';
@@ -7,7 +8,6 @@ import '../../../common/theme/app_colors.dart';
 import '../../../common/widgets/next_button.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/user_api_service.dart';
-import '../../../core/state/trip_repository.dart';
 import '../widgets/interest_chip_selector.dart';
 
 /// 소셜 로그인으로 처음 들어온 사용자의 취향 수집 화면.
@@ -53,11 +53,7 @@ class _InterestsOnboardingScreenState
   }
 
   void _leave() {
-    if (TripRepository.instance.pendingTrip != null) {
-      context.go('/trip');
-    } else {
-      context.go('/');
-    }
+    context.go(postLoginRoute(context));
   }
 
   Future<void> _save() async {

@@ -24,7 +24,9 @@ class _ChatRoomListScreenState extends State<ChatRoomListScreen> {
     });
   }
 
-  static String _formatTime(DateTime dt) {
+  static String _formatTime(DateTime? dt) {
+    // 아직 아무도 말하지 않은 방은 보여 줄 시각이 없다.
+    if (dt == null) return '';
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final yesterday = today.subtract(const Duration(days: 1));

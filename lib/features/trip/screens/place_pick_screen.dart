@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import '../../../common/widgets/next_button.dart';
 import '../../../common/widgets/prev_button.dart';
 import '../../../core/api/trip_api_service.dart';
 import '../../../core/naver_map/naver_map_adapter.dart';
+import '../../../core/naver_map/naver_map_bootstrap.dart';
 import '../../../core/state/trip_repository.dart';
 import 'trip_created_screen.dart';
 
@@ -74,19 +76,50 @@ class _PlacePickScreenState extends State<PlacePickScreen> {
   ///
   /// 마커를 다시 그릴 때마다 전부 지우고 새로 얹는다. 지도 어댑터가 개별
   /// 마커 갱신을 제공하지 않아, 상태 표시를 바꾸려면 이 방법뿐이다.
+  ///
+  /// 한 번에 한 벌만 그린다. 이 화면은 핀을 누를 때마다 다시 그리는 데다
+  /// 지도를 다시 만들면 준비 통지로도 들어와, 두 벌이 겹치기 가장 쉽다.
+  /// 마커 아이콘은 위젯을 그림 파일로 구워 만드는데 그 굽는 자리가 앱 전체에
+  /// 하나뿐이라, 겹쳐 돌면 서로의 파일을 지우고 그 그림을 지도에 얹으려다
+  /// iOS 에서 앱이 죽는다. 지우고 다시 얹는 순서가 뒤엉키는 것도 함께 막는다.
+  int _renderPass = 0;
+  Future<void>? _renderInFlight;
+
   Future<void> _renderMarkers() async {
+    // 번호를 먼저 올린다. 앞서 돌던 그리기가 이 값을 보고 다음 대기 지점에서
+    // 스스로 물러난다.
+    final pass = ++_renderPass;
+    final previous = _renderInFlight;
+    final done = Completer<void>();
+    _renderInFlight = done.future;
+    try {
+      if (previous != null) await previous;
+      await _renderMarkersPass(pass);
+    } finally {
+      done.complete();
+      if (identical(_renderInFlight, done.future)) _renderInFlight = null;
+    }
+  }
+
+  Future<void> _renderMarkersPass(int pass) async {
     final controller = _mapController;
     final stops = _stops;
-    if (controller == null || stops.isEmpty) return;
+    if (controller == null || stops.isEmpty || !mounted) return;
+    // 지도가 바뀌었는지도 함께 본다. 번호만으로는 같은 순번에서 지도가 갈린
+    // 경우를 못 가른다.
+    bool stale() =>
+        !mounted || pass != _renderPass || _mapController != controller;
 
     await controller.clearOverlays();
+    if (stale()) return;
     for (int i = 0; i < stops.length; i++) {
-      if (!mounted) return;
+      if (!mounted || stale()) return;
       final icon = await NOverlayImage.fromWidget(
         widget: _buildPin('${i + 1}', _picked.contains(i)),
         size: const Size(38, 38),
         context: context,
       );
+      if (stale()) return;
       final index = i;
       final marker = NMarker(
         id: 'pick_$i',
@@ -96,6 +129,7 @@ class _PlacePickScreenState extends State<PlacePickScreen> {
       // 목록에서만이 아니라 지도의 핀을 눌러서도 고를 수 있게 한다.
       marker.setOnTapListener((_) => _toggle(index));
       await controller.addOverlay(marker);
+      if (stale()) return;
     }
 
     final lats = stops.map((s) => s.latitude);
@@ -269,20 +303,28 @@ class _PlacePickScreenState extends State<PlacePickScreen> {
   }
 
   Widget _buildMap() {
+    // 지도 식별자가 다음 것으로 바뀌면 지도를 다시 만든다. 인증 판정은 지도를
+    // 그릴 때 오는데, 그때 이미 만들어진 지도는 처음 식별자로 인증을 끝낸
+    // 뒤라 스스로 다시 묻지 않는다 — 다시 만들지 않으면 첫 진입 화면만 계속
+    // 비어 있고 나갔다 들어와야 나온다.
     return SizedBox(
       height: 280,
-      child: NaverMap(
-        options: NaverMapViewOptions(
-          initialCameraPosition: NCameraPosition(
-            target: NLatLng(_stops.first.latitude, _stops.first.longitude),
-            zoom: 12,
+      child: ValueListenableBuilder<int>(
+        valueListenable: naverMapAuthGeneration,
+        builder: (context, generation, _) => NaverMap(
+          key: ValueKey('pick-map-$generation'),
+          options: NaverMapViewOptions(
+            initialCameraPosition: NCameraPosition(
+              target: NLatLng(_stops.first.latitude, _stops.first.longitude),
+              zoom: 12,
+            ),
+            scrollGesturesEnable: true,
+            zoomGesturesEnable: true,
+            rotationGesturesEnable: false,
+            mapType: NMapType.basic,
           ),
-          scrollGesturesEnable: true,
-          zoomGesturesEnable: true,
-          rotationGesturesEnable: false,
-          mapType: NMapType.basic,
+          onMapReady: _onMapReady,
         ),
-        onMapReady: _onMapReady,
       ),
     );
   }

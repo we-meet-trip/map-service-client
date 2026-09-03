@@ -6,16 +6,24 @@ import '../../../common/theme/app_colors.dart';
 import '../../../core/state/trip_repository.dart';
 import '../../../data/models/chat_message.dart';
 import '../../../data/models/chat_room.dart';
+import '../../../data/repositories/chat_repository.dart';
 import '../providers/chat_room_detail_provider.dart';
+import 'chat_room_missing_screen.dart';
 import '../widgets/chat_bubble.dart';
 import '../widgets/chat_detail_header.dart';
 import '../widgets/chat_input_bar.dart';
 import '../widgets/invite_link_bottom_sheet.dart';
 import '../widgets/schedule_link_button.dart';
 
+/// 방 하나를 여는 화면.
+///
+/// [room] 은 목록에서 눌러 들어왔을 때만 채워진다. 링크로 곧장 들어오거나
+/// 브라우저에서 새로 고치면 없으므로, 그때는 번호로 직접 받아 온다.
 class ChatRoomDetailScreen extends StatefulWidget {
-  const ChatRoomDetailScreen({super.key, required this.room});
-  final ChatRoom room;
+  const ChatRoomDetailScreen({super.key, required this.roomId, this.room});
+
+  final int roomId;
+  final ChatRoom? room;
 
   @override
   State<ChatRoomDetailScreen> createState() => _ChatRoomDetailScreenState();
@@ -25,18 +33,42 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
   final _scrollController = ScrollController();
   bool _isSheetOpen = false;
   ChatRoomDetailProvider? _provider;
+  ChatRoom? _room;
+
+  /// 방을 받아 오지 못한 상태. 없는 방이거나 내가 못 들어가는 방이다.
+  bool _missing = false;
+
+  ChatRoom? get _current => _room ?? widget.room;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final provider = context.read<ChatRoomDetailProvider>();
-      _provider = provider;
-      provider.addListener(_showSendErrorIfAny);
-      provider.start().then((_) {
-        _scrollToBottom();
-      });
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _start());
+  }
+
+  Future<void> _start() async {
+    if (!mounted) return;
+    final provider = context.read<ChatRoomDetailProvider>();
+    _provider = provider;
+    provider.addListener(_showSendErrorIfAny);
+
+    var room = widget.room;
+    if (room == null) {
+      try {
+        room = await context.read<ChatRepository>().getRoom(widget.roomId);
+      } catch (_) {
+        // 방을 못 받았다는 것은 없는 방이거나 내가 못 들어가는 방이라는 뜻이다.
+        // 그대로 두면 제목도 대화도 없는 빈 껍데기가 떠서, 사용자는 방이 비어
+        // 있는 것인지 열리다 만 것인지 알 수 없다.
+        if (mounted) setState(() => _missing = true);
+        return;
+      }
+      if (!mounted) return;
+      setState(() => _room = room);
+    }
+
+    await provider.open(readOnly: room.readOnly);
+    if (mounted) _scrollToBottom();
   }
 
   @override
@@ -66,7 +98,12 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
     });
   }
 
-  Color _resolveColor(ChatMessage msg) => AppColors.avatarColorOf(msg.senderId);
+  /// 아직 다닐 여행의 방인지. 방을 아직 못 받았으면 입력창을 열어 두지 않는다.
+  bool get _isUpcoming => _current?.type == ChatRoomType.upcoming;
+
+  // 안내 메시지는 보낸 사람이 없어 색을 뽑을 값이 없다.
+  Color _resolveColor(ChatMessage msg) =>
+      AppColors.avatarColorOf(msg.senderId?.toString() ?? 'system');
 
   Future<void> _showInviteSheet() async {
     setState(() => _isSheetOpen = true);
@@ -77,7 +114,7 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
       isScrollControlled: true,
       builder: (_) => ChangeNotifierProvider.value(
         value: context.read<ChatRoomDetailProvider>(),
-        child: InviteLinkBottomSheet(roomTitle: widget.room.title),
+        child: InviteLinkBottomSheet(roomTitle: _current?.title ?? '채팅방'),
       ),
     );
     if (mounted) setState(() => _isSheetOpen = false);
@@ -85,6 +122,7 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_missing) return const ChatRoomMissingScreen();
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F7),
       body: SafeArea(
@@ -92,12 +130,10 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
         child: Column(
           children: [
             ChatDetailHeader(
-              title: widget.room.title,
-              participants: widget.room.participants,
+              title: _current?.title ?? '채팅방',
+              participants: _current?.participants ?? const [],
               onBack: () => context.pop(),
-              onShare: widget.room.type == ChatRoomType.upcoming
-                  ? _showInviteSheet
-                  : null,
+              onShare: _isUpcoming ? _showInviteSheet : null,
             ),
             Expanded(
               child: Stack(
@@ -119,7 +155,7 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
                                     left: 16,
                                     right: 16,
                                     top: 64,
-                                    bottom: widget.room.type == ChatRoomType.upcoming
+                                    bottom: _isUpcoming
                                         ? 90 + MediaQuery.of(context).padding.bottom
                                         : 16,
                                   ),
@@ -144,10 +180,9 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
                                       ...TripRepository.instance.plannedTrips.value,
                                       ...TripRepository.instance.completedTrips.value,
                                     ];
-                                    // 방 번호와 일정 번호는 서로 다른 셈이다.
-                                    // 일정에 적어 둔 방 번호로 찾아야 한다.
+                                    final scheduleId = _current?.scheduleId;
                                     final trip = allTrips
-                                        .where((t) => t.chatRoomId == widget.room.id)
+                                        .where((t) => t.scheduleId == scheduleId)
                                         .firstOrNull;
                                     if (trip != null) {
                                       context.go('/saved/trip', extra: trip);
@@ -160,7 +195,7 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
                       ),
                     ],
                   ),
-                  if (widget.room.type == ChatRoomType.upcoming)
+                  if (_isUpcoming)
                     Positioned(
                       bottom: 0,
                       left: 0,

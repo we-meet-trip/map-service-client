@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../common/widgets/back_header.dart';
 import '../../../common/widgets/app_loading_indicator.dart';
-import '../../../core/api/subway_route_service.dart';
+import '../../../core/api/subway_route_api_service.dart';
 
 class SubwayRouteArgs {
   final String originLabel;
@@ -33,12 +33,12 @@ class SubwayRouteScreen extends StatefulWidget {
 }
 
 class _SubwayRouteScreenState extends State<SubwayRouteScreen> {
-  late Future<SubwayRouteResult> _future;
+  late Future<SubwayRoute?> _future;
 
   @override
   void initState() {
     super.initState();
-    _future = SubwayRouteService.instance.findFastestSubwayRoute(
+    _future = SubwayRouteApiService.instance.findFastestSubwayRoute(
       startLng: widget.args.originLng,
       startLat: widget.args.originLat,
       endLng: widget.args.destinationLng,
@@ -67,23 +67,26 @@ class _SubwayRouteScreenState extends State<SubwayRouteScreen> {
               ),
             ),
             Expanded(
-              child: FutureBuilder<SubwayRouteResult>(
+              child: FutureBuilder<SubwayRoute?>(
                 future: _future,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState != ConnectionState.done) {
                     return const Center(child: AppLoadingIndicator());
                   }
-                  final route = snapshot.data?.route;
-                  if (snapshot.hasError || route == null) {
-                    // 길이 없는 것과 물어보지 못한 것을 다른 문구로 알린다.
-                    final message =
-                        snapshot.data?.status == SubwayRouteStatus.notFound
-                            ? '지하철만으로 갈 수 있는 경로가 없어요.'
-                            : '지금은 지하철 경로를 불러올 수 없어요.';
+                  if (snapshot.hasError) {
                     return Center(
                       child: Text(
-                        message,
+                        '경로를 불러오지 못했어요.\n${snapshot.error}',
                         textAlign: TextAlign.center,
+                        style: TextStyle(color: AppColors.neutralScale[400]),
+                      ),
+                    );
+                  }
+                  final route = snapshot.data;
+                  if (route == null) {
+                    return Center(
+                      child: Text(
+                        '지하철만으로 갈 수 있는 경로가 없어요.',
                         style: TextStyle(color: AppColors.neutralScale[400]),
                       ),
                     );

@@ -60,9 +60,7 @@ class ReviewApiService {
 
   static final ReviewApiService instance = ReviewApiService._();
 
-  /// 서버 주소는 시작할 때 정해진다. 상수로 잡아 두면 그 시점의 값이
-  /// 굳어져, 원격에서 받은 주소가 반영되지 않는다.
-
+  static const _timeout = Duration(seconds: 15);
 
   /// 후기를 구간 단위로 받는다.
   ///
@@ -78,16 +76,17 @@ class ReviewApiService {
     required int display,
   }) async {
     try {
-      // 공통 통로로 보낸다. 직접 부르면 토큰이 붙지 않아, 서버가 인증을 켜는
-      // 순간 이 목록만 비어 보인다 — 실패를 빈 결과로 접기 때문에 그 사실이
-      // 화면에 드러나지도 않는다.
-      final body = await ApiClient.instance.get('/api/v1/reviews', query: {
-        'query': query,
-        'start': '$start',
-        'display': '$display',
-        // 장소 상세 목록은 최신 글부터 보여 준다.
-        'sort': 'date',
-      });
+      final body = await ApiClient.instance.get(
+        '/api/v1/reviews',
+        query: {
+          'query': query,
+          'start': '$start',
+          'display': '$display',
+          // 장소 상세 목록은 최신 글부터 보여 준다.
+          'sort': 'date',
+        },
+        timeout: _timeout,
+      );
       final raw = body['reviews'];
       final items = raw is List
           ? raw
@@ -110,8 +109,11 @@ class ReviewApiService {
   /// 화면은 요약 영역만 접는다.
   Future<List<String>> fetchSummary(String query) async {
     try {
-      final body = await ApiClient.instance
-          .get('/api/v1/reviews/summary', query: {'query': query});
+      final body = await ApiClient.instance.get(
+        '/api/v1/reviews/summary',
+        query: {'query': query},
+        timeout: _timeout,
+      );
       final raw = body['bullets'];
       if (raw is! List) return const [];
       return raw.whereType<String>().where((s) => s.trim().isNotEmpty).toList();

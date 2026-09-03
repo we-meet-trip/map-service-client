@@ -27,12 +27,15 @@ class VisionWsService {
   /// 소켓을 열면 브라우저가 그 연결을 막는다. 그렇게 되면 카메라 화면만
   /// 조용히 죽는다.
   static Uri _endpoint() {
-    final host = dotenv.env['VISION_SERVER_HOST'] ?? '';
-    if (host.isNotEmpty) {
-      return Uri.parse('ws://$host/ws/vision');
-    }
     final base = Uri.parse(kApiBaseUrl);
     final scheme = base.scheme == 'https' ? 'wss' : 'ws';
+    final host = dotenv.env['VISION_SERVER_HOST'] ?? '';
+    if (host.isNotEmpty) {
+      // 직접 지정한 주소에도 같은 스킴을 쓴다. 여기만 평문으로 굳혀 두면,
+      // 안전한 연결로 열린 화면에서 이 길로 붙는 순간 브라우저가 막고
+      // 카메라 화면만 조용히 죽는다.
+      return Uri.parse('$scheme://$host/ws/vision');
+    }
     return base.replace(scheme: scheme, path: '/ws/vision');
   }
 

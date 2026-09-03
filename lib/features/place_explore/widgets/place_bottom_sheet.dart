@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import '../../../common/constants/category_tags.dart';
 import '../../../common/theme/app_colors.dart';
+import '../../../common/widgets/place_photo_strip.dart';
+import '../../../core/api/place_photo_api_service.dart';
+// 후기 모델 이름이 화면 모델과 겹쳐 통로 쪽에 이름을 붙여 구분한다.
+import '../../../core/api/review_api_service.dart' as review_api;
 import '../models/place_detail.dart';
+import '../utils/review_paging.dart';
 import 'blog_review_card.dart';
 import 'place_ai_summary_card.dart';
 
@@ -12,11 +18,18 @@ class PlaceBottomSheet extends StatefulWidget {
   final bool isAdded;
   final VoidCallback onToggle;
 
+  /// 사진을 찾을 좌표. 같은 상호가 여러 지역에 있어 이름만으로 물으면 다른
+  /// 동네 지점 사진이 온다. 좌표가 없으면 사진을 아예 청하지 않는다.
+  final double? latitude;
+  final double? longitude;
+
   const PlaceBottomSheet({
     super.key,
     required this.detail,
     required this.isAdded,
     required this.onToggle,
+    this.latitude,
+    this.longitude,
   });
 
   @override
@@ -24,17 +37,45 @@ class PlaceBottomSheet extends StatefulWidget {
 }
 
 class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
-  static const _initialCount = 2;
-  static const _firstPageSize = 3;
-  static const _pageSize = 5;
+  final _api = review_api.ReviewApiService.instance;
+  final _photoApi = PlacePhotoApiService.instance;
 
   late bool _isAdded;
-  int _visibleCount = _initialCount;
+
+  List<String> _bullets = const [];
+  bool _summaryLoading = false;
+
+  List<PlacePhoto> _photos = const [];
+
+  final List<BlogReview> _reviews = [];
+  bool _reviewsLoading = true;
+  bool _moreLoading = false;
+  bool _hasMore = false;
 
   @override
   void initState() {
     super.initState();
     _isAdded = widget.isAdded;
+    // 요약·후기·사진은 장소명으로 물어본다. 시트는 기다리지 않고 먼저 열리고
+    // 받아온 뒤에 그 자리만 채워진다.
+    _loadSummary();
+    _loadFirstPage();
+    _loadPhotos();
+  }
+
+  /// 사진을 받아 온다. 좌표가 없으면 아예 요청하지 않는다 — 이름만으로 찾은
+  /// 사진은 다른 동네 지점의 것일 수 있고, 서버 쪽 조회에도 비용이 든다.
+  Future<void> _loadPhotos() async {
+    final lat = widget.latitude;
+    final lng = widget.longitude;
+    if (lat == null || lng == null) return;
+    final photos = await _photoApi.fetchPhotos(
+      widget.detail.name,
+      latitude: lat,
+      longitude: lng,
+    );
+    if (!mounted || photos.isEmpty) return;
+    setState(() => _photos = photos);
   }
 
   void _handleToggle() {
@@ -42,12 +83,60 @@ class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
     widget.onToggle();
   }
 
+  Future<void> _loadSummary() async {
+    setState(() => _summaryLoading = true);
+    final bullets = await _api.fetchSummary(widget.detail.name);
+    if (!mounted) return;
+    setState(() {
+      _bullets = bullets;
+      _summaryLoading = false;
+    });
+  }
+
+  Future<void> _loadFirstPage() async {
+    final page = nextReviewPage(0);
+    final result = await _api.fetchReviews(
+      widget.detail.name,
+      start: page.start,
+      display: page.display,
+    );
+    if (!mounted) return;
+    setState(() {
+      _reviews
+        ..clear()
+        ..addAll(result.reviews.map(_toReview));
+      _hasMore = result.hasMore;
+      _reviewsLoading = false;
+    });
+  }
+
+  Future<void> _loadMore() async {
+    if (_moreLoading) return;
+    setState(() => _moreLoading = true);
+    final page = nextReviewPage(_reviews.length);
+    final result = await _api.fetchReviews(
+      widget.detail.name,
+      start: page.start,
+      display: page.display,
+    );
+    if (!mounted) return;
+    setState(() {
+      _reviews.addAll(result.reviews.map(_toReview));
+      _hasMore = result.hasMore;
+      _moreLoading = false;
+    });
+  }
+
+  BlogReview _toReview(review_api.BlogReview review) => BlogReview(
+        title: review.title,
+        blogName: review.bloggerName,
+        date: review.displayDate,
+        snippet: review.description,
+        url: review.link,
+      );
+
   @override
   Widget build(BuildContext context) {
-    final reviews = widget.detail.blogReviews;
-    final shown = reviews.take(_visibleCount).toList();
-    final hasMore = _visibleCount < reviews.length;
-
     return DraggableScrollableSheet(
       initialChildSize: 0.48,
       minChildSize: 0.35,
@@ -64,16 +153,22 @@ class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
             slivers: [
               SliverToBoxAdapter(child: _buildHeader()),
               SliverToBoxAdapter(child: _buildDivider()),
-              SliverToBoxAdapter(child: PlaceAiSummaryCard(summary: widget.detail.aiSummary)),
+              SliverToBoxAdapter(child: _buildPhotos()),
+              SliverToBoxAdapter(child: _buildSummary()),
               SliverToBoxAdapter(child: _buildReviewsHeader()),
-              SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) => BlogReviewCard(review: shown[index]),
-                  childCount: shown.length,
+              if (_reviewsLoading)
+                SliverToBoxAdapter(child: _buildReviewsLoading())
+              else if (_reviews.isEmpty)
+                SliverToBoxAdapter(child: _buildEmptyReviews())
+              else
+                SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) => BlogReviewCard(review: _reviews[index]),
+                    childCount: _reviews.length,
+                  ),
                 ),
-              ),
-              if (hasMore)
-                SliverToBoxAdapter(child: _buildMoreButton(reviews.length)),
+              if (_hasMore && !_reviewsLoading)
+                SliverToBoxAdapter(child: _buildMoreButton()),
               SliverToBoxAdapter(
                 child: SizedBox(
                   height: MediaQuery.paddingOf(context).bottom + 24,
@@ -87,6 +182,7 @@ class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
   }
 
   Widget _buildHeader() {
+    final tag = tagForCategory(widget.detail.category);
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 14, 24, 0),
       child: Column(
@@ -159,41 +255,25 @@ class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
             ),
           ),
           const SizedBox(height: 6),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: AppColors.primaryScale[0],
-              borderRadius: BorderRadius.circular(100),
-            ),
-            child: Text(
-              widget.detail.category,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: AppColors.primaryScale[400],
+          if (tag != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppColors.primaryScale[0],
+                borderRadius: BorderRadius.circular(100),
+              ),
+              child: Text(
+                tag,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.primaryScale[400],
+                ),
               ),
             ),
-          ),
           const SizedBox(height: 14),
-          _buildImagePlaceholder(),
+          PlacePhotoHero(photos: _photos),
         ],
-      ),
-    );
-  }
-
-  Widget _buildImagePlaceholder() {
-    return Container(
-      height: 180,
-      decoration: BoxDecoration(
-        color: AppColors.neutralScale[100],
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Center(
-        child: Icon(
-          PhosphorIcons.image(),
-          size: 40,
-          color: AppColors.neutralScale[300],
-        ),
       ),
     );
   }
@@ -202,6 +282,59 @@ class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
       child: Divider(color: AppColors.neutralScale[100], thickness: 1),
+    );
+  }
+
+  /// 사진 목록. 첫 장은 위 큰 자리에 이미 걸려 있어 여기서는 건너뛴다.
+  /// 남는 것이 없으면 공용 위젯이 영역째 접는다.
+  Widget _buildPhotos() => Padding(
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
+        child: PlacePhotoStrip(
+          photos: _photos.length > 1 ? _photos.sublist(1) : const [],
+        ),
+      );
+
+  /// 요약 자리. 받아오는 동안은 자리만 잡고, 근거를 못 구했으면 접는다.
+  Widget _buildSummary() {
+    if (_summaryLoading) {
+      return const Padding(
+        padding: EdgeInsets.fromLTRB(24, 20, 24, 0),
+        child: Center(
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+    if (_bullets.isEmpty) return const SizedBox.shrink();
+    return PlaceAiSummaryCard(summary: _bullets.join('\n'));
+  }
+
+  Widget _buildReviewsLoading() {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 24),
+      child: Center(
+        child: SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyReviews() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
+      child: Text(
+        '아직 등록된 후기가 없어요.',
+        style: TextStyle(
+          fontSize: 13,
+          color: AppColors.neutralScale[300],
+        ),
+      ),
     );
   }
 
@@ -229,17 +362,12 @@ class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
     );
   }
 
-  Widget _buildMoreButton(int total) {
+  Widget _buildMoreButton() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 4, 24, 4),
       child: Center(
         child: GestureDetector(
-          onTap: () {
-            setState(() {
-              final add = _visibleCount == _initialCount ? _firstPageSize : _pageSize;
-              _visibleCount = (_visibleCount + add).clamp(0, total);
-            });
-          },
+          onTap: _moreLoading ? null : _loadMore,
           child: Container(
             height: 38,
             padding: const EdgeInsets.symmetric(horizontal: 28),
@@ -260,11 +388,18 @@ class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
                 ),
               ),
               const SizedBox(width: 6),
-              Icon(
-                PhosphorIcons.caretDown(),
-                size: 16,
-                color: AppColors.tripAccentPurple,
-              ),
+              if (_moreLoading)
+                const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else
+                Icon(
+                  PhosphorIcons.caretDown(),
+                  size: 16,
+                  color: AppColors.tripAccentPurple,
+                ),
             ],
           ),
         ),
