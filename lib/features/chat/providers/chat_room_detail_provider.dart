@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../../../core/api/api_client.dart';
 import '../../../core/api/chat_api_service.dart';
 import '../../../core/api/chat_realtime_service.dart';
 import '../../../core/state/auth_store.dart';
@@ -71,7 +72,11 @@ class ChatRoomDetailProvider extends ChangeNotifier {
     notifyListeners();
     try {
       final loaded = await _chatRepository.getMessages(roomId);
-      _messages = loaded;
+      // 아직 못 보낸 말은 서버 기록에 없다. 그대로 갈아끼우면 화면에서 사라져
+      // 사용자는 보낸 것이 없어졌다고 본다. 뒤에 남겨 둔다.
+      final unsent = _messages.where((m) =>
+          m.pending && _outbox.any((o) => o.clientMsgId == m.clientMsgId));
+      _messages = [...loaded, ...unsent];
       final latest = loaded.isEmpty ? 0 : loaded.last.seq;
       if (latest > 0) {
         await _chatRepository.markAsRead(roomId, latest);
@@ -82,6 +87,21 @@ class ChatRoomDetailProvider extends ChangeNotifier {
     }
   }
 
+  /// 아직 서버에 닿지 못한 말. 다시 붙을 때 순서대로 내보낸다.
+  ///
+  /// 소켓이 죽어도 REST 가 대신 보내 주지만, 소켓이 죽는 상황은 대개 망이 나쁜
+  /// 상황이라 REST 도 함께 실패한다. 터널·엘리베이터처럼 여행 중에 흔하다.
+  /// 그때 버리면 사용자는 다시 쳐야 하는데, 정작 무엇을 다시 쳐야 하는지는
+  /// 화면에서 사라진 뒤다.
+  final List<_Outgoing> _outbox = [];
+
+  /// 쌓아 둘 상한. 오래 끊긴 뒤 한꺼번에 밀려 나가면 서버의 전송 한도에 걸리고,
+  /// 그 시점엔 사용자도 이미 화면을 떠났을 가능성이 크다.
+  static const int _maxOutbox = 20;
+
+  /// 아직 못 보낸 말이 있는지. 화면이 안내를 고를 때 본다.
+  bool get hasUnsent => _outbox.isNotEmpty;
+
   void _listen() {
     _eventSub ??= _realtime.events.listen(_onEvent);
     _stateSub ??= _realtime.states.listen(_onState);
@@ -90,6 +110,11 @@ class ChatRoomDetailProvider extends ChangeNotifier {
   }
 
   void _onState(ChatConnectionState state) {
+    // 붙자마자 보관해 둔 것을 내보낸다. 아래 재연결 알림이 기록을 다시 읽는데,
+    // 그 전에 서버에 도착해 있어야 그 목록에 함께 담긴다.
+    if (state == ChatConnectionState.connected) {
+      _flushOutbox();
+    }
     realtimeNotice = switch (state) {
       ChatConnectionState.authRequired => '로그인이 필요해요.',
       ChatConnectionState.disconnected => '연결이 끊어졌어요. 다시 연결 중이에요.',
@@ -196,10 +221,49 @@ class ChatRoomDetailProvider extends ChangeNotifier {
     try {
       final saved = await _chatRepository.sendMessage(roomId, text, clientMsgId);
       _replacePending(clientMsgId, saved);
-    } catch (e) {
-      _dropPending(clientMsgId);
-      _sendError = '메시지를 보내지 못했어요.';
-      notifyListeners();
+    } on ApiException catch (e) {
+      // 서버가 답을 했다면 그 판단은 다시 보내도 같다 — 참가자가 아니거나,
+      // 너무 길거나, 방이 닫혔거나. 사유를 보여 주고 말풍선을 걷는다.
+      //
+      // 다만 응답 지연은 서버의 판단이 아니라 길이 막힌 것에 가깝다. 그때는
+      // 버리지 않고 보관한다.
+      if (e.statusCode == 408) {
+        _hold(text, clientMsgId);
+      } else {
+        _dropPending(clientMsgId);
+        _sendError = e.message;
+        notifyListeners();
+      }
+    } catch (_) {
+      // 서버가 답을 못 한 경우다. 망이 끊겼거나 주소에 닿지 못했다. 다시 붙으면
+      // 나갈 수 있으므로 보관한다. 말풍선은 회색으로 남아 아직 안 갔음을 알린다.
+      _hold(text, clientMsgId);
+    }
+  }
+
+  /// 나가지 못한 말을 보관한다. 말풍선은 회색으로 남겨 둔다.
+  ///
+  /// 넘치면 가장 오래된 것부터 버린다. 최근 것을 버리면 방금 친 말이 사라져
+  /// 사용자에게 더 이상하게 보인다.
+  void _hold(String text, String clientMsgId) {
+    if (_outbox.length >= _maxOutbox) {
+      final dropped = _outbox.removeAt(0);
+      _dropPending(dropped.clientMsgId);
+    }
+    _outbox.add(_Outgoing(text, clientMsgId));
+    notifyListeners();
+  }
+
+  /// 보관해 둔 말을 순서대로 내보낸다.
+  ///
+  /// 소켓으로만 보낸다. 이 함수가 불리는 시점은 방금 붙은 직후라 REST 로
+  /// 되돌아갈 이유가 없다. 도중에 다시 끊기면 남은 것은 그대로 두고 멈춘다 —
+  /// 순서가 어긋나면 대화가 뒤섞인다.
+  void _flushOutbox() {
+    while (_outbox.isNotEmpty && _realtime.isConnected) {
+      final held = _outbox.first;
+      _realtime.sendMessage(roomId, held.text, held.clientMsgId);
+      _outbox.removeAt(0);
     }
   }
 
@@ -236,4 +300,15 @@ class ChatRoomDetailProvider extends ChangeNotifier {
     _realtime.dispose();
     super.dispose();
   }
+}
+
+/// 아직 나가지 못한 말 한 건.
+class _Outgoing {
+  const _Outgoing(this.text, this.clientMsgId);
+
+  final String text;
+
+  /// 서버가 방송에 그대로 실어 돌려주므로, 미리 그려 둔 말풍선과 짝지어
+  /// 바꿔치기할 수 있다. 없으면 같은 말이 두 번 남는다.
+  final String clientMsgId;
 }
