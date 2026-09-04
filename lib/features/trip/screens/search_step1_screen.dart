@@ -41,8 +41,7 @@ class _SearchStep1ScreenState extends State<SearchStep1Screen> {
       iconData: Icons.tune_rounded,
       iconBg: const Color(0xFFDBEAFE),
       iconColor: const Color(0xFF3B82F6),
-      disabled: true,
-      ctaLabel: '준비 중',
+      ctaLabel: '직접 고치러 가기  →',
     ),
   ];
 
@@ -50,6 +49,10 @@ class _SearchStep1ScreenState extends State<SearchStep1Screen> {
     if (_selectedIndex == 1) {
       context.read<PlaceExploreProvider>().reset();
       context.go('/trip/place-explore/step1');
+      return;
+    }
+    if (_selectedIndex == 2) {
+      context.go('/trip/manual');
       return;
     }
     // 조건은 그대로 두고 장소만 새로 받아 온다. 마법사를 다시 태우는 것은
@@ -141,13 +144,10 @@ class _SearchStep1ScreenState extends State<SearchStep1Screen> {
 
   Widget _buildOptionCard(int index, _SearchOption opt) {
     final isSelected = _selectedIndex == index;
-    final disabled = opt.disabled;
 
     return GestureDetector(
-      onTap: disabled ? null : () => setState(() => _selectedIndex = index),
-      child: Opacity(
-        opacity: disabled ? 0.45 : 1.0,
-        child: AnimatedContainer(
+      onTap: () => setState(() => _selectedIndex = index),
+      child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -202,38 +202,15 @@ class _SearchStep1ScreenState extends State<SearchStep1Screen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Text(
-                          opt.title,
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: isSelected
-                                ? AppColors.neutralScale[600]
-                                : AppColors.neutralScale[300],
-                          ),
-                        ),
-                        if (disabled) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppColors.neutralScale[100],
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              '준비 중',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.neutralScale[300],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
+                    Text(
+                      opt.title,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: isSelected
+                            ? AppColors.neutralScale[600]
+                            : AppColors.neutralScale[300],
+                      ),
                     ),
                     const SizedBox(height: 3),
                     Text(
@@ -279,7 +256,6 @@ class _SearchStep1ScreenState extends State<SearchStep1Screen> {
             ],
           ),
         ),
-      ),
     );
   }
 }
@@ -290,7 +266,6 @@ class _SearchOption {
   final IconData iconData;
   final Color iconBg;
   final Color iconColor;
-  final bool disabled;
   final String ctaLabel;
 
   const _SearchOption({
@@ -300,6 +275,5 @@ class _SearchOption {
     required this.iconBg,
     required this.iconColor,
     required this.ctaLabel,
-    this.disabled = false,
   });
 }

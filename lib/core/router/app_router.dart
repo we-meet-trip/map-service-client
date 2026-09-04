@@ -14,6 +14,8 @@ import '../../features/place_explore/screens/place_explore_step2_screen.dart';
 import '../../features/place_explore/providers/place_explore_provider.dart';
 import '../../features/trip/screens/trip_directions_screen.dart';
 import '../../features/trip/screens/trip_research_result_screen.dart';
+import '../../features/trip/screens/manual_plan_entry_screen.dart';
+import '../../features/trip/screens/saved_plan_edit_screen.dart';
 import '../../features/trip/screens/search_step1_screen.dart';
 import '../../features/saved/screens/saved_screen.dart';
 import '../../features/chat/providers/chat_room_detail_provider.dart';
@@ -183,6 +185,11 @@ final appRouter = GoRouter(
                   path: 'research',
                   builder: (context, state) => const TripResearchResultScreen(),
                 ),
+                // 장소를 직접 넣고 고치는 자리.
+                GoRoute(
+                  path: 'manual',
+                  builder: (context, state) => const ManualPlanEntryScreen(),
+                ),
                 GoRoute(
                   path: 'place-explore/step1',
                   builder: (context, state) => PlaceExploreStep1Screen(
@@ -230,6 +237,14 @@ final appRouter = GoRouter(
                     savedTrip: state.extra as SavedTrip?,
                   ),
                   routes: [
+                    // 저장된 일정을 직접 고치는 자리. 고친 결과는 그 일정을
+                    // 갈아 끼우므로 새 일정으로 저장하지 않는다.
+                    GoRoute(
+                      path: 'edit',
+                      builder: (context, state) => SavedPlanEditScreen(
+                        trip: state.extra as SavedTrip,
+                      ),
+                    ),
                     GoRoute(
                       path: 'directions',
                       builder: (context, state) => TripDirectionsScreen(

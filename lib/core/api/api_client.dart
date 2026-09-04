@@ -58,6 +58,10 @@ class ApiClient {
           {Object? body, Duration? timeout}) =>
       _send('POST', path, body: body, timeout: timeout);
 
+  Future<Map<String, dynamic>> put(String path,
+          {Object? body, Duration? timeout}) =>
+      _send('PUT', path, body: body, timeout: timeout);
+
   Future<Map<String, dynamic>> patch(String path,
           {Object? body, Duration? timeout}) =>
       _send('PATCH', path, body: body, timeout: timeout);

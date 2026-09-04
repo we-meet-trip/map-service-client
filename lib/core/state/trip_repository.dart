@@ -113,6 +113,15 @@ class SavedTrip {
   /// 보여준다. 없으면 빈 목록.
   final List<String> warnings;
 
+  /// 이 일정을 고칠 때 필요한 조건. 장소를 더하거나 빼면 동선을 새로 짜야
+  /// 하는데 그 요청이 지역·이동수단·활동 시간대를 요구한다. 지역을 모르는
+  /// 옛 일정에는 없으므로, 그때는 고치기 입구를 감춘다.
+  final String? province;
+  final String? city;
+  final String? transport;
+  final int? activeStartHour;
+  final int? activeEndHour;
+
   SavedTrip({
     this.scheduleId,
     required this.name,
@@ -124,9 +133,20 @@ class SavedTrip {
     required this.totalDurationMinutes,
     this.chatRoomId,
     this.warnings = const [],
+    this.province,
+    this.city,
+    this.transport,
+    this.activeStartHour,
+    this.activeEndHour,
   });
 
   String get id => scheduleId?.toString() ?? '';
+
+  /// 고칠 수 있는 일정인지. 지역을 모르면 동선을 새로 짤 수 없다.
+  bool get canEdit =>
+      scheduleId != null &&
+      (province ?? '').isNotEmpty &&
+      (city ?? '').isNotEmpty;
 
   SavedTrip copyWith({int? chatRoomId}) => SavedTrip(
         scheduleId: scheduleId,
@@ -139,6 +159,11 @@ class SavedTrip {
         totalDurationMinutes: totalDurationMinutes,
         chatRoomId: chatRoomId ?? this.chatRoomId,
         warnings: warnings,
+        province: province,
+        city: city,
+        transport: transport,
+        activeStartHour: activeStartHour,
+        activeEndHour: activeEndHour,
       );
 
   factory SavedTrip.fromDetail(ScheduleDetail d) {
@@ -153,6 +178,11 @@ class SavedTrip {
       stops: d.stops,
       totalDurationMinutes: d.totalDurationMinutes,
       warnings: d.warnings,
+      province: d.province,
+      city: d.city,
+      transport: d.transport,
+      activeStartHour: d.activeStartHour,
+      activeEndHour: d.activeEndHour,
     );
   }
 }
