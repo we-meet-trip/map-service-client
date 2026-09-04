@@ -49,6 +49,10 @@ class TripRepository {
 ///
 /// 고른 장소로 동선만 다시 만들 때 그대로 다시 보낸다 — 기간·활동 시간대·
 /// 이동수단·지역은 장소를 바꿔도 그대로 유지되는 조건이다.
+///
+/// 재탐색은 여기에 더해 예산·테마·이 일정의 식별자까지 필요로 한다. 같은
+/// 조건으로 다시 물어야 하는데, 그 값들을 들고 있지 않으면 사용자에게 입력을
+/// 처음부터 다시 받는 수밖에 없다.
 class TripPlanContext {
   final DateTime startDate;
   final DateTime endDate;
@@ -59,6 +63,16 @@ class TripPlanContext {
   final String city;
   final List<TripStop> stops;
 
+  /// 이 일정의 식별자(trip_id). 재탐색이 "무엇 말고"를 가리키는 열쇠다.
+  /// 저장된 일정을 열어 만든 맥락에는 없을 수 있다.
+  final String? tripId;
+
+  /// 이 일정을 만들 때 쓴 예산·테마. 재탐색에 그대로 다시 싣는다.
+  /// 동선만 다시 만든 맥락에는 없다(그 요청은 조건을 받지 않는다).
+  final int? minBudget;
+  final int? maxBudget;
+  final List<String> themes;
+
   const TripPlanContext({
     required this.startDate,
     required this.endDate,
@@ -68,7 +82,20 @@ class TripPlanContext {
     required this.province,
     required this.city,
     required this.stops,
+    this.tripId,
+    this.minBudget,
+    this.maxBudget,
+    this.themes = const [],
   });
+
+  /// 재탐색을 걸 수 있는 맥락인지. 식별자와 조건이 모두 있어야 같은 조건으로
+  /// 다시 물을 수 있다.
+  bool get canResearch =>
+      tripId != null &&
+      tripId!.isNotEmpty &&
+      minBudget != null &&
+      maxBudget != null &&
+      themes.isNotEmpty;
 }
 
 class SavedTrip {

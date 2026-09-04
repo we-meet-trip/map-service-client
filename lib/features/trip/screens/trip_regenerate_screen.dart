@@ -187,6 +187,12 @@ class _TripRegenerateScreenState extends State<TripRegenerateScreen> {
             province: request.province,
             city: request.city,
             stops: res.stops,
+            // 재탐색은 같은 조건으로 다시 묻는 흐름이라 예산·테마와 이 일정의
+            // 식별자까지 남겨 둔다. 없으면 마법사를 처음부터 다시 태워야 한다.
+            tripId: res.tripId,
+            minBudget: request.minBudget,
+            maxBudget: request.maxBudget,
+            themes: request.themes,
           ));
         });
       });

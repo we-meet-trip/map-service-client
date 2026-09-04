@@ -13,7 +13,7 @@ import '../../features/place_explore/screens/place_explore_step1_screen.dart';
 import '../../features/place_explore/screens/place_explore_step2_screen.dart';
 import '../../features/place_explore/providers/place_explore_provider.dart';
 import '../../features/trip/screens/trip_directions_screen.dart';
-import '../../features/trip/screens/place_pick_screen.dart';
+import '../../features/trip/screens/trip_research_result_screen.dart';
 import '../../features/trip/screens/search_step1_screen.dart';
 import '../../features/saved/screens/saved_screen.dart';
 import '../../features/chat/providers/chat_room_detail_provider.dart';
@@ -176,12 +176,12 @@ final appRouter = GoRouter(
                 GoRoute(
                   path: 'search',
                   builder: (context, state) => const SearchStep1Screen(),
-                  routes: [
-                    GoRoute(
-                      path: 'places',
-                      builder: (context, state) => const PlacePickScreen(),
-                    ),
-                  ],
+                ),
+                // 장소를 전부 새로 받아 오는 자리. 기다림도 이 화면이 맡는다 —
+                // 조건을 다시 묻지 않으므로 거칠 단계가 없다.
+                GoRoute(
+                  path: 'research',
+                  builder: (context, state) => const TripResearchResultScreen(),
                 ),
                 GoRoute(
                   path: 'place-explore/step1',

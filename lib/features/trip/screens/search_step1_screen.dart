@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../common/widgets/next_button.dart';
 import '../../../common/widgets/prev_button.dart';
+import '../../../core/state/trip_repository.dart';
 import '../../place_explore/providers/place_explore_provider.dart';
 import 'trip_regenerate_screen.dart';
 
@@ -49,6 +50,12 @@ class _SearchStep1ScreenState extends State<SearchStep1Screen> {
     if (_selectedIndex == 1) {
       context.read<PlaceExploreProvider>().reset();
       context.go('/trip/place-explore/step1');
+      return;
+    }
+    // 조건은 그대로 두고 장소만 새로 받아 온다. 마법사를 다시 태우는 것은
+    // 다시 물어볼 일정이 없을 때뿐이다 — 그때는 조건 자체가 없어서다.
+    if (TripRepository.instance.lastPlan?.canResearch ?? false) {
+      context.go('/trip/research');
       return;
     }
     tripRetrialNotifier.value++;
