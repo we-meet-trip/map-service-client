@@ -166,4 +166,109 @@ void main() {
     expect(draft.placeCount, 3);
     expect(draft.request!.places, hasLength(3));
   });
+
+  group('남길 장소만 두고 나머지를 새로 받을 때', () {
+    TripStop identified({
+      required int order,
+      required String name,
+      required String contentId,
+    }) =>
+        TripStop(
+          order: order,
+          name: name,
+          address: '$name 주소',
+          time: '09:00',
+          latitude: 38.19,
+          longitude: 128.60,
+          contentId: contentId,
+        );
+
+    TripPlanContext researchablePlan(List<TripStop> stops) => TripPlanContext(
+          startDate: DateTime(2026, 5, 1),
+          endDate: DateTime(2026, 5, 2),
+          activeStartHour: 9,
+          activeEndHour: 20,
+          transport: 'walk',
+          province: '강원특별자치도',
+          city: '속초시',
+          stops: stops,
+          tripId: 'job-1',
+          minBudget: 50000,
+          maxBudget: 150000,
+          themes: const ['food'],
+        );
+
+    final identifiedStops = [
+      identified(order: 1, name: '속초해변', contentId: 'kakao:1'),
+      identified(order: 2, name: '영금정', contentId: 'kakao:2'),
+      identified(order: 3, name: '중앙시장', contentId: 'kakao:3'),
+    ];
+
+    test('고른 곳은 남기고 지금 일정 전부를 제외 목록에 싣는다', () {
+      final draft = buildExploreResearchDraft(
+        plan: researchablePlan(identifiedStops),
+        selectedIds: {planPlaceId(0)},
+      );
+
+      expect(draft.blockedBy, isNull);
+      expect(draft.keepCount, 1);
+      final body = draft.request!.toJson();
+      expect(body['prev_trip_id'], 'job-1');
+      expect((body['keep'] as List).single, containsPair('name', '속초해변'));
+      expect((body['keep'] as List).single,
+          containsPair('content_id', 'kakao:1'));
+      // 남길 곳도 제외 목록에 함께 실린다 — 서버가 따로 세우므로 사라지지
+      // 않고, 빠뜨리면 새로 뽑는 쪽에 같은 곳이 다시 나온다.
+      expect(body['exclude'], ['kakao:1', 'kakao:2', 'kakao:3']);
+    });
+
+    test('하나도 고르지 않으면 전부 새로 받는다', () {
+      final draft = buildExploreResearchDraft(
+        plan: researchablePlan(identifiedStops),
+        selectedIds: const {},
+      );
+
+      expect(draft.blockedBy, isNull);
+      expect(draft.keepCount, 0);
+      expect(draft.request!.toJson().containsKey('keep'), isFalse);
+    });
+
+    test('식별자 없는 장소는 남기지 못한다', () {
+      final draft = buildExploreResearchDraft(
+        plan: researchablePlan([
+          identified(order: 1, name: '속초해변', contentId: 'kakao:1'),
+          stop(order: 2, name: '지어낸 곳'),
+        ]),
+        selectedIds: {planPlaceId(0), planPlaceId(1)},
+      );
+
+      expect(draft.keepCount, 1);
+      expect(draft.request!.keep.single.contentId, 'kakao:1');
+      expect(draft.request!.exclude, ['kakao:1']);
+    });
+
+    test('조건이 없는 일정으로는 다시 물을 수 없다', () {
+      final draft = buildExploreResearchDraft(
+        plan: plan(identifiedStops),
+        selectedIds: {planPlaceId(0)},
+      );
+
+      expect(draft.blockedBy, ExploreRouteBlock.noPlan);
+      expect(draft.request, isNull);
+    });
+
+    test('남길 곳이 상한을 넘으면 막는다', () {
+      final many = [
+        for (int i = 0; i < 10; i++)
+          identified(order: i + 1, name: '장소$i', contentId: 'kakao:$i'),
+      ];
+      final draft = buildExploreResearchDraft(
+        plan: researchablePlan(many),
+        selectedIds: {for (int i = 0; i < 10; i++) planPlaceId(i)},
+      );
+
+      expect(draft.blockedBy, ExploreRouteBlock.tooMany);
+      expect(draft.request, isNull);
+    });
+  });
 }

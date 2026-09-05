@@ -92,6 +92,28 @@ void main() {
   });
   tearDown(() => TripRepository.instance.lastPlan = null);
 
+  /// 로딩 화면의 최소 대기 타이머를 소진시킨다.
+  ///
+  /// 대기가 끝나면 일정 화면으로 넘어가는데 그 화면은 지도를 그려 시험
+  /// 환경에서 열리지 않는다. 그것만 넘기되 무엇을 넘기는지는 못 박는다 —
+  /// 종류를 안 보고 삼키면 응답을 읽다 난 오류까지 함께 사라진다.
+  Future<void> drainLoadingTimer(WidgetTester tester) async {
+    final caught = <FlutterErrorDetails>[];
+    final previousOnError = FlutterError.onError;
+    FlutterError.onError = caught.add;
+    await tester.pump(const Duration(seconds: 3));
+    FlutterError.onError = previousOnError;
+
+    for (final details in caught) {
+      expect(
+        details.exception,
+        isNot(anyOf(isA<ApiException>(), isA<TripApiException>(),
+            isA<TypeError>(), isA<NoSuchMethodError>())),
+        reason: '요청·응답 경로에서 난 오류는 회귀다: ${details.exception}',
+      );
+    }
+  }
+
   Future<void> pump(WidgetTester tester, Set<String> selected) async {
     await tester.pumpWidget(MaterialApp(
       home: PlaceExploreResultScreen(selectedIds: selected),
@@ -218,6 +240,106 @@ void main() {
 
         expect(requested, isEmpty);
         expect(find.textContaining('10곳까지만'), findsOneWidget);
+      },
+      createHttpClient: (_) =>
+          _FakeHttpClient(routeBody(), 200, requested, sentBodies),
+    );
+  });
+
+  testWidgets('일부를 빼면 뺀 자리를 새 장소로 채워 달라고 한다', (tester) async {
+    await HttpOverrides.runZoned(
+      () async {
+        // 재탐색을 걸 수 있는 맥락 — 조건과 이전 추천 식별자가 함께 있다.
+        TripRepository.instance.setLastPlan(TripPlanContext(
+          startDate: DateTime(2026, 5, 1),
+          endDate: DateTime(2026, 5, 1),
+          activeStartHour: 9,
+          activeEndHour: 20,
+          transport: 'walk',
+          province: '강원특별자치도',
+          city: '속초시',
+          stops: [
+            TripStop(
+                order: 1,
+                name: '속초해변',
+                address: '주소',
+                time: '09:00',
+                latitude: 38.19,
+                longitude: 128.60,
+                contentId: 'kakao:1'),
+            TripStop(
+                order: 2,
+                name: '영금정',
+                address: '주소',
+                time: '10:00',
+                latitude: 38.21,
+                longitude: 128.60,
+                contentId: 'kakao:2'),
+            TripStop(
+                order: 3,
+                name: '중앙시장',
+                address: '주소',
+                time: '11:00',
+                latitude: 38.20,
+                longitude: 128.60,
+                contentId: 'kakao:3'),
+          ],
+          tripId: 'job-prev',
+          minBudget: 50000,
+          maxBudget: 150000,
+          themes: const ['food'],
+        ));
+
+        await pump(tester, {planPlaceId(0)});
+        await tester.pump(const Duration(milliseconds: 100));
+
+        // 동선만 다시 짜는 자리가 아니라 새 장소를 받아 오는 자리로 간다.
+        expect(requested.map((u) => u.path),
+            contains(endsWith('/trip/research')));
+        expect(requested.where((u) => u.path.endsWith('/trip/route')), isEmpty);
+
+        final body = jsonDecode(sentBodies.single) as Map<String, dynamic>;
+        expect(body['prev_trip_id'], 'job-prev');
+        expect((body['keep'] as List).single, containsPair('name', '속초해변'));
+        expect(body['exclude'], ['kakao:1', 'kakao:2', 'kakao:3']);
+
+        await drainLoadingTimer(tester);
+      },
+      createHttpClient: (_) =>
+          _FakeHttpClient(routeBody(), 200, requested, sentBodies),
+    );
+  });
+
+  testWidgets('하나도 빼지 않으면 예전처럼 동선만 다시 짠다', (tester) async {
+    await HttpOverrides.runZoned(
+      () async {
+        TripRepository.instance.setLastPlan(TripPlanContext(
+          startDate: DateTime(2026, 5, 1),
+          endDate: DateTime(2026, 5, 1),
+          activeStartHour: 9,
+          activeEndHour: 20,
+          transport: 'walk',
+          province: '강원특별자치도',
+          city: '속초시',
+          stops: [
+            stop(order: 1, name: '가'),
+            stop(order: 2, name: '나'),
+            stop(order: 3, name: '다'),
+          ],
+          tripId: 'job-prev',
+          minBudget: 50000,
+          maxBudget: 150000,
+          themes: const ['food'],
+        ));
+
+        await pump(tester, {planPlaceId(0), planPlaceId(1), planPlaceId(2)});
+        await tester.pump(const Duration(milliseconds: 100));
+
+        expect(requested.map((u) => u.path), contains(endsWith('/trip/route')));
+        expect(
+            requested.where((u) => u.path.endsWith('/trip/research')), isEmpty);
+
+        await drainLoadingTimer(tester);
       },
       createHttpClient: (_) =>
           _FakeHttpClient(routeBody(), 200, requested, sentBodies),

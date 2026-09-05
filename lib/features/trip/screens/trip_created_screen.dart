@@ -508,20 +508,36 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
   Widget _buildTitle() {
     if (widget.showBackButton) {
       final savedAt = widget.savedTrip?.savedAt;
+      final saved = widget.savedTrip;
       final dateStr = savedAt != null
           ? '${savedAt.year}.${savedAt.month.toString().padLeft(2, '0')}.${savedAt.day.toString().padLeft(2, '0')}'
           : '';
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            widget.savedTrip?.name ?? '저장된 일정',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w800,
-              color: AppColors.neutralScale[600],
-              height: 1.2,
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  saved?.name ?? '저장된 일정',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.neutralScale[600],
+                    height: 1.2,
+                  ),
+                ),
+              ),
+              // 지역을 모르는 옛 일정은 동선을 새로 짤 수 없어 입구를 감춘다.
+              if (saved != null && saved.canEdit)
+                TextButton.icon(
+                  onPressed: () =>
+                      context.push('/saved/trip/edit', extra: saved),
+                  icon: const Icon(Icons.tune_rounded, size: 16),
+                  label: const Text('일정 편집'),
+                ),
+            ],
           ),
           if (dateStr.isNotEmpty) ...[
             const SizedBox(height: 6),

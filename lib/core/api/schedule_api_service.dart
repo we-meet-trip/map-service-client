@@ -74,6 +74,29 @@ class ScheduleApiService {
     return ScheduleDetail.fromJson(json);
   }
 
+  /// 고쳐 만든 동선으로 저장된 일정을 갈아 끼운다.
+  ///
+  /// 방문지를 하나씩 고치는 통로가 아니다. 화면에서 장소를 더하고 빼고
+  /// 순서를 바꾼 뒤 그 목록으로 동선을 새로 만들면(trip/route) 새 식별자가
+  /// 나오는데, 그 결과를 기존 일정 자리에 넣는 것이 이 호출이다.
+  ///
+  /// jobId: 방금 만든 동선의 식별자.
+  Future<ScheduleDetail> revise({
+    required int scheduleId,
+    required String jobId,
+    String? transport,
+    int? activeStartHour,
+    int? activeEndHour,
+  }) async {
+    final json = await _api.put('/api/v1/schedules/$scheduleId', body: {
+      'job_id': jobId,
+      if (transport != null) 'transport': transport,
+      if (activeStartHour != null) 'active_start_hour': activeStartHour,
+      if (activeEndHour != null) 'active_end_hour': activeEndHour,
+    });
+    return ScheduleDetail.fromJson(json);
+  }
+
   Future<void> delete(int scheduleId) async {
     await _api.delete('/api/v1/schedules/$scheduleId');
   }
@@ -127,6 +150,14 @@ class ScheduleDetail {
   /// 재열람에서도 보여준다. 없으면 빈 목록.
   final List<String> warnings;
 
+  /// 이 일정을 고칠 때 필요한 조건. 장소를 더하거나 빼면 동선을 새로 짜야
+  /// 하는데 그 요청이 지역과 활동 시간대를 요구한다. 지역을 모르는 옛
+  /// 일정은 없으므로, 그때는 고치기 입구를 감춘다.
+  final String? province;
+  final String? city;
+  final int? activeStartHour;
+  final int? activeEndHour;
+
   const ScheduleDetail({
     required this.scheduleId,
     required this.title,
@@ -138,7 +169,15 @@ class ScheduleDetail {
     required this.createdAt,
     this.startedAt,
     this.warnings = const [],
+    this.province,
+    this.city,
+    this.activeStartHour,
+    this.activeEndHour,
   });
+
+  /// 고칠 수 있는 일정인지. 지역을 모르면 동선을 새로 짤 수 없다.
+  bool get canEdit =>
+      (province ?? '').isNotEmpty && (city ?? '').isNotEmpty;
 
   factory ScheduleDetail.fromJson(Map<String, dynamic> json) => ScheduleDetail(
         scheduleId: json['schedule_id'] as int,
@@ -158,6 +197,14 @@ class ScheduleDetail {
                 .where((line) => line.trim().isNotEmpty)
                 .toList() ??
             const [],
+        province: json['province'] is String ? json['province'] as String : null,
+        city: json['city'] is String ? json['city'] as String : null,
+        activeStartHour: json['active_start_hour'] is num
+            ? (json['active_start_hour'] as num).toInt()
+            : null,
+        activeEndHour: json['active_end_hour'] is num
+            ? (json['active_end_hour'] as num).toInt()
+            : null,
       );
 }
 

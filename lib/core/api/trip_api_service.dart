@@ -50,11 +50,13 @@ class TripGenerateRequest {
       };
 }
 
-/// 사용자가 고른 장소 한 곳 — 동선만 다시 만들 때 서버로 보낸다.
+/// 사용자가 고른 장소 한 곳 — 동선만 다시 만들거나, 재탐색에서 그대로 둘
+/// 장소를 지목할 때 서버로 보낸다.
 ///
-/// 서버가 부여했던 장소 식별자는 이 요청에 싣지 않는다. 서버는 이름과 좌표로
-/// 장소를 다시 세우므로, 식별자는 화면 안에서 무엇을 골랐는지 기억하는 데만
-/// 쓰인다.
+/// 동선만 다시 만드는 경우 서버는 이름과 좌표로 장소를 다시 세운다. 재탐색에서
+/// 남길 장소로 보낼 때는 [contentId] 가 있어야 한다 — 그 값이 있어야 서버가
+/// 다시 뽑는 장소와 남길 장소를 맞대 볼 수 있고, 없으면 같은 곳이 두 번 들어갈
+/// 수 있다.
 class SelectedPlace {
   final String name;
   final String address;
@@ -67,6 +69,10 @@ class SelectedPlace {
   /// 보내야 결과 화면의 분류 칩이 남는다. 모르면 싣지 않는다.
   final String? category;
 
+  /// 추천을 가로질러 같은 장소를 가리키는 식별자("kakao:123").
+  /// 서버가 지어낸 장소에는 없다.
+  final String? contentId;
+
   const SelectedPlace({
     required this.name,
     required this.address,
@@ -74,6 +80,7 @@ class SelectedPlace {
     required this.longitude,
     required this.day,
     this.category,
+    this.contentId,
   });
 
   Map<String, dynamic> toJson() => {
@@ -83,6 +90,7 @@ class SelectedPlace {
         'lng': longitude,
         'day': day,
         if (category != null && category!.isNotEmpty) 'category': category,
+        if (contentId != null && contentId!.isNotEmpty) 'content_id': contentId,
       };
 }
 
@@ -127,6 +135,86 @@ class TripRouteRequest {
           'city': city,
         },
         'places': places.map((p) => p.toJson()).toList(),
+      };
+}
+
+/// 같은 조건에서 다른 장소로 다시 추천받는 요청.
+///
+/// 조건은 방금 받은 추천에 썼던 것을 그대로 다시 싣는다 — 조건을 바꾸는 것이
+/// 아니라 같은 조건에서 다른 결과를 받는 흐름이라, 사용자에게 입력을 다시
+/// 받지 않는다.
+///
+/// [keep] 이 비어 있으면 전부 다시 뽑고, 채워 보내면 그 장소는 남고 나머지
+/// 자리만 새로 채워진다. [exclude] 에는 방금 본 장소를 전부 싣는다 — 남길
+/// 장소까지 포함해서다. 서버가 남길 장소는 따로 세우므로 겹쳐도 사라지지
+/// 않으며, 빠뜨리면 그 장소가 새로 뽑히는 쪽에 다시 나올 수 있다.
+class TripResearchRequest {
+  final DateTime startDate;
+  final DateTime endDate;
+  final int activeStartHour;
+  final int activeEndHour;
+  final int minBudget;
+  final int maxBudget;
+  final List<String> themes;
+  final String transport;
+  final String province;
+  final String city;
+
+  /// 방금 받은 추천의 식별자(trip_id).
+  final String prevTripId;
+
+  /// 다시 나오면 안 되는 장소들의 식별자.
+  final List<String> exclude;
+
+  /// 그대로 둘 장소들. 비어 있으면 전부 다시 뽑는다.
+  final List<SelectedPlace> keep;
+
+  /// 저장된 일정을 재탐색하는 경우의 일정 식별자.
+  final int? scheduleId;
+
+  const TripResearchRequest({
+    required this.startDate,
+    required this.endDate,
+    required this.activeStartHour,
+    required this.activeEndHour,
+    required this.minBudget,
+    required this.maxBudget,
+    required this.themes,
+    required this.transport,
+    required this.province,
+    required this.city,
+    required this.prevTripId,
+    this.exclude = const [],
+    this.keep = const [],
+    this.scheduleId,
+  });
+
+  String _fmtDate(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  Map<String, dynamic> toJson() => {
+        'schedule': {
+          'start_date': _fmtDate(startDate),
+          'end_date': _fmtDate(endDate),
+          'active_start_hour': activeStartHour,
+          'active_end_hour': activeEndHour,
+        },
+        'budget': {
+          'min': minBudget,
+          'max': maxBudget,
+        },
+        'themes': themes,
+        'transport': transport,
+        'location': {
+          'province': province,
+          'city': city,
+        },
+        'prev_trip_id': prevTripId,
+        // 서버 계약 상한이 50개다. 넘겨 보내면 요청 자체가 거절되므로 여기서
+        // 자른다 — 잘린 장소가 다시 나올 수는 있어도 재탐색은 성립한다.
+        if (exclude.isNotEmpty) 'exclude': exclude.take(50).toList(),
+        if (keep.isNotEmpty) 'keep': keep.map((p) => p.toJson()).toList(),
+        if (scheduleId != null) 'schedule_id': scheduleId,
       };
 }
 
@@ -205,6 +293,11 @@ class TripStop {
   /// 이 장소에 머무는 예정 시간(분). endTime 과 같은 조건에서만 온다.
   final int? stayMinutes;
 
+  /// 추천을 가로질러 같은 장소를 가리키는 식별자("kakao:123"). 재탐색에서
+  /// "이 장소 말고" 또는 "이 장소는 그대로"라고 지목하는 키다. 서버가
+  /// 지어낸 장소에는 없다.
+  final String? contentId;
+
   const TripStop({
     required this.order,
     this.day = 1,
@@ -221,6 +314,7 @@ class TripStop {
     this.bullets,
     this.endTime,
     this.stayMinutes,
+    this.contentId,
   });
 
   factory TripStop.fromJson(Map<String, dynamic> json) => TripStop(
@@ -250,6 +344,7 @@ class TripStop {
         endTime: json['end_time'] is String ? json['end_time'] as String : null,
         stayMinutes:
             json['stay_minutes'] is num ? (json['stay_minutes'] as num).toInt() : null,
+        contentId: json['content_id'] is String ? json['content_id'] as String : null,
       );
 }
 
@@ -350,6 +445,13 @@ class TripApiService {
   /// 응답 형태가 일정 생성과 같아서 결과 화면을 그대로 재사용한다.
   Future<TripGenerateResponse> routeTrip(TripRouteRequest request) =>
       _postTrip('/api/v1/trip/route', request.toJson());
+
+  /// 같은 조건으로 다른 장소를 다시 추천받는다.
+  ///
+  /// 하루 횟수 한도가 있어 넘기면 409 가 온다 — 화면은 그 사유를 그대로
+  /// 보여 주고 되돌아간다.
+  Future<TripGenerateResponse> researchTrip(TripResearchRequest request) =>
+      _postTrip('/api/v1/trip/research', request.toJson());
 
   /// 일정 응답을 돌려주는 두 경로가 공유하는 전송부.
   ///

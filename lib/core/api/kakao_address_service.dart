@@ -1,6 +1,4 @@
-import 'dart:convert';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:http/http.dart' as http;
+import 'api_client.dart';
 
 class KakaoAddressResult {
   final String roadAddress;
@@ -15,39 +13,39 @@ class KakaoAddressResult {
   String get displayAddress => roadAddress.isNotEmpty ? roadAddress : jibunAddress;
 
   factory KakaoAddressResult.fromJson(Map<String, dynamic> json) {
-    final road = json['road_address'] as Map<String, dynamic>?;
     return KakaoAddressResult(
-      roadAddress: road?['address_name'] as String? ?? '',
-      jibunAddress: json['address_name'] as String? ?? '',
+      roadAddress: json['road_address'] as String? ?? '',
+      jibunAddress: json['address'] as String? ?? '',
     );
   }
 }
 
+/// 서버가 돌려준 주소 목록을 결과로 바꾼다.
+///
+/// 통신과 떼어 두어 응답 모양이 바뀌었을 때 통신 없이 확인할 수 있다.
+List<KakaoAddressResult> parseAddressSearchResponse(Map<String, dynamic> body) {
+  final addresses = body['addresses'] as List<dynamic>? ?? const [];
+  return addresses
+      .map((a) => KakaoAddressResult.fromJson(a as Map<String, dynamic>))
+      .toList();
+}
+
+/// 주소 검색.
+///
+/// 예전에는 앱이 발급처를 직접 불렀다. 그러려면 발급처 키를 설치 파일에
+/// 실어야 했고, 파일을 연 사람이면 누구나 그 키를 꺼내 쓸 수 있었다.
+/// 지금은 서버를 거치므로 키가 앱에 남지 않는다.
 class KakaoAddressService {
   KakaoAddressService._();
   static final KakaoAddressService instance = KakaoAddressService._();
 
-  static const _baseUrl = 'https://dapi.kakao.com/v2/local/search/address.json';
+  final _api = ApiClient.instance;
 
   Future<List<KakaoAddressResult>> search(String query) async {
-    final apiKey = dotenv.env['KAKAO_REST_API_KEY'] ?? '';
-    if (apiKey.isEmpty) {
-      throw Exception('KAKAO_REST_API_KEY가 설정되지 않았습니다.');
-    }
-    final uri = Uri.parse(_baseUrl).replace(queryParameters: {'query': query});
-    final response = await http.get(
-      uri,
-      headers: {'Authorization': 'KakaoAK $apiKey'},
+    final body = await _api.get(
+      '/api/v1/places/address',
+      query: {'query': query},
     );
-
-    if (response.statusCode != 200) {
-      throw Exception('주소 검색에 실패했습니다. (${response.statusCode})');
-    }
-
-    final body = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
-    final documents = body['documents'] as List<dynamic>? ?? const [];
-    return documents
-        .map((d) => KakaoAddressResult.fromJson(d as Map<String, dynamic>))
-        .toList();
+    return parseAddressSearchResponse(body);
   }
 }

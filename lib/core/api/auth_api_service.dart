@@ -102,6 +102,17 @@ class AuthApiService {
     }
   }
 
+  /// 탈퇴. 서버에서 계정이 지워진 뒤에만 기기를 정리한다.
+  ///
+  /// 로그아웃과 반대다. 로그아웃은 실패해도 기기를 비우지만, 탈퇴는 서버에
+  /// 계정이 남은 채 기기만 비우면 사용자가 지워진 줄 알고 떠나 버린다.
+  /// 그래서 실패는 그대로 올려보내 화면이 알리게 한다.
+  Future<void> withdraw() async {
+    await _api.delete('/api/v1/users/me');
+    await AuthStore.instance.clear();
+    UserRepository.instance.clearAccount();
+  }
+
   /// 로그인한 사람의 정보를 화면용 프로필에 맞춘다.
   ///
   /// 두 걸음으로 나눈다. 인증 응답에 이미 들어 있는 이름을 먼저 넣어 화면이

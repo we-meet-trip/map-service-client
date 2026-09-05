@@ -8,11 +8,14 @@ import '../../../core/state/trip_repository.dart';
 import '../../trip/screens/trip_created_screen.dart';
 import '../utils/explore_route_request.dart';
 
-/// 탐색에서 고른 장소로 동선을 다시 만들어 보여 준다.
+/// 탐색에서 고른 장소를 남기고 일정을 다시 만들어 보여 준다.
 ///
-/// 고른 장소만 정해졌을 뿐 방문 순서와 이동 구간은 아직 없다. 서버가 순서를
-/// 다시 짜고 도로를 따라가는 경로를 붙여 돌려주면 그것을 일정 화면에 그대로
-/// 넘긴다.
+/// 두 갈래다. 하나도 빼지 않았으면 같은 장소로 동선만 다시 짠다. 일부를
+/// 뺐으면 남긴 장소는 그대로 두고 뺀 자리를 새 장소로 채워 달라고 한다 —
+/// 마음에 든 곳은 지키고 나머지만 바꾸는 것이 이 화면의 뜻이기 때문이다.
+///
+/// 어느 쪽이든 방문 순서와 이동 구간은 서버가 다시 짜서 돌려주고, 그것을
+/// 일정 화면에 그대로 넘긴다.
 class PlaceExploreResultScreen extends StatefulWidget {
   const PlaceExploreResultScreen({super.key, required this.selectedIds});
 
@@ -25,7 +28,10 @@ class PlaceExploreResultScreen extends StatefulWidget {
 
 class _PlaceExploreResultScreenState extends State<PlaceExploreResultScreen> {
   late final TripPlanContext? _plan;
-  late final ExploreRouteDraft _draft;
+  late final ExploreRouteBlock? _blockedBy;
+
+  /// 새 장소를 받아 오는 요청인지. 실패 안내 문구가 갈린다.
+  bool _isResearch = false;
 
   Future<void>? _routeFuture;
   TripGenerateResponse? _result;
@@ -33,12 +39,36 @@ class _PlaceExploreResultScreenState extends State<PlaceExploreResultScreen> {
   @override
   void initState() {
     super.initState();
-    _plan = TripRepository.instance.lastPlan;
-    _draft = buildExploreRouteDraft(
-      plan: _plan,
+    final plan = TripRepository.instance.lastPlan;
+    _plan = plan;
+
+    // 하나라도 뺐고 재탐색을 걸 수 있는 맥락이면 뺀 자리를 새로 채운다.
+    // 조건(예산·테마)이나 이전 추천 식별자가 없는 맥락 — 동선만 다시 만든
+    // 일정이 그렇다 — 에서는 물어볼 근거가 없어 예전처럼 동선만 다시 짠다.
+    final dropped = plan != null &&
+        resolvePlanIndexes(plan, widget.selectedIds).length < plan.stops.length;
+    if (dropped && plan.canResearch) {
+      final draft = buildExploreResearchDraft(
+        plan: plan,
+        selectedIds: widget.selectedIds,
+      );
+      _blockedBy = draft.blockedBy;
+      final request = draft.request;
+      if (request != null) {
+        _isResearch = true;
+        _routeFuture = TripApiService.instance
+            .researchTrip(request)
+            .then((response) => _result = response);
+      }
+      return;
+    }
+
+    final draft = buildExploreRouteDraft(
+      plan: plan,
       selectedIds: widget.selectedIds,
     );
-    final request = _draft.request;
+    _blockedBy = draft.blockedBy;
+    final request = draft.request;
     if (request != null) {
       _routeFuture = TripApiService.instance
           .routeTrip(request)
@@ -65,6 +95,12 @@ class _PlaceExploreResultScreenState extends State<PlaceExploreResultScreen> {
         province: plan.province,
         city: plan.city,
         stops: result.stops,
+        // 식별자는 방금 만든 일정의 것으로 바꾸고 조건은 그대로 물려준다.
+        // 이 값이 끊기면 다음 재탐색이 "무엇 말고"를 가리키지 못한다.
+        tripId: result.tripId,
+        minBudget: plan.minBudget,
+        maxBudget: plan.maxBudget,
+        themes: plan.themes,
       ));
     }
     setState(() => _routeFuture = null);
@@ -75,7 +111,9 @@ class _PlaceExploreResultScreenState extends State<PlaceExploreResultScreen> {
   void _onLoadError(Object error) {
     final message = error is TripApiException
         ? error.message
-        : '동선을 다시 만들지 못했어요. 잠시 후 다시 시도해주세요.';
+        : _isResearch
+            ? '새로운 장소를 받아오지 못했어요. 잠시 후 다시 시도해주세요.'
+            : '동선을 다시 만들지 못했어요. 잠시 후 다시 시도해주세요.';
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
@@ -86,7 +124,7 @@ class _PlaceExploreResultScreenState extends State<PlaceExploreResultScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final blockedBy = _draft.blockedBy;
+    final blockedBy = _blockedBy;
     if (blockedBy != null) {
       return _buildBlocked(blockedBy);
     }

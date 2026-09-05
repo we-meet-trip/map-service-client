@@ -9,6 +9,7 @@ import '../../../common/widgets/gender_choice_chip.dart';
 import '../../../common/widgets/named_address_prompt.dart';
 import '../../../common/widgets/text_field.dart';
 import '../../../core/api/api_client.dart';
+import '../../../core/api/auth_api_service.dart' show AuthApiService;
 import '../../../core/api/user_api_service.dart' show UserApiService;
 import '../../../core/state/auth_store.dart';
 import '../../../core/state/user_repository.dart';
@@ -363,9 +364,33 @@ class ProfileEditScreen extends StatelessWidget {
         ),
         cancelLabel: '취소',
         confirmLabel: '탈퇴하기',
-        onConfirm: () => Navigator.of(ctx).pop(),
+        onConfirm: () {
+          Navigator.of(ctx).pop();
+          _withdraw(context);
+        },
       ),
     );
+  }
+
+  /// 탈퇴를 서버에 알리고 화면을 마이페이지로 되돌린다.
+  ///
+  /// 성공했을 때만 화면을 옮긴다. 실패한 채로 옮기면 계정이 남아 있는데도
+  /// 지워진 것처럼 보인다.
+  Future<void> _withdraw(BuildContext context) async {
+    try {
+      await AuthApiService.instance.withdraw();
+    } on ApiException catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message)),
+      );
+      return;
+    }
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('탈퇴가 완료되었어요.')),
+    );
+    context.go('/mypage');
   }
 }
 
