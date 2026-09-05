@@ -178,6 +178,12 @@ class _FailingRepository implements ChatRepository {
 
   @override
   Future<List<ChatUser>> getParticipants(int roomId) async => const [];
+
+  @override
+  Future<void> leave(int roomId) async {}
+
+  @override
+  Future<void> kick(int roomId, int userId) async {}
 }
 
 class _StubInviteLinks implements InviteLinkRepository {
