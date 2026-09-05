@@ -88,12 +88,20 @@ android {
     buildTypes {
         release {
             // 설정 파일과 키스토어가 모두 있으면 릴리스 키로 서명(배포용). 배포
-            // APK 는 항상 키를 보유한 빌드 머신에서 만든다. 둘 중 하나라도 없으면
-            // debug 로 폴백(로컬 개발 편의) — 이 경우 서명 검증에서 debug 인증서로
-            // 드러나므로 실수 배포를 막을 수 있다.
+            // APK 는 항상 키를 보유한 빌드 머신에서 만든다. 릴리스를 요청한
+            // 빌드에서 서명이 없으면 debug 키로 서명된 채 나가기 전에 여기서
+            // 멈춘다. 그 외(로컬 개발)에는 debug 로 폴백한다.
+            val releaseRequested = gradle.startParameter.taskNames.any {
+                it.contains("Release", ignoreCase = true)
+            }
             signingConfig = if (hasReleaseSigning) {
                 signingConfigs.getByName("release")
+            } else if (releaseRequested) {
+                throw GradleException(
+                    "release 서명 설정(key.properties) 또는 키스토어 부재 — 배포 빌드를 중단한다"
+                )
             } else {
+                // 무조건 던지면 안 된다 — 설정 단계는 debug 빌드도 이 블록을 평가한다.
                 logger.warn(
                     "WARNING: 서명 설정 또는 키스토어 부재 → release 를 debug 키로 서명(배포 금지)."
                 )

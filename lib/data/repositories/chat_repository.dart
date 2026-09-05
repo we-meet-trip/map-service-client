@@ -25,6 +25,12 @@ abstract class ChatRepository {
 
   /// 방의 참가자들. 보낸 사람 이름을 붙이는 데 쓴다.
   Future<List<ChatUser>> getParticipants(int roomId);
+
+  /// 방에서 나간다. 방장이 나가면 서버가 방을 종료한다.
+  Future<void> leave(int roomId);
+
+  /// 참가자를 내보낸다. 방장 여부의 최종 판정은 서버가 한다.
+  Future<void> kick(int roomId, int userId);
 }
 
 /// 참가자 한 명의 표시 정보.

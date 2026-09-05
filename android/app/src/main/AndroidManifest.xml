@@ -5,6 +5,7 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
     <application
         android:label="MAP"
         android:name="${applicationName}"
@@ -93,6 +94,16 @@
              마이크는 권한과 무관하게 계속 꺼진 상태로 남는다. -->
         <intent>
             <action android:name="android.speech.RecognitionService" />
+        </intent>
+        <!-- 외부 링크와 문의 메일 열기. 안드로이드 11부터는 여기 적어 두지
+             않으면 브라우저·메일 앱을 찾지 못해 열기가 조용히 실패한다. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="mailto" />
         </intent>
     </queries>
 </manifest>

@@ -5,6 +5,7 @@ import 'core/api/auth_api_service.dart';
 import 'core/config/app_config.dart';
 import 'core/naver_map/naver_map_bootstrap.dart';
 import 'core/state/user_repository.dart';
+import 'data/local/permission_notice_store.dart';
 import 'data/local/profile_local_store.dart';
 import 'app.dart';
 
@@ -12,6 +13,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: '.env');
   await Hive.initFlutter();
+  await PermissionNoticeStore.init();
   await ProfileLocalStore.init();
   await UserRepository.init();
   // 서버 주소를 먼저 확정한다. 아래 토큰 되살리기가 갱신 요청을 보낼 수

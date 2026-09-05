@@ -37,10 +37,17 @@ class _FakeChatApi implements ChatApiService {
   Future<ChatUnreadResponse> unread(int roomId) => throw UnimplementedError();
   @override
   Future<List<int>> presence(int roomId) => throw UnimplementedError();
+  final leaveCalls = <int>[];
+  final kickCalls = <String>[];
   @override
-  Future<void> leave(int roomId) => throw UnimplementedError();
+  Future<void> leave(int roomId) async {
+    leaveCalls.add(roomId);
+  }
+
   @override
-  Future<void> kick(int roomId, int userId) => throw UnimplementedError();
+  Future<void> kick(int roomId, int userId) async {
+    kickCalls.add('$roomId:$userId');
+  }
 }
 
 ChatParticipantResponse _person(int id, String name, {String status = 'ACTIVE'}) =>
@@ -163,5 +170,23 @@ void main() {
     final messages = await repository.getMessages(7);
 
     expect(messages.map((m) => m.seq), [1, 2, 3]);
+  });
+
+  test('나가기는 방 번호 그대로 API 에 위임한다', () async {
+    final api = _FakeChatApi();
+    final repository = ApiChatRepository(api: api);
+
+    await repository.leave(7);
+
+    expect(api.leaveCalls, [7]);
+  });
+
+  test('내보내기는 방 번호와 대상 번호 그대로 API 에 위임한다', () async {
+    final api = _FakeChatApi();
+    final repository = ApiChatRepository(api: api);
+
+    await repository.kick(7, 2);
+
+    expect(api.kickCalls, ['7:2']);
   });
 }

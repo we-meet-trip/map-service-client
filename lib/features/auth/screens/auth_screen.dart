@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import '../../../common/theme/app_colors.dart';
+import '../../../common/utils/support_mail.dart';
 import '../../../common/widgets/starry_background.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/kakao_login_flow.dart';
@@ -146,7 +147,9 @@ class _AuthScreenState extends State<AuthScreen> {
                           ),
                         ),
                         TextButton(
-                          onPressed: () {},
+                          onPressed: () => launchSupportMail(
+                            subject: '[MAP 문의]',
+                          ),
                           child: Text(
                               '문의하기',
                               style: TextStyle(

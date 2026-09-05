@@ -12,12 +12,14 @@ class ChatDetailHeader extends StatelessWidget {
     required this.participants,
     required this.onBack,
     this.onShare,
+    this.onMenu,
   });
 
   final String title;
   final List<User> participants;
   final VoidCallback onBack;
   final VoidCallback? onShare;
+  final VoidCallback? onMenu;
 
   List<User> get _allParticipants {
     final me = UserRepository.instance.profile.value;
@@ -79,6 +81,26 @@ class ChatDetailHeader extends StatelessWidget {
                     child: Center(
                       child: PhosphorIcon(
                         PhosphorIconsRegular.shareNetwork,
+                        size: 20,
+                        color: AppColors.shareIcon,
+                      ),
+                    ),
+                  ),
+                ),
+              if (onShare != null && onMenu != null) const SizedBox(width: 8),
+              if (onMenu != null)
+                GestureDetector(
+                  onTap: onMenu,
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFFFFFFF),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: PhosphorIcon(
+                        PhosphorIconsRegular.dotsThreeVertical,
                         size: 20,
                         color: AppColors.shareIcon,
                       ),
