@@ -1,17 +1,14 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../common/theme/app_colors.dart';
 import '../../../core/api/bike_station_api_service.dart';
 import '../../../core/api/pm_vehicle_api_service.dart';
-// 지도 패키지를 직접 부르지 않는다. 그 패키지는 안드로이드·iOS 만 지원해서,
-// 웹에서는 화면이 그려지기는 해도 지도와 마커가 통째로 비어 버린다. 다른 지도
-// 화면들과 같은 어댑터를 거쳐 실행 환경에 맞는 구현을 받는다.
-import '../../../core/naver_map/naver_map_adapter.dart';
-import '../../../core/naver_map/naver_map_bootstrap.dart';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Screen
@@ -26,24 +23,19 @@ class BikeScooterLocationScreen extends StatefulWidget {
 
 class _BikeScooterLocationScreenState extends State<BikeScooterLocationScreen> {
   // 지도
-  NaverMapController? _mapCtrl;
-  double _centerLat = 37.5665; // 서울 시청 (따릉이 서비스 지역)
+  GoogleMapController? _mapCtrl;
+  double _centerLat = 37.5665;
   double _centerLng = 126.9780;
+  CameraPosition? _currentCameraPosition;
 
   // 따릉이 데이터
-  final List<NMarker> _markers = [];
+  Set<Marker> _markers = const {};
   List<DdallengiStation> _allStations = [];
   DdallengiStation? _selected;
 
-  // 공유 킥보드 데이터.
-  //
-  // null 은 "아직 못 물어봤거나 조회에 실패했다"이고, 빈 목록은 "물어봤는데
-  // 주변에 없다"이다. 둘을 같은 값으로 두면 화면이 "없음"과 "알 수 없음"을
-  // 구분하지 못해, 발급처가 멈춘 것을 기기가 없는 것처럼 보여 준다.
   List<PmVehicle>? _pmVehicles;
 
   // UI 상태
-  // 'all' = 전체, 'available' = 대여 가능한 대여소만
   String _filter = 'all';
   bool _loading = false;
   bool _mapMoved = false;
@@ -54,6 +46,12 @@ class _BikeScooterLocationScreenState extends State<BikeScooterLocationScreen> {
     _initLocation();
   }
 
+  @override
+  void dispose() {
+    _mapCtrl?.dispose();
+    super.dispose();
+  }
+
   // ── 초기 위치 ────────────────────────────────────────────────────────────────
   Future<void> _initLocation() async {
     try {
@@ -62,37 +60,22 @@ class _BikeScooterLocationScreenState extends State<BikeScooterLocationScreen> {
         perm = await Geolocator.requestPermission();
       }
       if (perm == LocationPermission.deniedForever ||
-          perm == LocationPermission.denied)
-        return;
+          perm == LocationPermission.denied) return;
       final pos = await Geolocator.getCurrentPosition();
       if (!mounted) return;
       setState(() {
         _centerLat = pos.latitude;
         _centerLng = pos.longitude;
       });
-      // 위치를 받는 데는 시간이 걸려서 지도가 먼저 준비되기도 한다. 그러면
-      // 대여소 목록은 기본 좌표 주변으로 이미 받아 둔 것인데, 화면은 새 중심
-      // 기준으로 5km 를 걸러 내므로 하나도 남지 않는다. 목록을 비워 지금
-      // 자리로 다시 받고 지도도 그리로 옮긴다.
       if (_mapCtrl != null) {
         await _recenterTo(_centerLat, _centerLng);
       }
     } catch (_) {}
   }
 
-  /// 지도를 그 자리로 옮기고 대여소 목록을 그 주변으로 다시 받는다.
-  ///
-  /// 서버는 중심에서 일정 반경 안만 잘라 준다. 중심을 옮겼으면 목록도 함께
-  /// 갈아야지, 그대로 두면 옮긴 자리에서는 걸러 낼 것만 남는다.
   Future<void> _recenterTo(double lat, double lng) async {
-    await _mapCtrl?.updateCamera(
-      NCameraUpdate.scrollAndZoomTo(
-        target: NLatLng(lat, lng),
-        zoom: 16,
-      )..setAnimation(
-        animation: NCameraAnimation.fly,
-        duration: const Duration(milliseconds: 700),
-      ),
+    await _mapCtrl?.animateCamera(
+      CameraUpdate.newLatLngZoom(LatLng(lat, lng), 16),
     );
     if (!mounted) return;
     _allStations = [];
@@ -100,9 +83,8 @@ class _BikeScooterLocationScreenState extends State<BikeScooterLocationScreen> {
   }
 
   // ── 지도 준비 ────────────────────────────────────────────────────────────────
-  Future<void> _onMapReady(NaverMapController ctrl) async {
+  Future<void> _onMapCreated(GoogleMapController ctrl) async {
     _mapCtrl = ctrl;
-    ctrl.getLocationOverlay().setIsVisible(false);
     await _loadStations();
   }
 
@@ -112,15 +94,10 @@ class _BikeScooterLocationScreenState extends State<BikeScooterLocationScreen> {
     setState(() {
       _loading = true;
       _mapMoved = false;
+      _markers = const {};
     });
-    _clearMarkers();
 
-    // 미로드 시에만 서버 호출 (같은 자리를 다시 그릴 때는 받아 둔 목록 사용).
-    // 서버가 지금 보고 있는 자리 주변만 잘라 주므로, 자리를 옮겼을 때는
-    // 재탐색이 목록을 비워 여기서 다시 받게 한다.
     if (_allStations.isEmpty) {
-      // 대여소와 킥보드는 서로 다른 발급처라 함께 물어도 된다. 차례로 물으면
-      // 느린 쪽 시간이 빠른 쪽에 그대로 더해진다.
       final results = await Future.wait([
         BikeStationApiService.instance.fetchStations(
           latitude: _centerLat,
@@ -142,10 +119,6 @@ class _BikeScooterLocationScreenState extends State<BikeScooterLocationScreen> {
     await _renderMarkers();
   }
 
-  /// 주변 킥보드 상태를 한 줄 문구로. 그릴 것이 없으면 null.
-  ///
-  /// "없다"와 "알 수 없다"를 다른 문구로 쓴다. 발급처가 아직 이 지역 자료를
-  /// 내주지 않는 동안 "0대"라고만 하면 사용자는 앱이 틀렸다고 여긴다.
   String? get _pmStatusLabel {
     final list = _pmVehicles;
     if (list == null) return '킥보드 정보를 불러오지 못했어요';
@@ -153,27 +126,16 @@ class _BikeScooterLocationScreenState extends State<BikeScooterLocationScreen> {
     return '주변 킥보드 ${list.length}대';
   }
 
-  // ── 마커 렌더링 (중심 5km 이내 + 필터 적용) ─────────────────────────────────
-  //
-  // 한 번에 한 벌만 그린다. 마커 아이콘은 위젯을 그림 파일로 구워 만드는데, 그
-  // 굽는 자리가 앱 전체에서 하나라 두 벌이 겹쳐 돌면 서로의 파일을 지운다.
-  // 그러면 아이콘을 읽지 못한 채로 지도에 얹으려다 iOS 에서 앱이 죽는다.
-  //
-  // 겹치는 경로가 실제로 있다. 지도 식별자가 다음 것으로 바뀌면 지도를 다시
-  // 만드는데, 그때 새 지도의 준비 통지가 앞서 돌던 그리기와 겹친다.
+  // ── 마커 렌더링 ─────────────────────────────────────────────────────────────
   int _renderPass = 0;
   Future<void>? _renderInFlight;
 
   Future<void> _renderMarkers() async {
-    // 번호를 먼저 올린다. 앞서 돌던 그리기가 이 값을 보고 다음 대기 지점에서
-    // 스스로 물러난다.
     final pass = ++_renderPass;
     final previous = _renderInFlight;
     final done = Completer<void>();
     _renderInFlight = done.future;
     try {
-      // 앞 그리기가 물러날 때까지 기다린 뒤에 시작한다. 기다리지 않고 바로
-      // 들어가면 두 벌이 같은 자리에 그림 파일을 굽게 된다.
       if (previous != null) await previous;
       await _renderMarkersPass(pass);
     } finally {
@@ -185,8 +147,6 @@ class _BikeScooterLocationScreenState extends State<BikeScooterLocationScreen> {
   Future<void> _renderMarkersPass(int pass) async {
     final ctrl = _mapCtrl;
     if (ctrl == null || !mounted) return;
-    // 지도가 바뀌었는지도 함께 본다. 번호만으로는 같은 순번에서 지도가 갈린
-    // 경우를 못 가른다.
     bool stale() => !mounted || pass != _renderPass || _mapCtrl != ctrl;
 
     final filtered = _allStations
@@ -194,73 +154,189 @@ class _BikeScooterLocationScreenState extends State<BikeScooterLocationScreen> {
         .where((s) => _filter == 'all' || s.parkingBikeTotCnt > 0)
         .toList();
 
-    final ctx = context;
+    final newMarkers = <Marker>{};
+
     for (var i = 0; i < filtered.length; i++) {
-      if (!mounted || stale()) return;
+      if (stale()) return;
       final s = filtered[i];
-      final icon = await NOverlayImage.fromWidget(
-        widget: _DdalMarkerBubble(availableCount: s.parkingBikeTotCnt),
-        size: const Size(52, 34),
-        context: ctx,
-      );
+      final icon = await _makeDdalIcon(s.parkingBikeTotCnt);
       if (stale()) return;
-      final marker = NMarker(
-        id: 'ddal_$i',
-        position: NLatLng(s.lat, s.lng),
+      final station = s;
+      newMarkers.add(Marker(
+        markerId: MarkerId('ddal_$i'),
+        position: LatLng(s.lat, s.lng),
         icon: icon,
-        anchor: const NPoint(0.5, 1.0),
-      );
-      marker.setOnTapListener((_) => _selectStation(s));
-      await ctrl.addOverlay(marker);
-      if (stale()) return;
-      _markers.add(marker);
+        anchor: const Offset(0.5, 1.0),
+        onTap: () => _selectStation(station),
+      ));
     }
 
-    // 킥보드는 대여소와 달리 한 대씩 흩어져 있다. 자료가 들어오면 여기서
-    // 함께 올라간다 — 지금은 발급처가 이 지역 자료를 내주지 않아 대체로
-    // 빈 목록이고, 그때는 이 반복이 그냥 지나간다.
     final vehicles = _pmVehicles ?? const <PmVehicle>[];
     final nearby = vehicles
         .where((v) => v.distanceTo(_centerLat, _centerLng) <= 5000)
         .toList();
     for (var i = 0; i < nearby.length; i++) {
-      if (!mounted || stale()) return;
+      if (stale()) return;
       final v = nearby[i];
-      final icon = await NOverlayImage.fromWidget(
-        widget: _PmMarkerBubble(vehicle: v),
-        size: const Size(52, 34),
-        context: ctx,
-      );
+      final icon = await _makePmIcon(v);
       if (stale()) return;
-      final marker = NMarker(
-        id: 'pm_$i',
-        position: NLatLng(v.lat, v.lng),
+      newMarkers.add(Marker(
+        markerId: MarkerId('pm_$i'),
+        position: LatLng(v.lat, v.lng),
         icon: icon,
-        anchor: const NPoint(0.5, 1.0),
-      );
-      await ctrl.addOverlay(marker);
-      if (stale()) return;
-      _markers.add(marker);
+        anchor: const Offset(0.5, 1.0),
+      ));
     }
+
+    if (stale()) return;
+    setState(() => _markers = newMarkers);
   }
 
-  void _clearMarkers() {
-    // 하나씩 떼지 않고 한꺼번에 비운다. 이 지도에 올라가는 것은 이 화면이
-    // 만든 대여소 마커뿐이라 결과가 같고, 하나씩 떼는 방식은 웹 구현에 없어
-    // 그쪽에서만 지도가 비어 버린다.
-    _mapCtrl?.clearOverlays();
-    _markers.clear();
+  /// 따릉이 말풍선 마커를 캔버스로 그린다.
+  Future<BitmapDescriptor> _makeDdalIcon(int count) async {
+    const bw = 52.0;
+    const bh = 26.0;
+    const tailH = 7.0;
+    const r = 12.0;
+
+    final color = count > 5
+        ? const Color(0xFFEE6C10)
+        : count > 0
+            ? const Color(0xFFF59E0B)
+            : const Color(0xFFBDBDBD);
+
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+
+    // 말풍선 몸통
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(const Rect.fromLTWH(0, 0, bw, bh), const Radius.circular(r)),
+      Paint()..color = color,
+    );
+
+    // 꼬리 삼각형
+    final tail = Path()
+      ..moveTo(bw / 2 - 6, bh)
+      ..lineTo(bw / 2, bh + tailH)
+      ..lineTo(bw / 2 + 6, bh)
+      ..close();
+    canvas.drawPath(tail, Paint()..color = color);
+
+    // 이모지
+    final emoji = TextPainter(
+      text: const TextSpan(text: '🚲', style: TextStyle(fontSize: 10)),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    emoji.paint(canvas, Offset(8, (bh - emoji.height) / 2));
+
+    // 숫자
+    final countTp = TextPainter(
+      text: TextSpan(
+        text: '$count',
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 11,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    countTp.paint(
+        canvas, Offset(8 + emoji.width + 3, (bh - countTp.height) / 2));
+
+    final image = await recorder
+        .endRecording()
+        .toImage(bw.toInt(), (bh + tailH).toInt());
+    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    return BitmapDescriptor.bytes(byteData!.buffer.asUint8List());
+  }
+
+  /// 킥보드 말풍선 마커를 캔버스로 그린다.
+  Future<BitmapDescriptor> _makePmIcon(PmVehicle v) async {
+    const bw = 52.0;
+    const bh = 26.0;
+    const tailH = 7.0;
+    const r = 12.0;
+
+    final color = _pmBrandColor(v.providerName);
+
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+          const Rect.fromLTWH(0, 0, bw, bh), const Radius.circular(r)),
+      Paint()..color = color,
+    );
+
+    final tail = Path()
+      ..moveTo(bw / 2 - 6, bh)
+      ..lineTo(bw / 2, bh + tailH)
+      ..lineTo(bw / 2 + 6, bh)
+      ..close();
+    canvas.drawPath(tail, Paint()..color = color);
+
+    final emoji = TextPainter(
+      text: TextSpan(
+          text: v.isBike ? '🚲' : '🛴', style: const TextStyle(fontSize: 10)),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    emoji.paint(canvas, Offset(6, (bh - emoji.height) / 2));
+
+    final battery = v.batteryLevel;
+    if (battery != null) {
+      final battTp = TextPainter(
+        text: TextSpan(
+          text: '$battery%',
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 11,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      battTp.paint(
+          canvas, Offset(6 + emoji.width + 3, (bh - battTp.height) / 2));
+    }
+
+    final image = await recorder
+        .endRecording()
+        .toImage(bw.toInt(), (bh + tailH).toInt());
+    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    return BitmapDescriptor.bytes(byteData!.buffer.asUint8List());
+  }
+
+  static Color _pmBrandColor(String name) {
+    const brand = {
+      'Beam': Color(0xFF4B2FE0),
+      'GCOO': Color(0xFF03C75A),
+      'SWING': Color(0xFFFF5A36),
+      '씽씽': Color(0xFF2196F3),
+      '킥고잉': Color(0xFFFF6D00),
+      'Lime': Color(0xFF00C853),
+      '지쿠': Color(0xFF7B1FA2),
+      '알파카': Color(0xFF795548),
+    };
+    for (final e in brand.entries) {
+      if (name.contains(e.key)) return e.value;
+    }
+    const fallback = [
+      Color(0xFFE91E63),
+      Color(0xFF9C27B0),
+      Color(0xFF3F51B5),
+      Color(0xFF00BCD4),
+      Color(0xFFFF5722),
+    ];
+    if (name.isEmpty) return const Color(0xFF9E9E9E);
+    return fallback[name.codeUnitAt(0) % fallback.length];
   }
 
   // ── 대여소 선택 ──────────────────────────────────────────────────────────────
   void _selectStation(DdallengiStation s) {
     setState(() => _selected = s);
-    _mapCtrl?.updateCamera(
-      NCameraUpdate.scrollAndZoomTo(target: NLatLng(s.lat, s.lng), zoom: 17)
-        ..setAnimation(
-          animation: NCameraAnimation.easing,
-          duration: const Duration(milliseconds: 500),
-        ),
+    _mapCtrl?.animateCamera(
+      CameraUpdate.newLatLngZoom(LatLng(s.lat, s.lng), 17),
     );
   }
 
@@ -270,23 +346,19 @@ class _BikeScooterLocationScreenState extends State<BikeScooterLocationScreen> {
     setState(() {
       _filter = f;
       _selected = null;
+      _markers = const {};
     });
-    _clearMarkers();
     await _renderMarkers();
   }
 
   // ── 이 지역 재탐색 ───────────────────────────────────────────────────────────
   Future<void> _reSearch() async {
-    final ctrl = _mapCtrl;
-    if (ctrl == null) return;
-    final cam = await ctrl.getCameraPosition();
+    final cam = _currentCameraPosition;
+    if (cam == null) return;
     setState(() {
       _centerLat = cam.target.latitude;
       _centerLng = cam.target.longitude;
       _selected = null;
-    });
-    // 대여소·킥보드 모두 새 자리 기준으로 다시 받는다.
-    setState(() {
       _allStations = [];
       _pmVehicles = null;
     });
@@ -301,8 +373,7 @@ class _BikeScooterLocationScreenState extends State<BikeScooterLocationScreen> {
         perm = await Geolocator.requestPermission();
       }
       if (perm == LocationPermission.deniedForever ||
-          perm == LocationPermission.denied)
-        return;
+          perm == LocationPermission.denied) return;
       final pos = await Geolocator.getCurrentPosition();
       if (!mounted) return;
       setState(() {
@@ -323,33 +394,25 @@ class _BikeScooterLocationScreenState extends State<BikeScooterLocationScreen> {
       body: Stack(
         children: [
           // ── 지도 ──
-          //
-          // 지도 식별자가 다음 것으로 바뀌면 지도를 다시 만든다. 인증 판정은
-          // 지도를 그릴 때 오는데, 그때 이미 만들어진 지도는 처음 식별자로
-          // 인증을 끝낸 뒤라 스스로 다시 묻지 않는다 — 다시 만들지 않으면
-          // 첫 진입 화면만 계속 비어 있고 나갔다 들어와야 나온다.
-          ValueListenableBuilder<int>(
-            valueListenable: naverMapAuthGeneration,
-            builder: (context, generation, _) => NaverMap(
-              key: ValueKey('bike-map-$generation'),
-              options: NaverMapViewOptions(
-                initialCameraPosition: NCameraPosition(
-                  target: NLatLng(_centerLat, _centerLng),
-                  zoom: 15,
-                ),
-                mapType: NMapType.basic,
-                scrollGesturesEnable: true,
-                zoomGesturesEnable: true,
-                rotationGesturesEnable: false,
-                logoAlign: NLogoAlign.leftBottom,
+          Positioned.fill(
+            child: GoogleMap(
+              initialCameraPosition: CameraPosition(
+                target: LatLng(_centerLat, _centerLng),
+                zoom: 15,
               ),
-              onMapReady: _onMapReady,
-              onCameraChange: (reason, _) {
-                if (reason == NCameraUpdateReason.gesture && !_mapMoved) {
-                  setState(() => _mapMoved = true);
-                }
+              markers: _markers,
+              myLocationEnabled: true,
+              myLocationButtonEnabled: false,
+              zoomControlsEnabled: false,
+              rotateGesturesEnabled: false,
+              scrollGesturesEnabled: true,
+              zoomGesturesEnabled: true,
+              onMapCreated: _onMapCreated,
+              onCameraMove: (pos) => _currentCameraPosition = pos,
+              onCameraMoveStarted: () {
+                if (!_mapMoved) setState(() => _mapMoved = true);
               },
-              onMapTapped: (_, __) {
+              onTap: (_) {
                 if (_selected != null) setState(() => _selected = null);
               },
             ),
@@ -427,10 +490,6 @@ class _BikeScooterLocationScreenState extends State<BikeScooterLocationScreen> {
           ),
 
           // ── 킥보드 상태 한 줄 ──
-          //
-          // 이 화면의 이름과 진입 배너가 "자전거·킥보드"인데 지금까지 지도에는
-          // 따릉이만 올라갔다. 킥보드 쪽이 어떤 상태인지 한 줄로 밝혀,
-          // 사용자가 "킥보드는 왜 안 보이지"를 묻지 않게 한다.
           if (_pmStatusLabel != null && !_loading)
             SafeArea(
               child: Align(
@@ -438,8 +497,8 @@ class _BikeScooterLocationScreenState extends State<BikeScooterLocationScreen> {
                 child: Padding(
                   padding: const EdgeInsets.only(top: 58),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: Colors.white.withAlpha(235),
                       borderRadius: BorderRadius.circular(16),
@@ -575,8 +634,7 @@ class _BikeScooterLocationScreenState extends State<BikeScooterLocationScreen> {
           // ── 내 위치 버튼 ──
           Positioned(
             right: 12,
-            bottom:
-                (_selected != null ? 300 : 24) +
+            bottom: (_selected != null ? 300 : 24) +
                 MediaQuery.of(context).padding.bottom,
             child: _CircleButton(
               icon: Icons.my_location_rounded,
@@ -593,7 +651,8 @@ class _BikeScooterLocationScreenState extends State<BikeScooterLocationScreen> {
               right: 0,
               child: LinearProgressIndicator(
                 backgroundColor: Colors.transparent,
-                valueColor: const AlwaysStoppedAnimation(Color(0xFFEE6C10)),
+                valueColor:
+                    const AlwaysStoppedAnimation(Color(0xFFEE6C10)),
               ),
             ),
 
@@ -617,159 +676,6 @@ class _BikeScooterLocationScreenState extends State<BikeScooterLocationScreen> {
       ),
     );
   }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// 따릉이 마커 말풍선
-// ──────────────────────────────────────────────────────────────────────────────
-/// 킥보드 마커 말풍선.
-///
-/// 사업자마다 색을 달리해 한 지도에 여러 사업자가 섞여도 구분된다. 배터리를
-/// 함께 적는 이유는, 잔량이 적은 기기는 눈앞에 있어도 탈 수 없어서다.
-class _PmMarkerBubble extends StatelessWidget {
-  final PmVehicle vehicle;
-  const _PmMarkerBubble({required this.vehicle});
-
-  /// 사업자 색. 목록에 없는 사업자는 이름을 섞어 색을 정해, 새 사업자가
-  /// 들어와도 전부 같은 회색으로 뭉치지 않는다.
-  Color get _brandColor {
-    const brand = {
-      'Beam': Color(0xFF4B2FE0),
-      'GCOO': Color(0xFF03C75A),
-      'SWING': Color(0xFFFF5A36),
-      '씽씽': Color(0xFF2196F3),
-      '킥고잉': Color(0xFFFF6D00),
-      'Lime': Color(0xFF00C853),
-      '지쿠': Color(0xFF7B1FA2),
-      '알파카': Color(0xFF795548),
-    };
-    for (final e in brand.entries) {
-      if (vehicle.providerName.contains(e.key)) return e.value;
-    }
-    const fallback = [
-      Color(0xFFE91E63),
-      Color(0xFF9C27B0),
-      Color(0xFF3F51B5),
-      Color(0xFF00BCD4),
-      Color(0xFFFF5722),
-    ];
-    final name = vehicle.providerName;
-    if (name.isEmpty) return const Color(0xFF9E9E9E);
-    return fallback[name.codeUnitAt(0) % fallback.length];
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final color = _brandColor;
-    final battery = vehicle.batteryLevel;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x44000000),
-                blurRadius: 4,
-                offset: Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(vehicle.isBike ? '🚲' : '🛴',
-                  style: const TextStyle(fontSize: 10)),
-              if (battery != null) ...[
-                const SizedBox(width: 3),
-                Text(
-                  '$battery%',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-        CustomPaint(size: const Size(12, 7), painter: _TailPainter(color)),
-      ],
-    );
-  }
-}
-
-class _DdalMarkerBubble extends StatelessWidget {
-  final int availableCount;
-  const _DdalMarkerBubble({required this.availableCount});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = availableCount > 5
-        ? const Color(0xFFEE6C10)
-        : availableCount > 0
-        ? const Color(0xFFF59E0B)
-        : const Color(0xFFBDBDBD);
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x44000000),
-                blurRadius: 4,
-                offset: Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('🚲', style: TextStyle(fontSize: 10)),
-              const SizedBox(width: 3),
-              Text(
-                '$availableCount',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ],
-          ),
-        ),
-        CustomPaint(size: const Size(12, 7), painter: _TailPainter(color)),
-      ],
-    );
-  }
-}
-
-class _TailPainter extends CustomPainter {
-  final Color color;
-  const _TailPainter(this.color);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = color;
-    final path = Path()
-      ..moveTo(0, 0)
-      ..lineTo(size.width / 2, size.height)
-      ..lineTo(size.width, 0)
-      ..close();
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(_TailPainter old) => old.color != color;
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -989,8 +895,8 @@ class _DdalBottomSheet extends StatelessWidget {
                 value: '${s.parkingBikeTotCnt}대',
                 valueColor: canRent
                     ? (s.parkingBikeTotCnt > 5
-                          ? const Color(0xFF03C75A)
-                          : const Color(0xFFF59E0B))
+                        ? const Color(0xFF03C75A)
+                        : const Color(0xFFF59E0B))
                     : const Color(0xFFE0483F),
               ),
               const SizedBox(width: 10),
@@ -1010,10 +916,8 @@ class _DdalBottomSheet extends StatelessWidget {
             children: [
               Text(
                 '거치율',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: AppColors.neutralScale[300],
-                ),
+                style:
+                    TextStyle(fontSize: 13, color: AppColors.neutralScale[300]),
               ),
               Text(
                 '$availableRate%',
@@ -1036,8 +940,8 @@ class _DdalBottomSheet extends StatelessWidget {
                 availableRate > 50
                     ? const Color(0xFF03C75A)
                     : availableRate > 20
-                    ? const Color(0xFFF59E0B)
-                    : const Color(0xFFE0483F),
+                        ? const Color(0xFFF59E0B)
+                        : const Color(0xFFE0483F),
               ),
             ),
           ),
@@ -1046,11 +950,11 @@ class _DdalBottomSheet extends StatelessWidget {
           _InfoRow(
             label: '대여 상태',
             trailing: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               decoration: BoxDecoration(
-                color: canRent
-                    ? const Color(0xFFE6F9EE)
-                    : const Color(0xFFF5F5F5),
+                color:
+                    canRent ? const Color(0xFFE6F9EE) : const Color(0xFFF5F5F5),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
@@ -1072,7 +976,8 @@ class _DdalBottomSheet extends StatelessWidget {
             width: double.infinity,
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: canRent ? brandColor : const Color(0xFFE0E0E0),
+                backgroundColor:
+                    canRent ? brandColor : const Color(0xFFE0E0E0),
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
@@ -1169,7 +1074,8 @@ class _InfoRow extends StatelessWidget {
         children: [
           Text(
             label,
-            style: TextStyle(fontSize: 13, color: AppColors.neutralScale[300]),
+            style:
+                TextStyle(fontSize: 13, color: AppColors.neutralScale[300]),
           ),
           const Spacer(),
           if (trailing != null)

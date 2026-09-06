@@ -1,18 +1,18 @@
 import 'dart:async';
-import 'dart:math' show min, max, pi;
+import 'dart:math' show min, max;
+import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_compass/flutter_compass.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../common/theme/app_colors.dart';
 import '../../../common/theme/app_icons.dart';
 import '../../../core/api/schedule_api_service.dart';
 import '../../../core/api/trip_api_service.dart';
-import '../../../core/naver_map/naver_map_adapter.dart';
-import '../../../core/naver_map/naver_map_bootstrap.dart';
 import '../../../core/state/trip_repository.dart';
 import '../../trip/widgets/transport_theme.dart';
 
@@ -28,7 +28,12 @@ class NavigationScreen extends StatefulWidget {
 class _NavigationScreenState extends State<NavigationScreen>
     with SingleTickerProviderStateMixin {
   // ── 지도 ────────────────────────────────────────────────────────────────
-  NaverMapController? _mapController;
+  GoogleMapController? _mapController;
+  Set<Marker> _markers = const {};
+  Set<Polyline> _polylines = const {};
+
+  /// onCameraMove 로 갱신되는 현재 카메라 위치 (_resetNorth 에서 사용)
+  CameraPosition? _currentCameraPosition;
 
   /// 폰 나침반 센서 방위각 (도 단위, 0=북, 시계방향 증가)
   double _deviceHeading = 0.0;
@@ -42,42 +47,28 @@ class _NavigationScreenState extends State<NavigationScreen>
   /// true = 지도가 사용자 위치를 자동으로 따라감
   bool _isFollowing = true;
 
-  // ── 사용자 위치 마커 (파란 점 대체) ──────────────────────────────────────
-  NMarker? _fovMarker;
-  NMarker? _ringMarker;
-  NMarker? _triangleMarker;
-  static const _kFovConeSize  = Size(80, 80);
-  static const _kRingSize     = Size(22, 22);
-  // 아래쪽 ~9px 간격
-  static const _kTriangleSize = Size(22, 26);
+  /// 코드에서 카메라를 움직이는 동안 onCameraMoveStarted 가 팔로우를 끄지
+  /// 않도록 막는 플래그. onCameraIdle 에서 해제된다.
+  bool _suppressFollowDisable = false;
 
   // ── 위치 스트림 / 나침반 스트림 ──────────────────────────────────────────
   StreamSubscription<Position>? _locationSub;
   StreamSubscription<CompassEvent>? _compassSub;
   Position? _lastPosition;
 
-
   // ── 일정 데이터 ─────────────────────────────────────────────────────────
-  /// 전 일차의 방문지. 화면은 여기서 고른 일차만 그린다.
   List<_Stop> _allStops = const [];
   List<int> _days = const [1];
   int _selectedDay = 1;
   int _totalMinutes = 0;
-
-  /// 지금 이동 중인 구간. 고른 일차 안에서의 순번이다.
-  ///
-  /// 위치가 갱신될 때마다 가장 가까운 방문지를 찾아 다시 정한다. 고정값으로
-  /// 두면 첫 구간이 계속 '현재'로 강조되어, 실제로 어디쯤 왔는지와 화면이
-  /// 어긋난 채로 남는다.
   int _currentTransitIndex = 0;
 
-  /// 고른 일차의 방문지만 순서대로.
   List<_Stop> get _stops =>
       _allStops.where((s) => s.day == _selectedDay).toList();
 
-  // ── 사용자 현재 구간 (하단 시트 타임라인 표시용) ───────────────────────────
-  int _currentSegmentIndex = 0;   // 현재 위치가 속한 구간 (0 = stop[0]→stop[1])
-  double _segmentProgress = 0.0;  // 구간 내 진행도 (0.0 = 출발지, 1.0 = 목적지)
+  // ── 사용자 현재 구간 ─────────────────────────────────────────────────────
+  int _currentSegmentIndex = 0;
+  double _segmentProgress = 0.0;
 
   @override
   void initState() {
@@ -88,11 +79,6 @@ class _NavigationScreenState extends State<NavigationScreen>
     _startCompass();
   }
 
-  /// 이 일정을 따라가기 시작했다고 서버에 알리고, 최신 상세로 갈아 끼운다.
-  ///
-  /// 저장하지 않은 일정(식별자 없음)은 알릴 대상이 없으므로 건너뛴다.
-  /// 실패해도 화면은 이미 들고 온 방문지로 그대로 돌아간다 — 시작 기록이
-  /// 안 됐다고 길 안내를 막을 이유가 없다.
   Future<void> _markStarted() async {
     final scheduleId = widget.trip.scheduleId;
     if (scheduleId == null) return;
@@ -105,15 +91,14 @@ class _NavigationScreenState extends State<NavigationScreen>
         if (controller != null) await _renderDay(controller);
         return;
       }
-    } catch (_) {
-      // 시작 기록은 부가 동작이라 실패를 화면에 세우지 않는다.
-    }
+    } catch (_) {}
   }
 
   @override
   void dispose() {
     _locationSub?.cancel();
     _compassSub?.cancel();
+    _mapController?.dispose();
     super.dispose();
   }
 
@@ -132,10 +117,6 @@ class _NavigationScreenState extends State<NavigationScreen>
     }
   }
 
-  /// 서버 방문지를 화면 모델로 옮기고 일차 목록을 다시 세운다.
-  ///
-  /// 고르고 있던 일차가 새 목록에도 있으면 그대로 둔다 — 시작 기록 응답으로
-  /// 목록이 갱신될 때 보고 있던 날이 1일차로 튀지 않게 한다.
   void _applyStops(List<TripStop> stops) {
     _allStops = stops
         .map((s) => _Stop(
@@ -143,30 +124,25 @@ class _NavigationScreenState extends State<NavigationScreen>
               name: s.name,
               address: s.address,
               time: s.time,
-              latLng: NLatLng(s.latitude, s.longitude),
+              latLng: LatLng(s.latitude, s.longitude),
               transport: s.transportToNext != null
                   ? _Transport(
                       label: s.transportToNext!.label,
                       duration: '${s.transportToNext!.durationMinutes}분',
                       distance: '${s.transportToNext!.distanceKm}km',
                       path: s.transportToNext!.path
-                          ?.map((p) => NLatLng(p[0], p[1]))
+                          ?.map((p) => LatLng(p[0], p[1]))
                           .toList(),
                     )
                   : null,
             ))
         .toList();
     _days = _allStops.map((s) => s.day).toSet().toList()..sort();
-    if (_days.isEmpty) {
-      _days = const [1];
-    }
-    if (!_days.contains(_selectedDay)) {
-      _selectedDay = _days.first;
-    }
+    if (_days.isEmpty) _days = const [1];
+    if (!_days.contains(_selectedDay)) _selectedDay = _days.first;
     _currentTransitIndex = 0;
   }
 
-  /// 고른 일차의 이동 시간 합. 여러 날이면 그날 것만 센다.
   int get _dayMinutes {
     final dayStops = _stops;
     if (_days.length <= 1) return _totalMinutes;
@@ -194,7 +170,7 @@ class _NavigationScreenState extends State<NavigationScreen>
       name: '속초 버스 터미널',
       address: '강원특별자치도 속초시 중앙로 96',
       time: '09:00',
-      latLng: const NLatLng(38.2052, 128.5917),
+      latLng: const LatLng(38.2052, 128.5917),
       transport: const _Transport(
           label: '이동: 전동 킥보드', duration: '12분', distance: '1.8km'),
     ),
@@ -202,7 +178,7 @@ class _NavigationScreenState extends State<NavigationScreen>
       name: '속초해변',
       address: '강원특별자치도 속초시 청호동',
       time: '09:12',
-      latLng: const NLatLng(38.2014, 128.6008),
+      latLng: const LatLng(38.2014, 128.6008),
       transport:
           const _Transport(label: '이동: 자전거', duration: '13분', distance: '3.8km'),
     ),
@@ -210,14 +186,12 @@ class _NavigationScreenState extends State<NavigationScreen>
       name: '속초 중앙시장',
       address: '강원특별자치도 속초시 중앙로 147',
       time: '09:25',
-      latLng: const NLatLng(38.2089, 128.5875),
+      latLng: const LatLng(38.2089, 128.5875),
       transport: null,
     ),
   ];
 
   String get _totalTimeLabel {
-    // 여러 날 일정은 그날 것만 센다. 전 일차 합을 보여주면 오늘 얼마나
-    // 움직이는지와 화면 숫자가 어긋난다.
     final minutes = _dayMinutes;
     if (minutes < 60) return '약 $minutes분';
     final h = minutes ~/ 60;
@@ -237,12 +211,10 @@ class _NavigationScreenState extends State<NavigationScreen>
       return;
     }
 
-    // 화면 진입 즉시 현재 위치로 구간 dot 초기화
     try {
       final initPos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-        ),
+        locationSettings:
+            const LocationSettings(accuracy: LocationAccuracy.high),
       );
       if (mounted) {
         _updateSegmentProgress(initPos);
@@ -253,46 +225,30 @@ class _NavigationScreenState extends State<NavigationScreen>
     _locationSub = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.bestForNavigation,
-        distanceFilter: 3, // 3m 이동할 때마다 갱신
+        distanceFilter: 3,
       ),
     ).listen(_onPositionUpdate);
   }
 
   void _startCompass() {
-    // 브라우저에는 나침반을 읽는 수단이 없다. 그대로 두면 구독을 거는 순간
-    // 죽는다. 방향 표시만 빠지고 위치 추적과 경로 안내는 그대로 동작한다.
     if (kIsWeb) return;
     _compassSub = FlutterCompass.events?.listen((CompassEvent event) {
       if (!mounted) return;
       final heading = event.heading;
-      if (heading != null) {
-        setState(() => _deviceHeading = heading);
-        _fovMarker?.setAngle(heading);
-        _triangleMarker?.setAngle(heading);
-      }
+      if (heading != null) setState(() => _deviceHeading = heading);
     });
   }
 
-  /// GPS heading의 0°/360° 경계를 처리하는 low-pass filter
   double _smoothBearing(double target) {
     if (_smoothedBearing < 0) {
       _smoothedBearing = target;
       return _smoothedBearing;
     }
-    // 최단 각도 경로로 보간 (예: 350° → 10° 시 +20° 방향)
     final diff = ((target - _smoothedBearing + 540) % 360) - 180;
     _smoothedBearing = (_smoothedBearing + diff * 0.25 + 360) % 360;
     return _smoothedBearing;
   }
 
-  /// 지금 어느 구간을 가고 있는지 위치로 다시 정한다.
-  ///
-  /// 가장 가까운 방문지를 찾아, 아직 그곳에 닿지 않았으면 그 앞 구간을,
-  /// 이미 닿았으면 그 다음 구간을 현재로 본다. 도착 판정 반경은 도시에서
-  /// 위치 오차가 흔히 수십 미터인 점을 감안해 넉넉히 잡았다.
-  ///
-  /// 구간이 실제로 바뀔 때만 화면을 다시 그린다 — 위치는 3m마다 들어오므로
-  /// 매번 setState 하면 목록이 쉬지 않고 흔들린다.
   void _updateCurrentLeg(Position pos) {
     final dayStops = _stops;
     if (dayStops.length < 2) return;
@@ -313,7 +269,6 @@ class _NavigationScreenState extends State<NavigationScreen>
       }
     }
 
-    // 마지막 방문지에 닿았으면 더 갈 구간이 없다 — 마지막 구간을 유지한다.
     final next = nearestMeters <= arrivedMeters
         ? (nearest >= dayStops.length - 1 ? dayStops.length - 2 : nearest)
         : (nearest == 0 ? 0 : nearest - 1);
@@ -328,38 +283,22 @@ class _NavigationScreenState extends State<NavigationScreen>
     _lastPosition = pos;
     _updateCurrentLeg(pos);
 
-    final latLng = NLatLng(pos.latitude, pos.longitude);
-
-    // ── 사용자 위치 마커 업데이트
-    _fovMarker?.setPosition(latLng);
-    _fovMarker?.setIsVisible(true);
-    _ringMarker?.setPosition(latLng);
-    _ringMarker?.setIsVisible(true);
-    _triangleMarker?.setPosition(latLng);
-    _triangleMarker?.setIsVisible(true);
-
     final bearing = _smoothBearing(pos.heading);
     _updateSegmentProgress(pos);
     if (mounted) setState(() => _userHeading = bearing);
 
-    // ── 팔로우 모드: 카메라가 사용자를 따라감 ────────────────────────────
     if (_isFollowing && _mapController != null) {
-      await _mapController!.updateCamera(
-        NCameraUpdate.fromCameraPosition(NCameraPosition(
-          target: latLng,
+      _suppressFollowDisable = true;
+      await _mapController!.animateCamera(
+        CameraUpdate.newCameraPosition(CameraPosition(
+          target: LatLng(pos.latitude, pos.longitude),
           zoom: 16,
           bearing: bearing,
-        ))
-          ..setAnimation(
-            animation: NCameraAnimation.easing,
-            duration: const Duration(milliseconds: 1000),
-          ),
+        )),
       );
     }
   }
 
-  // ── 구간 내 사용자 상대 위치 계산 ─────────────────────────────────────────
-  /// 각 구간(선분)에 사용자 좌표를 정사영해 가장 가까운 구간과 진행도 t를 구함
   void _updateSegmentProgress(Position pos) {
     if (_stops.length < 2) return;
 
@@ -396,41 +335,29 @@ class _NavigationScreenState extends State<NavigationScreen>
     _segmentProgress = bestT;
   }
 
-  // ── 내 위치로 이동 + 팔로우 재개 ──────────────────────────────────────────
   Future<void> _recenterOnUser() async {
     if (_lastPosition == null || _mapController == null) return;
-
-    final latLng =
-        NLatLng(_lastPosition!.latitude, _lastPosition!.longitude);
     setState(() => _isFollowing = true);
-
-    await _mapController!.updateCamera(
-      NCameraUpdate.fromCameraPosition(NCameraPosition(
-        target: latLng,
+    _suppressFollowDisable = true;
+    await _mapController!.animateCamera(
+      CameraUpdate.newCameraPosition(CameraPosition(
+        target: LatLng(_lastPosition!.latitude, _lastPosition!.longitude),
         zoom: 16,
         bearing: _userHeading,
-      ))
-        ..setAnimation(
-          animation: NCameraAnimation.fly,
-          duration: const Duration(milliseconds: 600),
-        ),
+      )),
     );
   }
 
-  // ── 지도를 북쪽 정렬로 리셋 ────────────────────────────────────────────────
   Future<void> _resetNorth() async {
-    if (_mapController == null) return;
-    final current = await _mapController!.getCameraPosition();
-    await _mapController!.updateCamera(
-      NCameraUpdate.fromCameraPosition(NCameraPosition(
+    final current = _currentCameraPosition;
+    if (_mapController == null || current == null) return;
+    _suppressFollowDisable = true;
+    await _mapController!.animateCamera(
+      CameraUpdate.newCameraPosition(CameraPosition(
         target: current.target,
         zoom: current.zoom,
         bearing: 0,
-      ))
-        ..setAnimation(
-          animation: NCameraAnimation.easing,
-          duration: const Duration(milliseconds: 400),
-        ),
+      )),
     );
   }
 
@@ -442,13 +369,9 @@ class _NavigationScreenState extends State<NavigationScreen>
       backgroundColor: Colors.white,
       body: Stack(
         children: [
-          // ── 지도 전체 배경 ──
           Positioned.fill(child: _buildMap()),
-          // ── 뒤로가기 ──
           _buildBackButton(),
-          // ── 나침반 + 내 위치 버튼 ──
           _buildCompassAndLocation(),
-          // ── 하단 정보 시트 ──
           _buildSheet(),
         ],
       ),
@@ -458,62 +381,41 @@ class _NavigationScreenState extends State<NavigationScreen>
   // ──────────────────────────────────────────────────────────── 지도 ──────
 
   Widget _buildMap() {
-    // 지도 식별자가 다음 것으로 바뀌면 지도를 다시 만든다. 인증 판정은 지도를
-    // 그릴 때 오는데, 그때 이미 만들어진 지도는 처음 식별자로 인증을 끝낸
-    // 뒤라 스스로 다시 묻지 않는다 — 다시 만들지 않으면 첫 진입 화면만 계속
-    // 비어 있고 나갔다 들어와야 나온다.
-    return ValueListenableBuilder<int>(
-      valueListenable: naverMapAuthGeneration,
-      builder: (context, generation, _) => NaverMap(
-        key: ValueKey('nav-map-$generation'),
-        options: NaverMapViewOptions(
-          initialCameraPosition: NCameraPosition(
-            target: _stops.first.latLng,
-            zoom: 14,
-          ),
-          scrollGesturesEnable: true,
-          zoomGesturesEnable: true,
-          rotationGesturesEnable: true, // 회전 허용 (나침반과 연동)
-          mapType: NMapType.basic,
-        ),
-        onMapReady: _onMapReady,
-        onCameraChange: _onCameraChange,
-      ),
+    final initialTarget = _stops.isNotEmpty
+        ? _stops.first.latLng
+        : const LatLng(37.5666, 126.9784);
+    return GoogleMap(
+      initialCameraPosition: CameraPosition(target: initialTarget, zoom: 14),
+      markers: _markers,
+      polylines: _polylines,
+      myLocationEnabled: true,
+      myLocationButtonEnabled: false,
+      zoomControlsEnabled: false,
+      rotateGesturesEnabled: true,
+      scrollGesturesEnabled: true,
+      zoomGesturesEnabled: true,
+      onMapCreated: _onMapCreated,
+      onCameraMove: (pos) => _currentCameraPosition = pos,
+      onCameraMoveStarted: () {
+        if (!_suppressFollowDisable && mounted) {
+          setState(() => _isFollowing = false);
+        }
+      },
+      onCameraIdle: () => _suppressFollowDisable = false,
     );
   }
 
-  Future<void> _onMapReady(NaverMapController controller) async {
+  Future<void> _onMapCreated(GoogleMapController controller) async {
     _mapController = controller;
     await _renderDay(controller);
-
-    // ── NLocationOverlay: 파란 점
-    final overlay = controller.getLocationOverlay();
-
-    // 맵 준비 전 수신된 GPS 위치가 있으면 즉시 반영
-    if (_lastPosition != null) {
-      final latLng = NLatLng(_lastPosition!.latitude, _lastPosition!.longitude);
-      overlay.setPosition(latLng);
-      overlay.setIsVisible(true);
-    } else {
-      overlay.setIsVisible(false);
-    }
   }
 
-  /// 고른 일차의 마커·경로를 다시 그린다.
-  ///
-  /// 전 일차를 한 줄로 이으면 하루의 마지막 방문지에서 다음 날 첫 방문지까지가
-  /// 하나의 이동 구간처럼 보인다. 그 둘 사이에는 잠자리와 하룻밤이 있어서
-  /// 길 안내로 이을 구간이 아니다. 그래서 일차마다 따로 그린다.
-  // 한 번에 한 벌만 그린다. 안내 시작·일차 변경·지도 준비 세 갈래로 들어오는
-  // 데다 지도를 다시 만들면 그것들이 겹친다. 마커 아이콘은 위젯을 그림 파일로
-  // 구워 만들고 그 굽는 자리가 앱 전체에 하나뿐이라, 겹쳐 돌면 서로의 파일을
-  // 지우고 그 그림을 지도에 얹으려다 iOS 에서 앱이 죽는다.
+  // 한 번에 한 벌만 그린다. 일차 변경·지도 준비 여러 갈래로 들어오므로
+  // pass 번호로 앞선 그리기를 물러나게 한다.
   int _renderPass = 0;
   Future<void>? _renderInFlight;
 
-  Future<void> _renderDay(NaverMapController controller) async {
-    // 번호를 먼저 올린다. 앞서 돌던 그리기가 이 값을 보고 다음 대기 지점에서
-    // 스스로 물러난다.
+  Future<void> _renderDay(GoogleMapController controller) async {
     final pass = ++_renderPass;
     final previous = _renderInFlight;
     final done = Completer<void>();
@@ -527,214 +429,131 @@ class _NavigationScreenState extends State<NavigationScreen>
     }
   }
 
-  Future<void> _renderDayPass(NaverMapController controller, int pass) async {
+  Future<void> _renderDayPass(GoogleMapController controller, int pass) async {
     final dayStops = _stops;
     if (dayStops.isEmpty || !mounted) return;
-    // 지도가 바뀌었는지도 함께 본다. 번호만으로는 같은 순번에서 지도가 갈린
-    // 경우를 못 가른다.
     bool stale() =>
         !mounted || pass != _renderPass || _mapController != controller;
 
-    // 이 화면이 얹는 것은 마커와 경로뿐이라 통째로 지운다. 내 위치 표시는
-    // 오버레이 목록이 아니라 컨트롤러가 따로 들고 있어 여기서 지워지지 않는다.
-    await controller.clearOverlays();
-    if (stale()) return;
-
-    // 번호 마커 — 번호는 그날 안에서 다시 1부터 센다.
+    // 번호 마커
+    final markers = <Marker>{};
     for (int i = 0; i < dayStops.length; i++) {
-      if (!mounted || stale()) return;
-      final icon = await NOverlayImage.fromWidget(
-        widget: _buildMarkerWidget('${i + 1}'),
-        size: const Size(36, 36),
-        context: context,
-      );
       if (stale()) return;
-      await controller.addOverlay(NMarker(
-        id: 'nav_stop_${_selectedDay}_$i',
+      final icon = await _makeStopMarker(i + 1);
+      if (stale()) return;
+      markers.add(Marker(
+        markerId: MarkerId('nav_stop_${_selectedDay}_$i'),
         position: dayStops[i].latLng,
         icon: icon,
       ));
-      if (stale()) return;
     }
 
-    // 경로 폴리라인 — 구간마다 도로 좌표가 있으면 그것을, 없으면 두 방문지를
-    // 잇는 직선을 이어 붙인다.
-    final routeCoords = <NLatLng>[];
-    void addPoint(NLatLng p) {
-      // 구간 접점의 중복 좌표는 값 비교로 걸러 낸다.
+    // 경로 폴리라인
+    final routeCoords = <LatLng>[];
+    void addPoint(LatLng p) {
       if (routeCoords.isEmpty ||
           routeCoords.last.latitude != p.latitude ||
           routeCoords.last.longitude != p.longitude) {
         routeCoords.add(p);
       }
     }
-
     for (int i = 0; i < dayStops.length - 1; i++) {
       final legPath = dayStops[i].transport?.path;
       final seg = (legPath != null && legPath.length >= 2)
           ? legPath
           : [dayStops[i].latLng, dayStops[i + 1].latLng];
-      for (final p in seg) {
-        addPoint(p);
-      }
+      for (final p in seg) addPoint(p);
     }
 
+    final polylines = <Polyline>{};
     if (routeCoords.length >= 2) {
-      await controller.addOverlay(NPathOverlay(
-        id: 'nav_route_$_selectedDay',
-        coords: routeCoords,
+      polylines.add(Polyline(
+        polylineId: PolylineId('nav_route_$_selectedDay'),
+        points: routeCoords,
         color: AppColors.primaryScale[400]!,
         width: 6,
-        outlineColor: Colors.white,
-        outlineWidth: 2,
       ));
-      if (stale()) return;
     }
 
-    // 경로 전체가 보이도록 fitBounds (하단 시트 공간 확보)
+    if (stale()) return;
+    setState(() {
+      _markers = markers;
+      _polylines = polylines;
+    });
+
+    // 경로 전체가 보이도록 fitBounds
     final boundsPoints = routeCoords.isNotEmpty
         ? routeCoords
         : dayStops.map((s) => s.latLng).toList();
     final lats = boundsPoints.map((p) => p.latitude);
     final lngs = boundsPoints.map((p) => p.longitude);
-    await controller.updateCamera(
-      NCameraUpdate.fitBounds(
-        NLatLngBounds(
-          southWest: NLatLng(lats.reduce(min), lngs.reduce(min)),
-          northEast: NLatLng(lats.reduce(max), lngs.reduce(max)),
+
+    if (stale()) return;
+    _suppressFollowDisable = true;
+    await controller.animateCamera(
+      CameraUpdate.newLatLngBounds(
+        LatLngBounds(
+          southwest: LatLng(lats.reduce(min), lngs.reduce(min)),
+          northeast: LatLng(lats.reduce(max), lngs.reduce(max)),
         ),
-        padding: const EdgeInsets.fromLTRB(60, 120, 60, 420),
-      )
-        ..setAnimation(
-          animation: NCameraAnimation.fly,
-          duration: const Duration(milliseconds: 900),
-        ),
-    );
-    if (stale()) return;
-
-    // ── NLocationOverlay(파란 점) 숨김
-    controller.getLocationOverlay().setIsVisible(false);
-
-    // ── 사용자 위치 마커 생성 (링 + 삼각형 분리)
-    final initPos = _lastPosition != null
-        ? NLatLng(_lastPosition!.latitude, _lastPosition!.longitude)
-        : _stops.first.latLng;
-
-    if (!mounted || stale()) return;
-    final fovIcon = await NOverlayImage.fromWidget(
-      widget: const SizedBox(
-        width: 80,
-        height: 80,
-        child: CustomPaint(painter: _FovConePainter()),
+        80.0,
       ),
-      size: _kFovConeSize,
-      context: context,
     );
-    if (!mounted || stale()) return;
-
-    final ringIcon = await NOverlayImage.fromWidget(
-      widget: const SizedBox(
-        width: 22,
-        height: 22,
-        child: CustomPaint(painter: _RingPainter()),
-      ),
-      size: _kRingSize,
-      context: context,
-    );
-    if (!mounted || stale()) return;
-    final triangleIcon = await NOverlayImage.fromWidget(
-      widget: const SizedBox(
-        width: 22,
-        height: 26,
-        child: CustomPaint(painter: _TriangleArrowPainter()),
-      ),
-      size: _kTriangleSize,
-      context: context,
-    );
-    if (stale()) return;
-
-    _fovMarker = NMarker(
-      id: 'user_fov',
-      position: initPos,
-      icon: fovIcon,
-      anchor: const NPoint(0.5, 1.0), // 하단 중앙 = 사용자 위치
-      size: _kFovConeSize,
-      angle: _deviceHeading,
-    );
-
-    _ringMarker = NMarker(
-      id: 'user_ring',
-      position: initPos,
-      icon: ringIcon,
-      anchor: const NPoint(0.5, 0.5), // 링 중앙 = 사용자 위치
-      size: _kRingSize,
-    );
-    _triangleMarker = NMarker(
-      id: 'user_triangle',
-      position: initPos,
-      icon: triangleIcon,
-      anchor: const NPoint(0.5, 1.0), // 이미지 하단(= 투명 패딩 끝) = 사용자 위치
-      size: _kTriangleSize,
-      angle: _deviceHeading,
-    );
-
-    await controller.addOverlay(_fovMarker!);
-    if (stale()) return;
-    await controller.addOverlay(_ringMarker!);
-    if (stale()) return;
-    await controller.addOverlay(_triangleMarker!);
-    if (stale()) return;
-
-    if (_lastPosition == null) {
-      _fovMarker!.setIsVisible(false);
-      _ringMarker!.setIsVisible(false);
-      _triangleMarker!.setIsVisible(false);
-    }
   }
 
-  /// 사용자가 지도를 수동으로 드래그하면 팔로우 모드 해제
-  void _onCameraChange(NCameraUpdateReason reason, bool animated) {
-    if (reason == NCameraUpdateReason.gesture) {
-      if (mounted) setState(() => _isFollowing = false);
-    }
-  }
+  /// 번호가 찍힌 그라디언트 원 마커를 캔버스로 그린다.
+  Future<BitmapDescriptor> _makeStopMarker(int number) async {
+    const size = 36.0;
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
 
-  Widget _buildMarkerWidget(String number) {
-    return Container(
-      width: 36,
-      height: 36,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
+    // 그림자
+    canvas.drawCircle(
+      Offset(size / 2, size / 2 + 2),
+      size / 2 - 3,
+      Paint()
+        ..color = AppColors.primaryScale[500]!.withAlpha(0x55)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+    );
+
+    // 그라디언트 원
+    final rect = Rect.fromCircle(
+        center: Offset(size / 2, size / 2), radius: size / 2 - 3);
+    canvas.drawCircle(
+      Offset(size / 2, size / 2),
+      size / 2 - 3,
+      Paint()
+        ..shader = LinearGradient(
           colors: [
             AppColors.gradientScale[200]!,
             AppColors.gradientScale[600]!,
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-        ),
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primaryScale[500]!.withAlpha(0x55),
-            blurRadius: 6,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Center(
-        child: Text(
-          number,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-            color: Colors.white,
-          ),
-        ),
-      ),
+        ).createShader(rect),
     );
+
+    // 숫자
+    final tp = TextPainter(
+      text: TextSpan(
+        text: '$number',
+        style: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+          color: Colors.white,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, Offset((size - tp.width) / 2, (size - tp.height) / 2));
+
+    final image =
+        await recorder.endRecording().toImage(size.toInt(), size.toInt());
+    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    return BitmapDescriptor.bytes(byteData!.buffer.asUint8List());
   }
 
-  // ─────────────────────────────────────────────────── 뒤로가기 버튼 ──────
+  // ─────────────────────────────────────────────────────── 뒤로가기 버튼 ──
 
   Widget _buildBackButton() {
     return SafeArea(
@@ -763,7 +582,6 @@ class _NavigationScreenState extends State<NavigationScreen>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // ── 나침반 ────────────────────────────────────────────────────
           GestureDetector(
             onTap: _resetNorth,
             child: _mapCircleButton(
@@ -775,7 +593,6 @@ class _NavigationScreenState extends State<NavigationScreen>
             ),
           ),
           const SizedBox(height: 10),
-          // ── 내 위치로 (팔로우 모드) ───────────────────────────────────
           GestureDetector(
             onTap: _recenterOnUser,
             child: _mapCircleButton(
@@ -794,10 +611,7 @@ class _NavigationScreenState extends State<NavigationScreen>
     );
   }
 
-  Widget _mapCircleButton({
-    required Widget child,
-    bool highlight = false,
-  }) {
+  Widget _mapCircleButton({required Widget child, bool highlight = false}) {
     return Container(
       width: 48,
       height: 48,
@@ -819,7 +633,7 @@ class _NavigationScreenState extends State<NavigationScreen>
     );
   }
 
-  // ─────────────────────────────────────────────── 드래그 바텀 시트 ──────
+  // ─────────────────────────────────────────────────── 드래그 바텀 시트 ──────
 
   Widget _buildSheet() {
     return DraggableScrollableSheet(
@@ -864,7 +678,6 @@ class _NavigationScreenState extends State<NavigationScreen>
     );
   }
 
-  /// 일차 선택 탭. 하루짜리 일정에는 그리지 않는다.
   Widget _buildDayTabs() {
     return SizedBox(
       height: 36,
@@ -943,7 +756,6 @@ class _NavigationScreenState extends State<NavigationScreen>
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 타임라인 점 + 선
           SizedBox(
             width: 26,
             child: Column(
@@ -981,7 +793,6 @@ class _NavigationScreenState extends State<NavigationScreen>
             ),
           ),
           const SizedBox(width: 12),
-          // 내용
           Expanded(
             child: Padding(
               padding: const EdgeInsets.only(bottom: 6),
@@ -1097,8 +908,7 @@ class _NavigationScreenState extends State<NavigationScreen>
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          AppIcon(theme.svgPath,
-              size: 15, color: AppColors.primaryScale[400]!),
+          AppIcon(theme.svgPath, size: 15, color: AppColors.primaryScale[400]!),
           const SizedBox(width: 7),
           Text(
             transport.label,
@@ -1144,10 +954,8 @@ class _CompassPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final cx = size.width / 2;
     final cy = size.height / 2;
-    // 바깥쪽 라벨 영역을 남기고 바늘 반경 설정
     final r = size.width / 2 - 8;
 
-    // 외곽 원
     canvas.drawCircle(
       Offset(cx, cy),
       r + 6,
@@ -1157,7 +965,6 @@ class _CompassPainter extends CustomPainter {
         ..strokeWidth = 1.2,
     );
 
-    // 북쪽 (빨강)
     final northPath = Path()
       ..moveTo(cx, cy - r * 0.85)
       ..lineTo(cx - r * 0.22, cy + r * 0.1)
@@ -1170,7 +977,6 @@ class _CompassPainter extends CustomPainter {
         ..style = PaintingStyle.fill,
     );
 
-    // 남쪽 (회색)
     final southPath = Path()
       ..moveTo(cx, cy + r * 0.85)
       ..lineTo(cx + r * 0.22, cy - r * 0.1)
@@ -1183,7 +989,6 @@ class _CompassPainter extends CustomPainter {
         ..style = PaintingStyle.fill,
     );
 
-    // 중앙 점
     canvas.drawCircle(
       Offset(cx, cy),
       2.0,
@@ -1192,10 +997,11 @@ class _CompassPainter extends CustomPainter {
         ..style = PaintingStyle.fill,
     );
 
-    // 동서남북 라벨
     _drawLabel(canvas, '북', Offset(cx, 3.5), const Color(0xFFE53935));
-    _drawLabel(canvas, '남', Offset(cx, size.height - 3.5), AppColors.neutralScale[400]!);
-    _drawLabel(canvas, '동', Offset(size.width - 3.5, cy), AppColors.neutralScale[400]!);
+    _drawLabel(canvas, '남', Offset(cx, size.height - 3.5),
+        AppColors.neutralScale[400]!);
+    _drawLabel(canvas, '동', Offset(size.width - 3.5, cy),
+        AppColors.neutralScale[400]!);
     _drawLabel(canvas, '서', Offset(3.5, cy), AppColors.neutralScale[400]!);
   }
 
@@ -1212,121 +1018,6 @@ class _CompassPainter extends CustomPainter {
       textDirection: TextDirection.ltr,
     )..layout();
     tp.paint(canvas, center - Offset(tp.width / 2, tp.height / 2));
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-// ─── FOV 콘 마커 (하늘색 부채꼴) ─────────────────────────────────────────────
-// 캔버스: 80×80, anchor(0.5, 1.0) → 하단 중앙 = 사용자 위치
-// 위쪽(전방)으로 ±30° 부채꼴을 그림
-
-class _FovConePainter extends CustomPainter {
-  const _FovConePainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cx = size.width / 2;
-    final cy = size.height; // 사용자 위치 = 하단 중앙
-
-    const halfAngle = 30.0 * pi / 180; // 30° in radians
-    final length = size.height * 0.92;
-
-    // 시작 각도: 캔버스 기준 위쪽(-90°) - halfAngle
-    final startAngle = -pi / 2 - halfAngle;
-
-    final rect = Rect.fromCircle(center: Offset(cx, cy), radius: length);
-
-    // 방사형 그라디언트: 사용자 위치에서 바깥으로 투명해짐
-    final gradient = RadialGradient(
-      center: Alignment.bottomCenter,
-      radius: 1.0,
-      colors: const [
-        Color(0xAA00C8FF), // 하늘색, 내부 60% 불투명
-        Color(0x1100C8FF), // 하늘색, 외곽 거의 투명
-      ],
-      stops: const [0.0, 1.0],
-    );
-
-    final paint = Paint()
-      ..shader = gradient.createShader(
-        Rect.fromLTWH(0, 0, size.width, size.height),
-      )
-      ..style = PaintingStyle.fill;
-
-    final path = Path()
-      ..moveTo(cx, cy)
-      ..arcTo(rect, startAngle, 2 * halfAngle, false)
-      ..close();
-
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-// ─── 링 마커 (테두리만) ───────────────────────────────────────────────────────
-
-class _RingPainter extends CustomPainter {
-  const _RingPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-
-    const strokeW = 4.3;
-    canvas.drawCircle(
-      Offset(cx, cy),
-      cx - strokeW / 2 - 2.5,
-      Paint()
-        ..color = const Color(0xFFFF3AB7)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = strokeW,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-// ─── 삼각형(정삼각형 화살표) 마커 ────────────────────────────────────────────
-// 캔버스: 22×32 (하단 12px = 투명 패딩 → 링 테두리 두께만큼 간격)
-
-class _TriangleArrowPainter extends CustomPainter {
-  const _TriangleArrowPainter();
-
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cx = size.width / 2;
-
-    // 정삼각형: 22px 정사각형 영역 안에 stroke로 그림
-    const side = 13.0;
-    const triH = side * 0.866; // √3/2
-    const topY = (22 - triH) / 2;
-    const botY = topY + triH;
-
-    // 밑변을 오목하게: cubic bezier로 안쪽으로 파임
-    const concaveDepth = 4.0;
-    final triangle = Path()
-      ..moveTo(cx, topY)
-      ..lineTo(cx + side / 2, botY)
-      ..cubicTo(
-        cx + side / 4, botY - concaveDepth,
-        cx - side / 4, botY - concaveDepth,
-        cx - side / 2, botY,
-      )
-      ..close();
-
-    canvas.drawPath(
-      triangle,
-      Paint()
-        ..color = const Color(0xFFFF3AB7)
-        ..style = PaintingStyle.fill,
-    );
   }
 
   @override
@@ -1357,25 +1048,20 @@ class _SegmentLinePainter extends CustomPainter {
     final basePaint = Paint()..color = baseColor;
     final colorPaint = Paint()..color = lineColor;
 
-    // 베이스 선 (회색 전체)
     canvas.drawRect(Rect.fromLTWH(cx - 1, 0, 2, size.height), basePaint);
 
     if (isCompleted) {
-      // 완료 구간: 전체 컬러
       canvas.drawRect(Rect.fromLTWH(cx - 1, 0, 2, size.height), colorPaint);
     } else if (isCurrent) {
-      // 현재 구간: 진행된 부분만 컬러
       final progressY = size.height * progress;
       if (progressY > 0) {
         canvas.drawRect(
             Rect.fromLTWH(cx - 1, 0, 2, progressY), colorPaint);
       }
 
-      // 사용자 위치 dot
       const dotRadius = 5.0;
       final dotCenter = Offset(cx, progressY);
 
-      // 글로우 (그림자)
       canvas.drawCircle(
         dotCenter,
         dotRadius + 3,
@@ -1383,9 +1069,7 @@ class _SegmentLinePainter extends CustomPainter {
           ..color = dotColor.withAlpha(0x44)
           ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
       );
-      // 흰 테두리
       canvas.drawCircle(dotCenter, dotRadius, Paint()..color = Colors.white);
-      // 컬러 fill
       canvas.drawCircle(
           dotCenter, dotRadius - 2.5, Paint()..color = dotColor);
     }
@@ -1401,12 +1085,11 @@ class _SegmentLinePainter extends CustomPainter {
 // ─── 내부 데이터 모델 ──────────────────────────────────────────────────────────
 
 class _Stop {
-  /// 이 방문지가 속한 여행 일차(1부터). 하루짜리 일정은 전부 1이다.
   final int day;
   final String name;
   final String address;
   final String time;
-  final NLatLng latLng;
+  final LatLng latLng;
   final _Transport? transport;
 
   const _Stop({
@@ -1425,7 +1108,7 @@ class _Transport {
   final String distance;
 
   /// 서버가 내려준 도로 좌표. 없으면 두 방문지를 직선으로 잇는다.
-  final List<NLatLng>? path;
+  final List<LatLng>? path;
 
   const _Transport({
     required this.label,

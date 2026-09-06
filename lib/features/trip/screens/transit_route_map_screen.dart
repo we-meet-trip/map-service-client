@@ -2,10 +2,10 @@ import 'dart:math' show min, max;
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../common/widgets/back_header.dart';
 import '../../../core/api/transit_route_options_service.dart';
-import '../../../core/naver_map/naver_map_adapter.dart';
 
 class TransitRouteMapArgs {
   final String originLabel;
@@ -37,6 +37,10 @@ class TransitRouteMapScreen extends StatefulWidget {
 }
 
 class _TransitRouteMapScreenState extends State<TransitRouteMapScreen> {
+  GoogleMapController? _mapController;
+  Set<Polyline> _polylines = const {};
+  Set<Marker> _markers = const {};
+
   static Color _legColor(TransitLegType type) => switch (type) {
         TransitLegType.subway => AppColors.secondaryScale[500]!,
         TransitLegType.bus => AppColors.blueScale[500]!,
@@ -45,68 +49,77 @@ class _TransitRouteMapScreenState extends State<TransitRouteMapScreen> {
         TransitLegType.walk => AppColors.neutralScale[300]!,
       };
 
-  Future<void> _onMapReady(NaverMapController controller) async {
-    await controller.clearOverlays();
+  void _onMapCreated(GoogleMapController controller) {
+    _mapController = controller;
+    _buildOverlays();
+  }
 
+  void _buildOverlays() {
     final args = widget.args;
     final legs = args.option.legs;
-    final points = <NLatLng>[NLatLng(args.originLat, args.originLng)];
-    NLatLng cursor = points.first;
+    final polylines = <Polyline>{};
+    final allPoints = <LatLng>[LatLng(args.originLat, args.originLng)];
+    LatLng cursor = allPoints.first;
 
     for (var i = 0; i < legs.length; i++) {
       final leg = legs[i];
-      if (leg.geometry.isEmpty) continue; // 좌표 없는 도보 연결 구간
-      final legCoords =
-          leg.geometry.map((p) => NLatLng(p[0], p[1])).toList();
+      if (leg.geometry.isEmpty) continue;
+      final legCoords = leg.geometry.map((p) => LatLng(p[0], p[1])).toList();
 
-      // 이전 구간 끝(또는 출발지)과 이 구간 시작 사이는 좌표가 없어 잇는
-      // 회색 연결선이다 — 실제 도보 경로가 아니라 근사 직선이다.
-      await controller.addOverlay(NPathOverlay(
-        id: 'connector_$i',
-        coords: [cursor, legCoords.first],
+      // 이전 구간 끝과 이 구간 시작 사이 직선 연결 (근사)
+      polylines.add(Polyline(
+        polylineId: PolylineId('connector_$i'),
+        points: [cursor, legCoords.first],
         color: AppColors.neutralScale[300]!,
         width: 3,
       ));
-      await controller.addOverlay(NPathOverlay(
-        id: 'leg_$i',
-        coords: legCoords,
+      polylines.add(Polyline(
+        polylineId: PolylineId('leg_$i'),
+        points: legCoords,
         color: _legColor(leg.type),
         width: 6,
-        outlineColor: Colors.white,
-        outlineWidth: 2,
       ));
       cursor = legCoords.last;
-      points.addAll(legCoords);
+      allPoints.addAll(legCoords);
     }
 
-    final destination = NLatLng(args.destinationLat, args.destinationLng);
-    await controller.addOverlay(NPathOverlay(
-      id: 'connector_end',
-      coords: [cursor, destination],
+    final destination = LatLng(args.destinationLat, args.destinationLng);
+    polylines.add(Polyline(
+      polylineId: const PolylineId('connector_end'),
+      points: [cursor, destination],
       color: AppColors.neutralScale[300]!,
       width: 3,
     ));
-    points.add(destination);
+    allPoints.add(destination);
 
-    await controller.addOverlay(
-      NMarker(id: 'origin', position: points.first),
-    );
-    await controller.addOverlay(
-      NMarker(id: 'destination', position: destination),
-    );
+    final markers = <Marker>{
+      Marker(
+        markerId: const MarkerId('origin'),
+        position: allPoints.first,
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+      ),
+      Marker(
+        markerId: const MarkerId('destination'),
+        position: destination,
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+      ),
+    };
 
-    final lats = points.map((p) => p.latitude);
-    final lngs = points.map((p) => p.longitude);
-    final bounds = NLatLngBounds(
-      southWest: NLatLng(lats.reduce(min), lngs.reduce(min)),
-      northEast: NLatLng(lats.reduce(max), lngs.reduce(max)),
-    );
-    await controller.updateCamera(
-      NCameraUpdate.fitBounds(bounds, padding: const EdgeInsets.all(56))
-        ..setAnimation(
-          animation: NCameraAnimation.fly,
-          duration: const Duration(milliseconds: 800),
+    setState(() {
+      _polylines = polylines;
+      _markers = markers;
+    });
+
+    final lats = allPoints.map((p) => p.latitude);
+    final lngs = allPoints.map((p) => p.longitude);
+    _mapController?.animateCamera(
+      CameraUpdate.newLatLngBounds(
+        LatLngBounds(
+          southwest: LatLng(lats.reduce(min), lngs.reduce(min)),
+          northeast: LatLng(lats.reduce(max), lngs.reduce(max)),
         ),
+        56.0,
+      ),
     );
   }
 
@@ -123,19 +136,19 @@ class _TransitRouteMapScreenState extends State<TransitRouteMapScreen> {
             SizedBox(
               width: double.infinity,
               height: 280,
-              child: NaverMap(
-                options: NaverMapViewOptions(
-                  initialCameraPosition: NCameraPosition(
-                    target:
-                        NLatLng(widget.args.originLat, widget.args.originLng),
-                    zoom: 13,
-                  ),
-                  scrollGesturesEnable: true,
-                  zoomGesturesEnable: true,
-                  rotationGesturesEnable: false,
-                  mapType: NMapType.basic,
+              child: GoogleMap(
+                initialCameraPosition: CameraPosition(
+                  target: LatLng(widget.args.originLat, widget.args.originLng),
+                  zoom: 13,
                 ),
-                onMapReady: _onMapReady,
+                polylines: _polylines,
+                markers: _markers,
+                onMapCreated: _onMapCreated,
+                myLocationButtonEnabled: false,
+                zoomControlsEnabled: false,
+                scrollGesturesEnabled: true,
+                zoomGesturesEnabled: true,
+                rotateGesturesEnabled: false,
               ),
             ),
             Expanded(
