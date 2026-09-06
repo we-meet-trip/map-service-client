@@ -31,18 +31,11 @@ jobs:
           channel: stable
           cache: true
 
-      # 실행 설정 파일은 추적하지 않는다. 그런데 꾸러미 목록이 그 파일을
-      # 자산으로 싣게 되어 있어, 없으면 묶는 단계에서 그대로 멈춘다.
-      # 시험은 그 안의 값을 쓰지 않으므로 빈 자리만 만들어 둔다.
-      - name: 실행 설정 자리 만들기
-        run: |
-          [ -f .env ] || cat > .env <<'EOF'
-          NAVER_MAP_CLIENT_ID=
-          NAVER_MAP_CLIENT_ID_FALLBACK=
-          EOF
-
       - name: pub get
         run: flutter pub get
+
+      - name: mobile release configuration tests
+        run: python3 -m unittest discover -s scripts/tests -v
 
       - name: test
         run: flutter test

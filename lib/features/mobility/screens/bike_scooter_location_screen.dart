@@ -10,8 +10,8 @@ import '../../../core/api/pm_vehicle_api_service.dart';
 // 지도 패키지를 직접 부르지 않는다. 그 패키지는 안드로이드·iOS 만 지원해서,
 // 웹에서는 화면이 그려지기는 해도 지도와 마커가 통째로 비어 버린다. 다른 지도
 // 화면들과 같은 어댑터를 거쳐 실행 환경에 맞는 구현을 받는다.
-import '../../../core/naver_map/naver_map_adapter.dart';
-import '../../../core/naver_map/naver_map_bootstrap.dart';
+import '../../../core/maps/map_adapter.dart';
+import '../../../core/maps/map_bootstrap.dart';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Screen
@@ -26,12 +26,12 @@ class BikeScooterLocationScreen extends StatefulWidget {
 
 class _BikeScooterLocationScreenState extends State<BikeScooterLocationScreen> {
   // 지도
-  NaverMapController? _mapCtrl;
+  AppMapController? _mapCtrl;
   double _centerLat = 37.5665; // 서울 시청 (따릉이 서비스 지역)
   double _centerLng = 126.9780;
 
   // 따릉이 데이터
-  final List<NMarker> _markers = [];
+  final List<MapMarker> _markers = [];
   List<DdallengiStation> _allStations = [];
   DdallengiStation? _selected;
 
@@ -62,8 +62,9 @@ class _BikeScooterLocationScreenState extends State<BikeScooterLocationScreen> {
         perm = await Geolocator.requestPermission();
       }
       if (perm == LocationPermission.deniedForever ||
-          perm == LocationPermission.denied)
+          perm == LocationPermission.denied) {
         return;
+      }
       final pos = await Geolocator.getCurrentPosition();
       if (!mounted) return;
       setState(() {
@@ -86,11 +87,11 @@ class _BikeScooterLocationScreenState extends State<BikeScooterLocationScreen> {
   /// 갈아야지, 그대로 두면 옮긴 자리에서는 걸러 낼 것만 남는다.
   Future<void> _recenterTo(double lat, double lng) async {
     await _mapCtrl?.updateCamera(
-      NCameraUpdate.scrollAndZoomTo(
-        target: NLatLng(lat, lng),
+      MapCameraUpdate.scrollAndZoomTo(
+        target: MapCoordinate(lat, lng),
         zoom: 16,
       )..setAnimation(
-        animation: NCameraAnimation.fly,
+        animation: MapCameraAnimation.fly,
         duration: const Duration(milliseconds: 700),
       ),
     );
@@ -100,7 +101,7 @@ class _BikeScooterLocationScreenState extends State<BikeScooterLocationScreen> {
   }
 
   // ── 지도 준비 ────────────────────────────────────────────────────────────────
-  Future<void> _onMapReady(NaverMapController ctrl) async {
+  Future<void> _onMapReady(AppMapController ctrl) async {
     _mapCtrl = ctrl;
     ctrl.getLocationOverlay().setIsVisible(false);
     await _loadStations();
@@ -194,21 +195,20 @@ class _BikeScooterLocationScreenState extends State<BikeScooterLocationScreen> {
         .where((s) => _filter == 'all' || s.parkingBikeTotCnt > 0)
         .toList();
 
-    final ctx = context;
     for (var i = 0; i < filtered.length; i++) {
       if (!mounted || stale()) return;
       final s = filtered[i];
-      final icon = await NOverlayImage.fromWidget(
+      final icon = await MapOverlayImage.fromWidget(
         widget: _DdalMarkerBubble(availableCount: s.parkingBikeTotCnt),
         size: const Size(52, 34),
-        context: ctx,
+        context: context,
       );
       if (stale()) return;
-      final marker = NMarker(
+      final marker = MapMarker(
         id: 'ddal_$i',
-        position: NLatLng(s.lat, s.lng),
+        position: MapCoordinate(s.lat, s.lng),
         icon: icon,
-        anchor: const NPoint(0.5, 1.0),
+        anchor: const MapPoint(0.5, 1.0),
       );
       marker.setOnTapListener((_) => _selectStation(s));
       await ctrl.addOverlay(marker);
@@ -226,17 +226,17 @@ class _BikeScooterLocationScreenState extends State<BikeScooterLocationScreen> {
     for (var i = 0; i < nearby.length; i++) {
       if (!mounted || stale()) return;
       final v = nearby[i];
-      final icon = await NOverlayImage.fromWidget(
+      final icon = await MapOverlayImage.fromWidget(
         widget: _PmMarkerBubble(vehicle: v),
         size: const Size(52, 34),
-        context: ctx,
+        context: context,
       );
       if (stale()) return;
-      final marker = NMarker(
+      final marker = MapMarker(
         id: 'pm_$i',
-        position: NLatLng(v.lat, v.lng),
+        position: MapCoordinate(v.lat, v.lng),
         icon: icon,
-        anchor: const NPoint(0.5, 1.0),
+        anchor: const MapPoint(0.5, 1.0),
       );
       await ctrl.addOverlay(marker);
       if (stale()) return;
@@ -256,9 +256,9 @@ class _BikeScooterLocationScreenState extends State<BikeScooterLocationScreen> {
   void _selectStation(DdallengiStation s) {
     setState(() => _selected = s);
     _mapCtrl?.updateCamera(
-      NCameraUpdate.scrollAndZoomTo(target: NLatLng(s.lat, s.lng), zoom: 17)
+      MapCameraUpdate.scrollAndZoomTo(target: MapCoordinate(s.lat, s.lng), zoom: 17)
         ..setAnimation(
-          animation: NCameraAnimation.easing,
+          animation: MapCameraAnimation.easing,
           duration: const Duration(milliseconds: 500),
         ),
     );
@@ -301,8 +301,9 @@ class _BikeScooterLocationScreenState extends State<BikeScooterLocationScreen> {
         perm = await Geolocator.requestPermission();
       }
       if (perm == LocationPermission.deniedForever ||
-          perm == LocationPermission.denied)
+          perm == LocationPermission.denied) {
         return;
+      }
       final pos = await Geolocator.getCurrentPosition();
       if (!mounted) return;
       setState(() {
@@ -324,32 +325,28 @@ class _BikeScooterLocationScreenState extends State<BikeScooterLocationScreen> {
         children: [
           // ── 지도 ──
           //
-          // 지도 식별자가 다음 것으로 바뀌면 지도를 다시 만든다. 인증 판정은
-          // 지도를 그릴 때 오는데, 그때 이미 만들어진 지도는 처음 식별자로
-          // 인증을 끝낸 뒤라 스스로 다시 묻지 않는다 — 다시 만들지 않으면
-          // 첫 진입 화면만 계속 비어 있고 나갔다 들어와야 나온다.
           ValueListenableBuilder<int>(
-            valueListenable: naverMapAuthGeneration,
-            builder: (context, generation, _) => NaverMap(
+            valueListenable: mapGeneration,
+            builder: (context, generation, _) => AppMap(
               key: ValueKey('bike-map-$generation'),
-              options: NaverMapViewOptions(
-                initialCameraPosition: NCameraPosition(
-                  target: NLatLng(_centerLat, _centerLng),
+              options: AppMapOptions(
+                initialCameraPosition: MapCameraPosition(
+                  target: MapCoordinate(_centerLat, _centerLng),
                   zoom: 15,
                 ),
-                mapType: NMapType.basic,
+                mapType: AppMapType.basic,
                 scrollGesturesEnable: true,
                 zoomGesturesEnable: true,
                 rotationGesturesEnable: false,
-                logoAlign: NLogoAlign.leftBottom,
+                contentPadding: const EdgeInsets.only(bottom: 160),
               ),
               onMapReady: _onMapReady,
               onCameraChange: (reason, _) {
-                if (reason == NCameraUpdateReason.gesture && !_mapMoved) {
+                if (reason == MapCameraUpdateReason.gesture && !_mapMoved) {
                   setState(() => _mapMoved = true);
                 }
               },
-              onMapTapped: (_, __) {
+              onMapTapped: (_, _) {
                 if (_selected != null) setState(() => _selected = null);
               },
             ),
@@ -1153,10 +1150,9 @@ class _StatBox extends StatelessWidget {
 
 class _InfoRow extends StatelessWidget {
   final String label;
-  final String? value;
-  final Widget? trailing;
+  final Widget trailing;
 
-  const _InfoRow({required this.label, this.value, this.trailing});
+  const _InfoRow({required this.label, required this.trailing});
 
   @override
   Widget build(BuildContext context) {
@@ -1172,17 +1168,7 @@ class _InfoRow extends StatelessWidget {
             style: TextStyle(fontSize: 13, color: AppColors.neutralScale[300]),
           ),
           const Spacer(),
-          if (trailing != null)
-            trailing!
-          else
-            Text(
-              value ?? '-',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: AppColors.neutralScale[600],
-              ),
-            ),
+          trailing,
         ],
       ),
     );

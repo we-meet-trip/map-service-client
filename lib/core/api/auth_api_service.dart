@@ -1,8 +1,12 @@
 import 'dart:async';
 
+import '../../data/local/chat_outbox_store.dart';
+import '../config/app_config.dart';
+
 import '../state/auth_store.dart';
 // UserProfile 이라는 이름이 화면용과 서버용 두 곳에 있어, 여기서는 보관소만 들인다.
 import '../state/user_repository.dart' show UserRepository;
+import '../state/trip_repository.dart';
 import 'api_client.dart';
 import 'user_api_service.dart';
 
@@ -13,7 +17,12 @@ import 'user_api_service.dart';
 ///
 /// 인증 경로의 필드 표기는 낙타 표기다(다른 경로는 밑줄 표기를 쓴다).
 class AuthApiService {
-  AuthApiService._();
+  AuthApiService._() {
+    AuthStore.instance.onSessionCleared = () {
+      TripRepository.instance.clearAccount();
+      return UserRepository.instance.clearAccount();
+    };
+  }
   static final AuthApiService instance = AuthApiService._();
 
   final _api = ApiClient.instance;
@@ -23,6 +32,7 @@ class AuthApiService {
   Future<void> bootstrap() async {
     AuthStore.instance.refreshHandler = _refreshTokens;
     await AuthStore.instance.restore();
+    await UserRepository.init();
     if (AuthStore.instance.isLoggedIn.value) {
       _syncProfile();
     }
@@ -54,20 +64,17 @@ class AuthApiService {
     if (themes != null && themes.isNotEmpty) body['themes'] = themes;
 
     final json = await _api.post('/api/v1/auth/signup', body: body);
-    await AuthStore.instance.save(AuthTokens.fromJson(json));
+    await _acceptLogin(AuthTokens.fromJson(json));
     _syncProfile();
   }
 
   /// 이메일 로그인.
-  Future<void> login({
-    required String email,
-    required String password,
-  }) async {
-    final json = await _api.post('/api/v1/auth/login', body: {
-      'email': email,
-      'password': password,
-    });
-    await AuthStore.instance.save(AuthTokens.fromJson(json));
+  Future<void> login({required String email, required String password}) async {
+    final json = await _api.post(
+      '/api/v1/auth/login',
+      body: {'email': email, 'password': password},
+    );
+    await _acceptLogin(AuthTokens.fromJson(json));
     _syncProfile();
   }
 
@@ -82,23 +89,39 @@ class AuthApiService {
 
   /// 카카오가 돌려준 인가 코드를 토큰으로 바꾼다.
   Future<void> kakaoLogin(String code) async {
-    final json = await _api.post('/api/v1/auth/kakao/callback', body: {
-      'code': code,
-    });
-    await AuthStore.instance.save(AuthTokens.fromJson(json));
+    final json = await _api.post(
+      '/api/v1/auth/kakao/callback',
+      body: {'code': code},
+    );
+    await _acceptLogin(AuthTokens.fromJson(json));
+    _syncProfile();
+  }
+
+  Future<Map<String, dynamic>> appleNonce() =>
+      _api.get('/api/v1/auth/apple/nonce');
+
+  Future<void> appleLogin(Map<String, dynamic> credential) async {
+    final json = await _api.post(
+      '/api/v1/auth/apple/callback',
+      body: credential,
+    );
+    await _acceptLogin(AuthTokens.fromJson(json));
     _syncProfile();
   }
 
   /// 로그아웃. 서버 호출이 실패해도 기기의 토큰은 반드시 버린다 —
   /// 남겨 두면 로그아웃한 사용자가 계속 로그인 상태로 보인다.
   Future<void> logout() async {
+    final version = AuthStore.instance.sessionVersion;
     try {
-      await _api.post('/api/v1/auth/logout');
+      await _api.post(
+        '/api/v1/auth/logout',
+        body: {'refreshToken': AuthStore.instance.refreshToken},
+      );
     } on ApiException {
       // 이미 만료됐거나 서버가 응답하지 않아도 아래에서 정리한다.
     } finally {
-      await AuthStore.instance.clear();
-      UserRepository.instance.clearAccount();
+      if (version == AuthStore.instance.sessionVersion) await _clearAccount();
     }
   }
 
@@ -108,9 +131,27 @@ class AuthApiService {
   /// 계정이 남은 채 기기만 비우면 사용자가 지워진 줄 알고 떠나 버린다.
   /// 그래서 실패는 그대로 올려보내 화면이 알리게 한다.
   Future<void> withdraw() async {
+    final version = AuthStore.instance.sessionVersion;
+    final userId = AuthStore.instance.userId;
+    final scope = AppConfig.instance.storageScope;
     await _api.delete('/api/v1/users/me');
+    try {
+      if (userId != null) await ChatOutboxStore.deleteAccount(scope, userId);
+    } finally {
+      if (version == AuthStore.instance.sessionVersion) await _clearAccount();
+    }
+  }
+
+  Future<void> _clearAccount() async {
     await AuthStore.instance.clear();
-    UserRepository.instance.clearAccount();
+  }
+
+  Future<void> _acceptLogin(AuthTokens tokens) async {
+    TripRepository.instance.clearAccount();
+    await AuthStore.instance.save(tokens);
+    await UserRepository.init();
+    UserRepository.instance.signUpEmail = null;
+    UserRepository.instance.signUpPassword = null;
   }
 
   /// 로그인한 사람의 정보를 화면용 프로필에 맞춘다.
@@ -130,8 +171,10 @@ class AuthApiService {
   }
 
   Future<void> _fetchAccount() async {
+    final version = AuthStore.instance.sessionVersion;
     try {
       final me = await UserApiService.instance.me();
+      if (version != AuthStore.instance.sessionVersion) return;
       UserRepository.instance.applyAccount(
         nickname: me.nickname,
         email: me.email,
@@ -152,9 +195,10 @@ class AuthApiService {
   /// 갱신이 여러 번 겹쳐 들어와도 저장이 한 번만 일어나게 하기 위함이다.
   Future<AuthTokens?> _refreshTokens(String refreshToken) async {
     try {
-      final json = await _api.post('/api/v1/auth/token/refresh', body: {
-        'refreshToken': refreshToken,
-      });
+      final json = await _api.post(
+        '/api/v1/auth/token/refresh',
+        body: {'refreshToken': refreshToken},
+      );
       return AuthTokens.fromJson(json);
     } on ApiException {
       return null;

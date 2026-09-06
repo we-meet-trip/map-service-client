@@ -15,6 +15,16 @@ class TripRepository {
 
   void markSavedChanged() => savedRevision.value++;
 
+  void clearAccount() {
+    pendingTrip = null;
+    autoSaveOnNext = false;
+    lastPlan = null;
+    plannedTrips.value = [];
+    completedTrips.value = [];
+    requestedTab.value = 0;
+    markSavedChanged();
+  }
+
   // 비로그인 저장 시도 → 로그인 후 복귀할 임시 일정
   TripGenerateResponse? pendingTrip;
   bool autoSaveOnNext = false;
@@ -149,22 +159,22 @@ class SavedTrip {
       (city ?? '').isNotEmpty;
 
   SavedTrip copyWith({int? chatRoomId}) => SavedTrip(
-        scheduleId: scheduleId,
-        name: name,
-        route: route,
-        savedAt: savedAt,
-        tripStartDate: tripStartDate,
-        tripEndDate: tripEndDate,
-        stops: stops,
-        totalDurationMinutes: totalDurationMinutes,
-        chatRoomId: chatRoomId ?? this.chatRoomId,
-        warnings: warnings,
-        province: province,
-        city: city,
-        transport: transport,
-        activeStartHour: activeStartHour,
-        activeEndHour: activeEndHour,
-      );
+    scheduleId: scheduleId,
+    name: name,
+    route: route,
+    savedAt: savedAt,
+    tripStartDate: tripStartDate,
+    tripEndDate: tripEndDate,
+    stops: stops,
+    totalDurationMinutes: totalDurationMinutes,
+    chatRoomId: chatRoomId ?? this.chatRoomId,
+    warnings: warnings,
+    province: province,
+    city: city,
+    transport: transport,
+    activeStartHour: activeStartHour,
+    activeEndHour: activeEndHour,
+  );
 
   factory SavedTrip.fromDetail(ScheduleDetail d) {
     final start = d.dateStart ?? DateTime.now();

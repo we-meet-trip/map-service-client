@@ -36,7 +36,7 @@ class _AppLoadingIndicatorState extends State<AppLoadingIndicator>
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _ctrl,
-      builder: (_, __) => Transform.rotate(
+      builder: (_, _) => Transform.rotate(
         angle: _ctrl.value * 2 * math.pi,
         child: CustomPaint(
           size: Size(widget.size, widget.size),

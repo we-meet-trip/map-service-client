@@ -67,7 +67,7 @@ void main() {
   });
 
   group('로그아웃 정리', () {
-    test('계정에서 온 항목만 비우고 기기에서 정한 항목은 남긴다', () {
+    test('사진과 주소를 포함한 개인 정보를 다음 계정에 남기지 않는다', () async {
       UserRepository.instance.applyAccount(
         nickname: 'maptester1',
         email: 'maptester1@admin.map',
@@ -78,7 +78,7 @@ void main() {
       UserRepository.instance.updateProfileImage('/tmp/face.png');
       UserRepository.instance.updateHomeAddress('서울시 어딘가');
 
-      UserRepository.instance.clearAccount();
+      await UserRepository.instance.clearAccount();
 
       final profile = UserRepository.instance.profile.value;
       expect(profile.displayName, '여행자', reason: '다음 사람에게 옛 이름을 보이면 안 된다');
@@ -86,8 +86,9 @@ void main() {
       expect(profile.gender, isNull);
       expect(profile.interests, isEmpty);
       expect(profile.themes, isEmpty);
-      expect(profile.profileImagePath, '/tmp/face.png', reason: '기기에서 고른 사진이다');
-      expect(profile.homeAddress, '서울시 어딘가', reason: '계정과 무관한 기기 설정이다');
+      expect(profile.profileImagePath, isNull);
+      expect(profile.homeAddress, isNull);
+      expect(ProfileLocalStore.instance.load(), isNull);
     });
   });
 }

@@ -28,7 +28,8 @@ class VisionScreen extends StatefulWidget {
   State<VisionScreen> createState() => _VisionScreenState();
 }
 
-class _VisionScreenState extends State<VisionScreen> {
+class _VisionScreenState extends State<VisionScreen>
+    with WidgetsBindingObserver {
   CameraController? _cameraController;
   CameraDescription? _backCamera;
   CameraDescription? _frontCamera;
@@ -39,66 +40,111 @@ class _VisionScreenState extends State<VisionScreen> {
 
   Position? _currentPosition;
   bool _cameraReady = false;
+  String? _cameraError;
+  int _cameraVersion = 0;
   bool _sttReady = false;
   bool _isListening = false;
   bool _isProcessing = false;
   bool _voiceMode = true;
   String? _frozenFrameB64;
   VisionResponse? _lastResult;
-  String _confirmedText = '';     // 이전 STT 세션에서 확정된 텍스트
+  String _confirmedText = ''; // 이전 STT 세션에서 확정된 텍스트
   String _currentSessionText = ''; // 현재 STT 세션 텍스트
-  final _partialTextNotifier = ValueNotifier<String>(''); // 화면 표시용 (confirmed + current)
-  String _latestWords = '';       // 중지 시 전송할 최종 텍스트
+  final _partialTextNotifier = ValueNotifier<String>(
+    '',
+  ); // 화면 표시용 (confirmed + current)
+  String _latestWords = ''; // 중지 시 전송할 최종 텍스트
 
   final List<_ChatMessage> _messages = [];
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initCamera();
     _initStt();
     _initLocation();
-    _wsService.connect('vision_${DateTime.now().millisecondsSinceEpoch}');
     _responseSub = _wsService.responses.listen(_onResponse);
     _errorSub = _wsService.errors.listen(_onError);
+    unawaited(
+      _wsService.connect('vision_${DateTime.now().millisecondsSinceEpoch}'),
+    );
   }
 
   Future<void> _initCamera() async {
-    final cameras = await availableCameras();
-    if (cameras.isEmpty) return;
-    // cameras.first 는 기기별로 전면이 0번일 수 있어 후면을 명시적으로 찾는다.
-    _backCamera = cameras.firstWhere(
-      (c) => c.lensDirection == CameraLensDirection.back,
-      orElse: () => cameras.first,
-    );
-    final frontMatches =
-        cameras.where((c) => c.lensDirection == CameraLensDirection.front);
-    _frontCamera = frontMatches.isEmpty ? null : frontMatches.first;
-    _cameraController = CameraController(
-      _backCamera!,
-      ResolutionPreset.high,
-      enableAudio: false,
-    );
-    await _cameraController!.initialize();
-    if (mounted) setState(() => _cameraReady = true);
+    final version = ++_cameraVersion;
+    final old = _cameraController;
+    _cameraController = null;
+    if (mounted) {
+      setState(() {
+        _cameraReady = false;
+        _cameraError = null;
+      });
+    }
+    try {
+      await old?.dispose();
+      final cameras = await availableCameras();
+      if (!mounted || version != _cameraVersion) return;
+      if (cameras.isEmpty) throw StateError('카메라가 없습니다');
+      // cameras.first 는 기기별로 전면이 0번일 수 있어 후면을 명시적으로 찾는다.
+      _backCamera = cameras.firstWhere(
+        (c) => c.lensDirection == CameraLensDirection.back,
+        orElse: () => cameras.first,
+      );
+      final frontMatches = cameras.where(
+        (c) => c.lensDirection == CameraLensDirection.front,
+      );
+      _frontCamera = frontMatches.isEmpty ? null : frontMatches.first;
+      final controller = CameraController(
+        _backCamera!,
+        ResolutionPreset.high,
+        enableAudio: false,
+      );
+      _cameraController = controller;
+      await controller.initialize();
+      if (!mounted || version != _cameraVersion) {
+        await controller.dispose();
+        return;
+      }
+      setState(() {
+        _cameraReady = true;
+        _cameraError = null;
+      });
+    } catch (_) {
+      if (mounted && version == _cameraVersion) {
+        setState(() {
+          _cameraReady = false;
+          _cameraError = '카메라 권한과 연결 상태를 확인해주세요.';
+        });
+      }
+    }
   }
 
   Future<void> _switchCamera() async {
-    final current = _cameraController?.description;
-    if (current == null) return;
-    final target = current.lensDirection == CameraLensDirection.back
-        ? _frontCamera
-        : _backCamera;
-    if (target == null) return;
-    setState(() => _cameraReady = false);
-    await _cameraController!.dispose();
-    _cameraController = CameraController(
-      target,
-      ResolutionPreset.high,
-      enableAudio: false,
-    );
-    await _cameraController!.initialize();
-    if (mounted) setState(() => _cameraReady = true);
+    if (!_cameraReady || _isProcessing) return;
+    final version = ++_cameraVersion;
+    try {
+      final current = _cameraController?.description;
+      if (current == null) return;
+      final target = current.lensDirection == CameraLensDirection.back
+          ? _frontCamera
+          : _backCamera;
+      if (target == null) return;
+      setState(() => _cameraReady = false);
+      await _cameraController!.dispose();
+      if (!mounted || version != _cameraVersion) return;
+      _cameraController = CameraController(
+        target,
+        ResolutionPreset.high,
+        enableAudio: false,
+      );
+      await _cameraController!.initialize();
+      if (mounted && version == _cameraVersion) {
+        setState(() => _cameraReady = true);
+      }
+    } catch (_) {
+      _onError('카메라를 전환하지 못했어요. 다시 시도해주세요.');
+    }
   }
 
   Future<void> _initLocation() async {
@@ -108,7 +154,9 @@ class _VisionScreenState extends State<VisionScreen> {
         await Geolocator.requestPermission();
       }
       final pos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
       if (mounted) setState(() => _currentPosition = pos);
     } catch (_) {}
@@ -138,14 +186,7 @@ class _VisionScreenState extends State<VisionScreen> {
             : '$_confirmedText $_currentSessionText';
         _currentSessionText = '';
       }
-      _stt.listen(
-        onResult: _onSttResult,
-        listenOptions: SpeechListenOptions(
-          localeId: 'ko_KR',
-          listenFor: const Duration(seconds: 60),
-          pauseFor: const Duration(seconds: 30),
-        ),
-      );
+      unawaited(_listen());
     }
   }
 
@@ -168,7 +209,9 @@ class _VisionScreenState extends State<VisionScreen> {
     setState(() {
       _isProcessing = false;
       _lastResult = response;
-      _messages.add(_ChatMessage(isUser: false, text: text, response: response));
+      _messages.add(
+        _ChatMessage(isUser: false, text: text, response: response),
+      );
     });
   }
 
@@ -189,18 +232,38 @@ class _VisionScreenState extends State<VisionScreen> {
     setState(() {
       _isListening = true;
     });
-    await _stt.listen(
-      onResult: _onSttResult,
-      listenOptions: SpeechListenOptions(
-        localeId: 'ko_KR',
-        listenFor: const Duration(seconds: 60),
-        pauseFor: const Duration(seconds: 30),
-      ),
-    );
+    await _listen();
+  }
+
+  Future<void> _listen() async {
+    try {
+      await _stt.listen(
+        onResult: _onSttResult,
+        listenOptions: SpeechListenOptions(
+          localeId: 'ko_KR',
+          listenFor: const Duration(seconds: 60),
+          pauseFor: const Duration(seconds: 30),
+        ),
+      );
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isListening = false);
+        _onError('음성 인식을 시작하지 못했어요. 마이크 권한을 확인해주세요.');
+      }
+    }
+  }
+
+  Future<void> _stopStt() async {
+    try {
+      await _stt.stop();
+    } catch (_) {
+      /* 플랫폼 종료 오류 */
+    }
   }
 
   Future<void> _stopListening() async {
-    await _stt.stop();
+    if (mounted) setState(() => _isListening = false);
+    await _stopStt();
     if (!mounted) return;
     final words = _latestWords.trim();
     if (words.isNotEmpty) {
@@ -222,45 +285,55 @@ class _VisionScreenState extends State<VisionScreen> {
 
   // 음성 모드: 스크린샷 + 이미지 분석
   Future<void> _sendWithImage(String words) async {
-    if (_cameraController == null) return;
-    final file = await _cameraController!.takePicture();
-    final bytes = await file.readAsBytes();
-    final b64 = base64Encode(bytes);
+    final camera = _cameraController;
+    if (!mounted || camera == null || !_cameraReady || _isProcessing) return;
+    final version = _cameraVersion;
+    setState(() => _isProcessing = true);
+    try {
+      final file = await camera.takePicture();
+      final bytes = await file.readAsBytes();
+      if (!mounted || version != _cameraVersion) return;
+      final b64 = base64Encode(bytes);
 
-    _partialTextNotifier.value = '';
-    setState(() {
-      _isListening = false;
-      _isProcessing = true;
-      _frozenFrameB64 = b64;
-      _lastResult = null;
-      _messages.add(_ChatMessage(isUser: true, text: words));
-    });
+      _partialTextNotifier.value = '';
+      setState(() {
+        _isListening = false;
+        _isProcessing = true;
+        _frozenFrameB64 = b64;
+        _lastResult = null;
+        _messages.add(_ChatMessage(isUser: true, text: words));
+      });
 
-    _wsService.sendFrame(VisionRequest(
-      sessionId: 'vision_${DateTime.now().millisecondsSinceEpoch}',
-      frameB64: b64,
-      voiceTriggered: true,
-      voiceText: words,
-      location: _currentPosition != null
-          ? VisionLocation(
-              lat: _currentPosition!.latitude,
-              lng: _currentPosition!.longitude,
-            )
-          : null,
-    ));
+      await _wsService.sendFrame(
+        VisionRequest(
+          sessionId: 'vision_${DateTime.now().millisecondsSinceEpoch}',
+          frameB64: b64,
+          voiceTriggered: true,
+          voiceText: words,
+          location: _currentPosition != null
+              ? VisionLocation(
+                  lat: _currentPosition!.latitude,
+                  lng: _currentPosition!.longitude,
+                )
+              : null,
+        ),
+      );
+    } catch (_) {
+      _onError('사진을 촬영하지 못했어요. 다시 시도해주세요.');
+    }
   }
 
   // 텍스트만 전송 (채팅 모드 또는 첫 인식 이후 후속 대화)
   Future<void> _sendTextOnly(String words) async {
+    if (!mounted || _isProcessing) return;
     final priorContext = _lastResult?.identifyResult != null
         ? '${_lastResult!.identifyResult!.name}: ${_lastResult!.identifyResult!.description}'
         : null;
 
     final history = _messages
-        .map((m) => {
-              'role': m.isUser ? 'user' : 'assistant',
-              'content': m.text,
-            })
+        .map(
+          (m) => {'role': m.isUser ? 'user' : 'assistant', 'content': m.text},
+        )
         .toList();
 
     _partialTextNotifier.value = '';
@@ -270,23 +343,28 @@ class _VisionScreenState extends State<VisionScreen> {
       _messages.add(_ChatMessage(isUser: true, text: words));
     });
 
-    _wsService.sendFrame(VisionRequest(
-      sessionId: 'vision_${DateTime.now().millisecondsSinceEpoch}',
-      frameB64: '',
-      voiceTriggered: false,
-      voiceText: words,
-      priorContext: priorContext,
-      conversationHistory: history,
-      location: _currentPosition != null
-          ? VisionLocation(
-              lat: _currentPosition!.latitude,
-              lng: _currentPosition!.longitude,
-            )
-          : null,
-    ));
+    await _wsService.sendFrame(
+      VisionRequest(
+        sessionId: 'vision_${DateTime.now().millisecondsSinceEpoch}',
+        frameB64: '',
+        voiceTriggered: false,
+        voiceText: words,
+        priorContext: priorContext,
+        conversationHistory: history.length > 8
+            ? history.sublist(history.length - 8)
+            : history,
+        location: _currentPosition != null
+            ? VisionLocation(
+                lat: _currentPosition!.latitude,
+                lng: _currentPosition!.longitude,
+              )
+            : null,
+      ),
+    );
   }
 
   void _reset() {
+    _wsService.disconnect();
     setState(() {
       _frozenFrameB64 = null;
       _lastResult = null;
@@ -295,12 +373,37 @@ class _VisionScreenState extends State<VisionScreen> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!mounted) return;
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_initCamera());
+    } else if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused) {
+      _cameraVersion++;
+      final camera = _cameraController;
+      _cameraController = null;
+      if (camera != null) unawaited(camera.dispose());
+      _wsService.disconnect();
+      _isListening = false;
+      unawaited(_stopStt());
+      setState(() {
+        _cameraReady = false;
+        _isProcessing = false;
+        _isListening = false;
+      });
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _cameraVersion++;
     _responseSub?.cancel();
     _errorSub?.cancel();
     _wsService.dispose();
     _cameraController?.dispose();
-    _stt.stop();
+    _isListening = false;
+    unawaited(_stopStt());
     _partialTextNotifier.dispose();
     super.dispose();
   }
@@ -318,7 +421,8 @@ class _VisionScreenState extends State<VisionScreen> {
           if (_lastResult?.detectedObject != null && _frozenFrameB64 != null)
             BboxOverlay(
               bbox: _lastResult!.detectedObject!.bbox,
-              label: _lastResult!.identifyResult?.name ??
+              label:
+                  _lastResult!.identifyResult?.name ??
                   _lastResult!.detectedObject!.label,
             ),
           _buildTopBar(),
@@ -329,6 +433,17 @@ class _VisionScreenState extends State<VisionScreen> {
   }
 
   Widget _buildCameraArea() {
+    if (_cameraError != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(_cameraError!, style: const TextStyle(color: Colors.white)),
+            TextButton(onPressed: _initCamera, child: const Text('다시 시도')),
+          ],
+        ),
+      );
+    }
     if (_frozenFrameB64 != null) {
       return Image.memory(base64Decode(_frozenFrameB64!), fit: BoxFit.cover);
     }
@@ -350,14 +465,20 @@ class _VisionScreenState extends State<VisionScreen> {
             Row(
               children: [
                 _circleButton(
-                  child: const Icon(Icons.chevron_left,
-                      color: Colors.white, size: 22),
+                  child: const Icon(
+                    Icons.chevron_left,
+                    color: Colors.white,
+                    size: 22,
+                  ),
                   onTap: () => context.pop(),
                 ),
                 Expanded(child: Center(child: _modeToggle())),
                 _circleButton(
-                  child: const Icon(Icons.cameraswitch,
-                      color: Colors.white, size: 18),
+                  child: const Icon(
+                    Icons.cameraswitch,
+                    color: Colors.white,
+                    size: 18,
+                  ),
                   onTap: _switchCamera,
                 ),
               ],
@@ -365,8 +486,10 @@ class _VisionScreenState extends State<VisionScreen> {
             if (_lastResult?.identifyResult != null) ...[
               const SizedBox(height: 10),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFD83C5A).withValues(alpha: 0.55),
                   borderRadius: BorderRadius.circular(20),
@@ -436,7 +559,7 @@ class _VisionScreenState extends State<VisionScreen> {
                     color: const Color(0xFF8c3c78).withValues(alpha: 0.45),
                     blurRadius: 14,
                     offset: const Offset(0, 4),
-                  )
+                  ),
                 ]
               : null,
         ),
@@ -487,11 +610,11 @@ class _VisionScreenState extends State<VisionScreen> {
 
                   // 대화 버블들
                   ..._messages.asMap().entries.map(
-                        (e) => KeyedSubtree(
-                          key: ValueKey('msg_${e.key}'),
-                          child: _buildBubble(e.value),
-                        ),
-                      ),
+                    (e) => KeyedSubtree(
+                      key: ValueKey('msg_${e.key}'),
+                      child: _buildBubble(e.value),
+                    ),
+                  ),
 
                   // 처리 중
                   if (_isProcessing)
@@ -517,17 +640,22 @@ class _VisionScreenState extends State<VisionScreen> {
                           child: Container(
                             constraints: const BoxConstraints(maxWidth: 240),
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 10),
+                              horizontal: 16,
+                              vertical: 10,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.white.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(16),
                               border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.3)),
+                                color: Colors.white.withValues(alpha: 0.3),
+                              ),
                             ),
                             child: Text(
                               partialText,
                               style: const TextStyle(
-                                  color: Colors.white70, fontSize: 14),
+                                color: Colors.white70,
+                                fontSize: 14,
+                              ),
                             ),
                           ),
                         ),
@@ -551,8 +679,7 @@ class _VisionScreenState extends State<VisionScreen> {
                       child: Center(
                         child: Text(
                           '말씀하세요... (탭하면 중지)',
-                          style:
-                              TextStyle(color: Colors.white54, fontSize: 12),
+                          style: TextStyle(color: Colors.white54, fontSize: 12),
                         ),
                       ),
                     ),
@@ -571,14 +698,14 @@ class _VisionScreenState extends State<VisionScreen> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Row(
-        mainAxisAlignment:
-            msg.isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: msg.isUser
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         children: [
           if (msg.isUser)
             Container(
               constraints: const BoxConstraints(maxWidth: 240),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
               decoration: const BoxDecoration(
                 color: Color(0xFF7a7a86),
                 borderRadius: BorderRadius.only(
@@ -588,9 +715,14 @@ class _VisionScreenState extends State<VisionScreen> {
                   bottomRight: Radius.circular(6),
                 ),
               ),
-              child: Text(msg.text,
-                  style: const TextStyle(
-                      color: Colors.white, fontSize: 15, height: 1.5)),
+              child: Text(
+                msg.text,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  height: 1.5,
+                ),
+              ),
             )
           else
             _assistantBubble(msg.text),
@@ -620,21 +752,23 @@ class _VisionScreenState extends State<VisionScreen> {
             ),
           ),
           child: loading
-              ? const SizedBox(
-                  width: 48,
-                  height: 18,
-                  child: _DotsIndicator(),
-                )
-              : Text(text,
+              ? const SizedBox(width: 48, height: 18, child: _DotsIndicator())
+              : Text(
+                  text,
                   style: const TextStyle(
-                      color: Colors.white, fontSize: 15, height: 1.5)),
+                    color: Colors.white,
+                    fontSize: 15,
+                    height: 1.5,
+                  ),
+                ),
         ),
         const Positioned(
           left: -4,
           top: -12,
-          child: Text('✦',
-              style:
-                  TextStyle(color: Color(0xFFff8ab8), fontSize: 16)),
+          child: Text(
+            '✦',
+            style: TextStyle(color: Color(0xFFff8ab8), fontSize: 16),
+          ),
         ),
       ],
     );
@@ -646,9 +780,7 @@ class _VisionScreenState extends State<VisionScreen> {
       child: Wrap(
         spacing: 10,
         runSpacing: 8,
-        children: [
-          _quickReplyBtn('다시 찍기', onTap: _reset),
-        ],
+        children: [_quickReplyBtn('다시 찍기', onTap: _reset)],
       ),
     );
   }
@@ -657,18 +789,20 @@ class _VisionScreenState extends State<VisionScreen> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: 0.14),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
         ),
-        child: Text(label,
-            style: const TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w500)),
+        child: Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
       ),
     );
   }
@@ -695,18 +829,16 @@ class _VisionScreenState extends State<VisionScreen> {
             boxShadow: _isListening
                 ? [
                     BoxShadow(
-                      color:
-                          const Color(0xFF7846c8).withValues(alpha: 0.7),
+                      color: const Color(0xFF7846c8).withValues(alpha: 0.7),
                       blurRadius: 24,
                       spreadRadius: 4,
-                    )
+                    ),
                   ]
                 : [
                     BoxShadow(
-                      color:
-                          const Color(0xFF7846c8).withValues(alpha: 0.5),
+                      color: const Color(0xFF7846c8).withValues(alpha: 0.5),
                       blurRadius: 18,
-                    )
+                    ),
                   ],
           ),
           child: Icon(
@@ -763,7 +895,9 @@ class _DotsIndicatorState extends State<_DotsIndicator>
               child: Opacity(
                 opacity: opacity.clamp(0.2, 1.0),
                 child: const CircleAvatar(
-                    radius: 4, backgroundColor: Colors.white),
+                  radius: 4,
+                  backgroundColor: Colors.white,
+                ),
               ),
             );
           }),

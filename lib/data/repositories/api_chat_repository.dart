@@ -11,12 +11,22 @@ import 'chat_repository.dart';
 /// 대체 문구를 쓴다. 이름을 못 찾았다고 대화 줄 자체를 빠뜨리면 대화의 흐름이
 /// 끊긴 것처럼 보인다.
 class ApiChatRepository implements ChatRepository {
-  ApiChatRepository({ChatApiService? api}) : _api = api ?? ChatApiService.instance;
+  ApiChatRepository({ChatApiService? api})
+    : _api = api ?? ChatApiService.instance;
 
   final ChatApiService _api;
 
   /// 방별 참가자 이름 표. 대화를 읽을 때마다 다시 묻지 않으려고 들고 있는다.
   final Map<int, Map<int, String>> _nameCache = {};
+  int _cacheSession = -1;
+
+  void _checkSession() {
+    final version = AuthStore.instance.sessionVersion;
+    if (_cacheSession != version) {
+      _nameCache.clear();
+      _cacheSession = version;
+    }
+  }
 
   static const _unknownSender = '알 수 없음';
 
@@ -24,17 +34,19 @@ class ApiChatRepository implements ChatRepository {
   Future<List<ChatRoom>> getChatRooms() async {
     final rows = await _api.listRooms();
     return rows
-        .map((r) => ChatRoom(
-              id: r.roomId,
-              scheduleId: r.scheduleId,
-              title: r.title,
-              participantCount: r.participantCount,
-              readOnly: r.readOnly,
-              latestSeq: r.latestSeq,
-              unreadCount: r.unreadCount,
-              lastMessage: r.lastMessage ?? '',
-              lastMessageAt: r.lastMessageAt,
-            ))
+        .map(
+          (r) => ChatRoom(
+            id: r.roomId,
+            scheduleId: r.scheduleId,
+            title: r.title,
+            participantCount: r.participantCount,
+            readOnly: r.readOnly,
+            latestSeq: r.latestSeq,
+            unreadCount: r.unreadCount,
+            lastMessage: r.lastMessage ?? '',
+            lastMessageAt: r.lastMessageAt,
+          ),
+        )
         .toList();
   }
 
@@ -59,7 +71,11 @@ class ApiChatRepository implements ChatRepository {
   }
 
   @override
-  Future<ChatMessage> sendMessage(int roomId, String text, String clientMsgId) async {
+  Future<ChatMessage> sendMessage(
+    int roomId,
+    String text,
+    String clientMsgId,
+  ) async {
     final names = await _names(roomId);
     final sent = await _api.send(roomId, text, clientMsgId);
     return _toMessage(sent, names);
@@ -71,17 +87,20 @@ class ApiChatRepository implements ChatRepository {
 
   @override
   Future<List<ChatUser>> getParticipants(int roomId) async {
+    _checkSession();
     final rows = await _api.participants(roomId);
     _nameCache[roomId] = {
       for (final p in rows) p.userId: p.nickname ?? _unknownSender,
     };
     return rows
-        .map((p) => ChatUser(
-              userId: p.userId,
-              nickname: p.nickname ?? _unknownSender,
-              isOwner: p.role == 'OWNER',
-              isActive: p.status == 'ACTIVE',
-            ))
+        .map(
+          (p) => ChatUser(
+            userId: p.userId,
+            nickname: p.nickname ?? _unknownSender,
+            isOwner: p.role == 'OWNER',
+            isActive: p.status == 'ACTIVE',
+          ),
+        )
         .toList();
   }
 
@@ -92,17 +111,18 @@ class ApiChatRepository implements ChatRepository {
   Future<void> kick(int roomId, int userId) => _api.kick(roomId, userId);
 
   ChatRoom _toRoom(ChatRoomResponse r) => ChatRoom(
-        id: r.roomId,
-        scheduleId: r.scheduleId,
-        title: r.title,
-        participantCount: r.participantCount,
-        readOnly: r.readOnly,
-        expiresAt: r.expiresAt,
-        latestSeq: r.latestSeq,
-      );
+    id: r.roomId,
+    scheduleId: r.scheduleId,
+    title: r.title,
+    participantCount: r.participantCount,
+    readOnly: r.readOnly,
+    expiresAt: r.expiresAt,
+    latestSeq: r.latestSeq,
+  );
 
   /// 방의 이름 표. 없으면 한 번 받아 둔다.
   Future<Map<int, String>> _names(int roomId) async {
+    _checkSession();
     final cached = _nameCache[roomId];
     if (cached != null) return cached;
     await getParticipants(roomId);

@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../../core/naver_map/naver_map_adapter.dart';
-import '../../../core/naver_map/naver_map_bootstrap.dart';
+import '../../../core/maps/map_adapter.dart';
+import '../../../core/maps/map_bootstrap.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../common/theme/app_icons.dart';
 import '../widgets/trip_step_header.dart';
@@ -30,7 +30,7 @@ class TripStep5Screen extends StatefulWidget {
 }
 
 class _TripStep5ScreenState extends State<TripStep5Screen> {
-  NaverMapController? _mapController;
+  AppMapController? _mapController;
   Map<String, dynamic>? _sidoGeo;
   Map<String, dynamic>? _sggGeo;
 
@@ -42,8 +42,8 @@ class _TripStep5ScreenState extends State<TripStep5Screen> {
   static const _kPlaceholder = '선택';
   static const _kAllCities  = '전체';
 
-  static const _kKoreaOverview = NCameraPosition(
-    target: NLatLng(36.0, 128.5),
+  static const _kKoreaOverview = MapCameraPosition(
+    target: MapCoordinate(36.0, 128.5),
     zoom: 6.0,
   );
 
@@ -134,8 +134,8 @@ class _TripStep5ScreenState extends State<TripStep5Screen> {
     _sggGeo = json.decode(sggStr) as Map<String, dynamic>;
   }
 
-  List<NLatLng> _coordsToLatLng(List<dynamic> ring) =>
-      ring.map((p) => NLatLng(p[1] as double, p[0] as double)).toList();
+  List<MapCoordinate> _coordsToLatLng(List<dynamic> ring) =>
+      ring.map((p) => MapCoordinate(p[1] as double, p[0] as double)).toList();
 
   /// 시도 이름 → CTPRVN_CD (e.g. '서울특별시' → '11')
   String? _getProvinceCode(String provinceName) {
@@ -148,14 +148,14 @@ class _TripStep5ScreenState extends State<TripStep5Screen> {
     return null;
   }
 
-  List<NPolygonOverlay> _buildOverlays(
+  List<MapPolygonOverlay> _buildOverlays(
     String idPrefix,
     List<dynamic> features,
     String nameKey,
     String matchName, {
     String? provinceCode,
   }) {
-    final overlays = <NPolygonOverlay>[];
+    final overlays = <MapPolygonOverlay>[];
     int idx = 0;
     for (final feature in features) {
       final props = feature['properties'] as Map<String, dynamic>;
@@ -180,12 +180,12 @@ class _TripStep5ScreenState extends State<TripStep5Screen> {
     return overlays;
   }
 
-  NPolygonOverlay _makeOverlay(String id, List<dynamic> rings) {
+  MapPolygonOverlay _makeOverlay(String id, List<dynamic> rings) {
     final outer = _coordsToLatLng(rings[0] as List<dynamic>);
     final holes = rings.length > 1
         ? rings.sublist(1).map((r) => _coordsToLatLng(r as List<dynamic>)).toList()
-        : <List<NLatLng>>[];
-    return NPolygonOverlay(
+        : <List<MapCoordinate>>[];
+    return MapPolygonOverlay(
       id: id,
       coords: outer,
       holes: holes,
@@ -195,8 +195,8 @@ class _TripStep5ScreenState extends State<TripStep5Screen> {
     );
   }
 
-  /// 매칭된 feature들의 좌표 전체를 아우르는 NLatLngBounds 계산
-  NLatLngBounds? _computeBounds(
+  /// 매칭된 feature들의 좌표 전체를 아우르는 MapCoordinateBounds 계산
+  MapCoordinateBounds? _computeBounds(
     List<dynamic> features,
     String nameKey,
     String matchName, {
@@ -235,17 +235,17 @@ class _TripStep5ScreenState extends State<TripStep5Screen> {
     }
 
     if (minLat == null) return null;
-    return NLatLngBounds(
-      southWest: NLatLng(minLat!, minLng!),
-      northEast: NLatLng(maxLat!, maxLng!),
+    return MapCoordinateBounds(
+      southWest: MapCoordinate(minLat!, minLng!),
+      northEast: MapCoordinate(maxLat!, maxLng!),
     );
   }
 
-  void _fitBounds(NLatLngBounds bounds) {
+  void _fitBounds(MapCoordinateBounds bounds) {
     _mapController?.updateCamera(
-      NCameraUpdate.fitBounds(bounds, padding: const EdgeInsets.all(48))
+      MapCameraUpdate.fitBounds(bounds, padding: const EdgeInsets.all(48))
         ..setAnimation(
-          animation: NCameraAnimation.easing,
+          animation: MapCameraAnimation.easing,
           duration: const Duration(milliseconds: 600),
         ),
     );
@@ -257,7 +257,7 @@ class _TripStep5ScreenState extends State<TripStep5Screen> {
 
     if (_sidoGeo == null || _sggGeo == null) await _loadGeoJson();
 
-    await controller.clearOverlays(type: NOverlayType.polygonOverlay);
+    await controller.clearOverlays(type: MapOverlayType.polygonOverlay);
 
     final province = widget.selectedProvince;
     final city = widget.selectedCity;
@@ -265,9 +265,9 @@ class _TripStep5ScreenState extends State<TripStep5Screen> {
     if (province == _kPlaceholder) {
       // 한국 전체 뷰로 복귀
       controller.updateCamera(
-        NCameraUpdate.fromCameraPosition(_kKoreaOverview)
+        MapCameraUpdate.fromCameraPosition(_kKoreaOverview)
           ..setAnimation(
-            animation: NCameraAnimation.easing,
+            animation: MapCameraAnimation.easing,
             duration: const Duration(milliseconds: 600),
           ),
       );
@@ -453,20 +453,16 @@ class _TripStep5ScreenState extends State<TripStep5Screen> {
       clipBehavior: Clip.hardEdge,
       child: Stack(
         children: [
-          // 지도 식별자가 다음 것으로 바뀌면 지도를 다시 만든다. 인증 판정은
-          // 지도를 그릴 때 오는데, 그때 이미 만들어진 지도는 처음 식별자로
-          // 인증을 끝낸 뒤라 스스로 다시 묻지 않는다 — 다시 만들지 않으면 첫
-          // 진입 화면만 계속 비어 있고 나갔다 들어와야 나온다.
           ValueListenableBuilder<int>(
-            valueListenable: naverMapAuthGeneration,
-            builder: (context, generation, _) => NaverMap(
+            valueListenable: mapGeneration,
+            builder: (context, generation, _) => AppMap(
               key: ValueKey('step5-map-$generation'),
-              options: const NaverMapViewOptions(
+              options: const AppMapOptions(
                 initialCameraPosition: _kKoreaOverview,
                 scrollGesturesEnable: true,
                 zoomGesturesEnable: true,
                 rotationGesturesEnable: false,
-                mapType: NMapType.basic,
+                mapType: AppMapType.basic,
               ),
               onMapReady: (controller) {
                 _mapController = controller;
@@ -484,11 +480,11 @@ class _TripStep5ScreenState extends State<TripStep5Screen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   _buildGlassButton(Icons.add, () {
-                    _mapController?.updateCamera(NCameraUpdate.zoomIn());
+                    _mapController?.updateCamera(MapCameraUpdate.zoomIn());
                   }),
                   const SizedBox(height: 8),
                   _buildGlassButton(Icons.remove, () {
-                    _mapController?.updateCamera(NCameraUpdate.zoomOut());
+                    _mapController?.updateCamera(MapCameraUpdate.zoomOut());
                   }),
                 ],
               ),

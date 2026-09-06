@@ -9,8 +9,8 @@ int _int(dynamic value) => (value as num?)?.toInt() ?? 0;
 /// 채팅방 한 개의 전체 정보.
 class ChatRoomResponse {
   final int roomId;
-  final int scheduleId;
-  final int ownerId;
+  final int? scheduleId;
+  final int? ownerId;
   final String title;
 
   /// 보관 전용으로 넘어갔는지. 참이면 더 이상 말할 수 없다.
@@ -38,8 +38,8 @@ class ChatRoomResponse {
   factory ChatRoomResponse.fromJson(Map<String, dynamic> json) =>
       ChatRoomResponse(
         roomId: _int(json['room_id']),
-        scheduleId: _int(json['schedule_id']),
-        ownerId: _int(json['owner_id']),
+        scheduleId: (json['schedule_id'] as num?)?.toInt(),
+        ownerId: (json['owner_id'] as num?)?.toInt(),
         title: json['title'] as String? ?? '',
         readOnly: json['read_only'] as bool? ?? false,
         expiresAt: _time(json['expires_at']),
@@ -51,7 +51,7 @@ class ChatRoomResponse {
 /// 목록 화면 한 줄에 필요한 요약.
 class ChatRoomSummary {
   final int roomId;
-  final int scheduleId;
+  final int? scheduleId;
   final String title;
   final bool readOnly;
   final int unreadCount;
@@ -75,9 +75,10 @@ class ChatRoomSummary {
     required this.participantCount,
   });
 
-  factory ChatRoomSummary.fromJson(Map<String, dynamic> json) => ChatRoomSummary(
+  factory ChatRoomSummary.fromJson(Map<String, dynamic> json) =>
+      ChatRoomSummary(
         roomId: _int(json['room_id']),
-        scheduleId: _int(json['schedule_id']),
+        scheduleId: (json['schedule_id'] as num?)?.toInt(),
         title: json['title'] as String? ?? '',
         readOnly: json['read_only'] as bool? ?? false,
         unreadCount: _int(json['unread_count']),
@@ -155,9 +156,9 @@ class ChatHistoryResponse {
     return ChatHistoryResponse(
       messages: raw is List
           ? raw
-              .whereType<Map<String, dynamic>>()
-              .map(ChatMessageResponse.fromJson)
-              .toList()
+                .whereType<Map<String, dynamic>>()
+                .map(ChatMessageResponse.fromJson)
+                .toList()
           : const [],
       nextCursor: (json['next_cursor'] as num?)?.toInt(),
     );
@@ -238,7 +239,10 @@ class ChatApiService {
   ///
   /// 방은 일정 하나에 하나뿐이라 여러 번 불러도 같은 방이 돌아온다.
   Future<ChatRoomResponse> createOrGetRoom(int scheduleId) async {
-    final json = await _api.post('$_base/rooms', body: {'schedule_id': scheduleId});
+    final json = await _api.post(
+      '$_base/rooms',
+      body: {'schedule_id': scheduleId},
+    );
     return ChatRoomResponse.fromJson(json);
   }
 
@@ -261,7 +265,11 @@ class ChatApiService {
   }
 
   /// 지난 대화를 최신부터 읽는다. [beforeSeq] 를 주면 그 순번보다 앞을 읽는다.
-  Future<ChatHistoryResponse> history(int roomId, {int? beforeSeq, int? limit}) async {
+  Future<ChatHistoryResponse> history(
+    int roomId, {
+    int? beforeSeq,
+    int? limit,
+  }) async {
     final query = <String, String>{};
     if (beforeSeq != null) query['before_seq'] = '$beforeSeq';
     if (limit != null) query['limit'] = '$limit';
@@ -270,15 +278,23 @@ class ChatApiService {
   }
 
   /// 소켓이 끊겼을 때 쓰는 전송 경로.
-  Future<ChatMessageResponse> send(int roomId, String content, String clientMsgId) async {
-    final json = await _api.post('$_base/rooms/$roomId/messages',
-        body: {'content': content, 'client_msg_id': clientMsgId});
+  Future<ChatMessageResponse> send(
+    int roomId,
+    String content,
+    String clientMsgId,
+  ) async {
+    final json = await _api.post(
+      '$_base/rooms/$roomId/messages',
+      body: {'content': content, 'client_msg_id': clientMsgId},
+    );
     return ChatMessageResponse.fromJson(json);
   }
 
   Future<ChatUnreadResponse> markRead(int roomId, int lastReadSeq) async {
-    final json = await _api.post('$_base/rooms/$roomId/read',
-        body: {'last_read_seq': lastReadSeq});
+    final json = await _api.post(
+      '$_base/rooms/$roomId/read',
+      body: {'last_read_seq': lastReadSeq},
+    );
     return ChatUnreadResponse.fromJson(json);
   }
 

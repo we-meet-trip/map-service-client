@@ -26,7 +26,7 @@ class ChatRoom {
   final int id;
 
   /// 이 방이 매달린 일정 번호.
-  final int scheduleId;
+  final int? scheduleId;
 
   final String title;
 
@@ -59,12 +59,14 @@ class ChatRoom {
   /// 화면을 열어 둔 채 자정을 넘겼을 때 실제 상태와 어긋난다.
   ChatRoomType get type {
     final closesAt = expiresAt;
-    final ended = readOnly || (closesAt != null && !DateTime.now().isBefore(closesAt));
+    final ended =
+        readOnly || (closesAt != null && !DateTime.now().isBefore(closesAt));
     return ended ? ChatRoomType.past : ChatRoomType.upcoming;
   }
 
   /// 목록 정렬에 쓰는 시각. 대화가 없으면 방이 뒤로 가도록 아주 과거로 둔다.
-  DateTime get sortedAt => lastMessageAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+  DateTime get sortedAt =>
+      lastMessageAt ?? DateTime.fromMillisecondsSinceEpoch(0);
 
   ChatRoom copyWith({
     List<User>? participants,
@@ -74,18 +76,17 @@ class ChatRoom {
     int? unreadCount,
     String? lastMessage,
     DateTime? lastMessageAt,
-  }) =>
-      ChatRoom(
-        id: id,
-        scheduleId: scheduleId,
-        title: title,
-        participants: participants ?? this.participants,
-        participantCount: participantCount ?? this.participantCount,
-        readOnly: readOnly ?? this.readOnly,
-        expiresAt: expiresAt,
-        latestSeq: latestSeq ?? this.latestSeq,
-        unreadCount: unreadCount ?? this.unreadCount,
-        lastMessage: lastMessage ?? this.lastMessage,
-        lastMessageAt: lastMessageAt ?? this.lastMessageAt,
-      );
+  }) => ChatRoom(
+    id: id,
+    scheduleId: scheduleId,
+    title: title,
+    participants: participants ?? this.participants,
+    participantCount: participantCount ?? this.participantCount,
+    readOnly: readOnly ?? this.readOnly,
+    expiresAt: expiresAt,
+    latestSeq: latestSeq ?? this.latestSeq,
+    unreadCount: unreadCount ?? this.unreadCount,
+    lastMessage: lastMessage ?? this.lastMessage,
+    lastMessageAt: lastMessageAt ?? this.lastMessageAt,
+  );
 }

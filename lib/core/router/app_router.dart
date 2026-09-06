@@ -264,7 +264,7 @@ final appRouter = GoRouter(
                     GoRoute(
                       path: 'edit',
                       builder: (context, state) => SavedPlanEditScreen(
-                        trip: state.extra as SavedTrip,
+                        trip: state.extra is SavedTrip ? state.extra as SavedTrip : null,
                       ),
                     ),
                     GoRoute(
