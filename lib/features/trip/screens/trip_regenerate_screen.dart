@@ -11,6 +11,7 @@ import 'trip_step4_screen.dart';
 import 'trip_step5_screen.dart';
 import 'google_trip_step5_screen.dart';
 import 'trip_created_screen.dart';
+import 'google_trip_created_screen.dart';
 
 // trip_step3_screen.dart 테마 목록의 첫 항목(맛집 탐방) id와 동일해야 한다.
 const _kDefaultThemeId = 'food';
@@ -295,7 +296,7 @@ class _TripRegenerateScreenState extends State<TripRegenerateScreen> {
           }),
         );
       case 6:
-        return TripCreatedScreen(
+        return GoogleTripCreatedScreen(
           response: _tripResponse,
           startDate: _startDate,
           endDate: _endDate,

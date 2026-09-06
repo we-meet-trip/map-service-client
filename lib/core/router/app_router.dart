@@ -39,6 +39,8 @@ import '../../features/splash/screens/splash_screen.dart';
 import '../../features/mobility/screens/bike_scooter_location_screen.dart';
 import '../../features/vision/screens/vision_screen.dart';
 import '../../features/trip/screens/google_map_screen.dart';
+import '../../features/trip/screens/google_trip_created_screen.dart';
+import '../../features/trip/screens/google_place_pick_screen.dart';
 import '../api/trip_api_service.dart';
 import '../../features/saved/screens/navigation_screen.dart';
 import '../../features/trip/screens/subway_route_screen.dart';
@@ -188,7 +190,7 @@ final appRouter = GoRouter(
                   routes: [
                     GoRoute(
                       path: 'places',
-                      builder: (context, state) => const PlacePickScreen(),
+                      builder: (context, state) => const GooglePlacePickScreen(),
                     ),
                   ],
                 ),
@@ -234,7 +236,7 @@ final appRouter = GoRouter(
               routes: [
                 GoRoute(
                   path: 'trip',
-                  builder: (context, state) => TripCreatedScreen(
+                  builder: (context, state) => GoogleTripCreatedScreen(
                     showBackButton: true,
                     savedTrip: state.extra as SavedTrip?,
                   ),
