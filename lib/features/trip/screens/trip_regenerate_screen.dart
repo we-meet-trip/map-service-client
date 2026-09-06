@@ -9,6 +9,7 @@ import 'trip_step2_screen.dart';
 import 'trip_step3_screen.dart';
 import 'trip_step4_screen.dart';
 import 'trip_step5_screen.dart';
+import 'google_trip_step5_screen.dart';
 import 'trip_created_screen.dart';
 
 // trip_step3_screen.dart 테마 목록의 첫 항목(맛집 탐방) id와 동일해야 한다.
@@ -283,7 +284,7 @@ class _TripRegenerateScreenState extends State<TripRegenerateScreen> {
           onTransportChanged: (t) => setState(() => _selectedTransport = t),
         );
       case 5:
-        return TripStep5Screen(
+        return GoogleTripStep5Screen(
           onNext: _next,
           onPrev: _prev,
           selectedProvince: _selectedProvince,

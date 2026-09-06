@@ -44,7 +44,7 @@ val naverMapClientId = envProperties.getProperty("NAVER_MAP_CLIENT_ID")
     ?: localProperties.getProperty("naver.map.client.id")
     ?: ""
 
-val mapsApiKey = localProperties.getProperty("MAPS_API_KEY") ?: ""
+val mapsApiKey = envProperties.getProperty("MAPS_API_KEY") ?: ""
 
 android {
     namespace = "kr.mapservice.client"
