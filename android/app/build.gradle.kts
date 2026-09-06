@@ -44,6 +44,8 @@ val naverMapClientId = envProperties.getProperty("NAVER_MAP_CLIENT_ID")
     ?: localProperties.getProperty("naver.map.client.id")
     ?: ""
 
+val mapsApiKey = localProperties.getProperty("MAPS_API_KEY") ?: ""
+
 android {
     namespace = "kr.mapservice.client"
     compileSdk = flutter.compileSdkVersion
@@ -68,6 +70,7 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         manifestPlaceholders["naverMapClientId"] = naverMapClientId
+        manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
         // 초대 링크를 받는 도메인. 이 도메인의 /.well-known/assetlinks.json 에
         // 아래 applicationId 와 릴리스 서명 지문이 올라가 있어야 링크가 앱으로
         // 열린다(그렇지 않으면 브라우저로만 열린다).
