@@ -13,7 +13,6 @@ import '../../features/place_explore/screens/place_explore_step1_screen.dart';
 import '../../features/place_explore/screens/place_explore_step2_screen.dart';
 import '../../features/place_explore/providers/place_explore_provider.dart';
 import '../../features/trip/screens/trip_directions_screen.dart';
-import '../../features/trip/screens/place_pick_screen.dart';
 import '../../features/trip/screens/search_step1_screen.dart';
 import '../../features/saved/screens/saved_screen.dart';
 import '../../features/chat/providers/chat_room_detail_provider.dart';
@@ -40,7 +39,6 @@ import '../../features/mobility/screens/bike_scooter_location_screen.dart';
 import '../../features/vision/screens/vision_screen.dart';
 import '../../features/trip/screens/google_map_screen.dart';
 import '../../features/trip/screens/google_trip_created_screen.dart';
-import '../../features/trip/screens/google_place_pick_screen.dart';
 import '../api/trip_api_service.dart';
 import '../../features/saved/screens/navigation_screen.dart';
 import '../../features/trip/screens/subway_route_screen.dart';
@@ -187,12 +185,6 @@ final appRouter = GoRouter(
                 GoRoute(
                   path: 'search',
                   builder: (context, state) => const SearchStep1Screen(),
-                  routes: [
-                    GoRoute(
-                      path: 'places',
-                      builder: (context, state) => const GooglePlacePickScreen(),
-                    ),
-                  ],
                 ),
                 GoRoute(
                   path: 'place-explore/step1',
