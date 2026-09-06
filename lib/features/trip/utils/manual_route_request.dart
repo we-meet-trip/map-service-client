@@ -22,8 +22,7 @@ class ManualRouteDraft {
 
 /// 직접 고친 방문지 목록으로 동선 요청을 짠다.
 ///
-/// 순서는 화면에 보이는 그대로 담는다. 서버가 동선을 다시 짜며 순서를 바꿀
-/// 수 있지만, 사용자가 옮겨 둔 순서가 출발점이 되어야 한다.
+/// 순서는 화면에 보이는 그대로 담으며 optimize=false로 사용자 순서를 보존한다.
 ///
 /// 방문 시각은 싣지 않는다. 장소를 더하거나 빼면 그 앞뒤가 전부 밀리므로
 /// 시각은 서버가 다시 계산한다.
@@ -48,6 +47,7 @@ ManualRouteDraft buildManualRouteDraft({
 
   return ManualRouteDraft(
     request: TripRouteRequest(
+      optimize: false,
       startDate: startDate,
       endDate: endDate,
       activeStartHour: activeStartHour,

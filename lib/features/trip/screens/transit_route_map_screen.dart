@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../common/widgets/back_header.dart';
 import '../../../core/api/transit_route_options_service.dart';
-import '../../../core/naver_map/naver_map_adapter.dart';
+import '../../../core/maps/map_adapter.dart';
 
 class TransitRouteMapArgs {
   final String originLabel;
@@ -45,29 +45,29 @@ class _TransitRouteMapScreenState extends State<TransitRouteMapScreen> {
         TransitLegType.walk => AppColors.neutralScale[300]!,
       };
 
-  Future<void> _onMapReady(NaverMapController controller) async {
+  Future<void> _onMapReady(AppMapController controller) async {
     await controller.clearOverlays();
 
     final args = widget.args;
     final legs = args.option.legs;
-    final points = <NLatLng>[NLatLng(args.originLat, args.originLng)];
-    NLatLng cursor = points.first;
+    final points = <MapCoordinate>[MapCoordinate(args.originLat, args.originLng)];
+    MapCoordinate cursor = points.first;
 
     for (var i = 0; i < legs.length; i++) {
       final leg = legs[i];
       if (leg.geometry.isEmpty) continue; // 좌표 없는 도보 연결 구간
       final legCoords =
-          leg.geometry.map((p) => NLatLng(p[0], p[1])).toList();
+          leg.geometry.map((p) => MapCoordinate(p[0], p[1])).toList();
 
       // 이전 구간 끝(또는 출발지)과 이 구간 시작 사이는 좌표가 없어 잇는
       // 회색 연결선이다 — 실제 도보 경로가 아니라 근사 직선이다.
-      await controller.addOverlay(NPathOverlay(
+      await controller.addOverlay(MapPathOverlay(
         id: 'connector_$i',
         coords: [cursor, legCoords.first],
         color: AppColors.neutralScale[300]!,
         width: 3,
       ));
-      await controller.addOverlay(NPathOverlay(
+      await controller.addOverlay(MapPathOverlay(
         id: 'leg_$i',
         coords: legCoords,
         color: _legColor(leg.type),
@@ -79,8 +79,8 @@ class _TransitRouteMapScreenState extends State<TransitRouteMapScreen> {
       points.addAll(legCoords);
     }
 
-    final destination = NLatLng(args.destinationLat, args.destinationLng);
-    await controller.addOverlay(NPathOverlay(
+    final destination = MapCoordinate(args.destinationLat, args.destinationLng);
+    await controller.addOverlay(MapPathOverlay(
       id: 'connector_end',
       coords: [cursor, destination],
       color: AppColors.neutralScale[300]!,
@@ -89,22 +89,22 @@ class _TransitRouteMapScreenState extends State<TransitRouteMapScreen> {
     points.add(destination);
 
     await controller.addOverlay(
-      NMarker(id: 'origin', position: points.first),
+      MapMarker(id: 'origin', position: points.first),
     );
     await controller.addOverlay(
-      NMarker(id: 'destination', position: destination),
+      MapMarker(id: 'destination', position: destination),
     );
 
     final lats = points.map((p) => p.latitude);
     final lngs = points.map((p) => p.longitude);
-    final bounds = NLatLngBounds(
-      southWest: NLatLng(lats.reduce(min), lngs.reduce(min)),
-      northEast: NLatLng(lats.reduce(max), lngs.reduce(max)),
+    final bounds = MapCoordinateBounds(
+      southWest: MapCoordinate(lats.reduce(min), lngs.reduce(min)),
+      northEast: MapCoordinate(lats.reduce(max), lngs.reduce(max)),
     );
     await controller.updateCamera(
-      NCameraUpdate.fitBounds(bounds, padding: const EdgeInsets.all(56))
+      MapCameraUpdate.fitBounds(bounds, padding: const EdgeInsets.all(56))
         ..setAnimation(
-          animation: NCameraAnimation.fly,
+          animation: MapCameraAnimation.fly,
           duration: const Duration(milliseconds: 800),
         ),
     );
@@ -123,17 +123,17 @@ class _TransitRouteMapScreenState extends State<TransitRouteMapScreen> {
             SizedBox(
               width: double.infinity,
               height: 280,
-              child: NaverMap(
-                options: NaverMapViewOptions(
-                  initialCameraPosition: NCameraPosition(
+              child: AppMap(
+                options: AppMapOptions(
+                  initialCameraPosition: MapCameraPosition(
                     target:
-                        NLatLng(widget.args.originLat, widget.args.originLng),
+                        MapCoordinate(widget.args.originLat, widget.args.originLng),
                     zoom: 13,
                   ),
                   scrollGesturesEnable: true,
                   zoomGesturesEnable: true,
                   rotationGesturesEnable: false,
-                  mapType: NMapType.basic,
+                  mapType: AppMapType.basic,
                 ),
                 onMapReady: _onMapReady,
               ),

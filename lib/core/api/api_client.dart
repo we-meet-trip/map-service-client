@@ -50,25 +50,35 @@ class ApiClient {
   /// 자격 자체의 문제다.
   static bool _isAuthPath(String path) => path.startsWith('/api/v1/auth/');
 
-  Future<Map<String, dynamic>> get(String path,
-          {Map<String, String>? query, Duration? timeout}) =>
-      _send('GET', path, query: query, timeout: timeout);
+  Future<Map<String, dynamic>> get(
+    String path, {
+    Map<String, String>? query,
+    Duration? timeout,
+  }) => _send('GET', path, query: query, timeout: timeout);
 
-  Future<Map<String, dynamic>> post(String path,
-          {Object? body, Duration? timeout}) =>
-      _send('POST', path, body: body, timeout: timeout);
+  Future<Map<String, dynamic>> post(
+    String path, {
+    Object? body,
+    Duration? timeout,
+  }) => _send('POST', path, body: body, timeout: timeout);
 
-  Future<Map<String, dynamic>> put(String path,
-          {Object? body, Duration? timeout}) =>
-      _send('PUT', path, body: body, timeout: timeout);
+  Future<Map<String, dynamic>> put(
+    String path, {
+    Object? body,
+    Duration? timeout,
+  }) => _send('PUT', path, body: body, timeout: timeout);
 
-  Future<Map<String, dynamic>> patch(String path,
-          {Object? body, Duration? timeout}) =>
-      _send('PATCH', path, body: body, timeout: timeout);
+  Future<Map<String, dynamic>> patch(
+    String path, {
+    Object? body,
+    Duration? timeout,
+  }) => _send('PATCH', path, body: body, timeout: timeout);
 
-  Future<Map<String, dynamic>> delete(String path,
-          {Object? body, Duration? timeout}) =>
-      _send('DELETE', path, body: body, timeout: timeout);
+  Future<Map<String, dynamic>> delete(
+    String path, {
+    Object? body,
+    Duration? timeout,
+  }) => _send('DELETE', path, body: body, timeout: timeout);
 
   Future<Map<String, dynamic>> _send(
     String method,
@@ -78,12 +88,21 @@ class ApiClient {
     Duration? timeout,
     bool retried = false,
   }) async {
-    final uri = Uri.parse('$kApiBaseUrl$path').replace(
-      queryParameters: query == null || query.isEmpty ? null : query,
-    );
+    if (!AppConfig.instance.requestsAllowed) {
+      throw const ApiException(
+        statusCode: 503,
+        code: 'CONFIG_UNAVAILABLE',
+        message: '서버 설정을 확인하지 못했어요. 잠시 후 앱을 다시 열어주세요.',
+      );
+    }
+    final sessionVersion = AuthStore.instance.sessionVersion;
+    final uri = Uri.parse(
+      '$kApiBaseUrl$path',
+    ).replace(queryParameters: query == null || query.isEmpty ? null : query);
     final headers = <String, String>{'Content-Type': 'application/json'};
     final token = AuthStore.instance.accessToken;
-    if (token != null && !_isAuthPath(path)) {
+    if (token != null &&
+        (!_isAuthPath(path) || path == '/api/v1/auth/logout')) {
       headers['Authorization'] = 'Bearer $token';
     }
 
@@ -93,8 +112,10 @@ class ApiClient {
       if (body != null) {
         request.body = jsonEncode(body);
       }
-      final streamed = await request.send().timeout(timeout ?? _timeout);
-      response = await http.Response.fromStream(streamed);
+      response = await request
+          .send()
+          .then(http.Response.fromStream)
+          .timeout(timeout ?? _timeout);
     } on TimeoutException {
       throw const ApiException(
         statusCode: 408,
@@ -103,11 +124,25 @@ class ApiClient {
       );
     }
 
+    if (sessionVersion != AuthStore.instance.sessionVersion) {
+      throw const ApiException(
+        statusCode: 409,
+        code: 'SESSION_CHANGED',
+        message: '로그인 상태가 변경됐어요. 다시 시도해주세요.',
+      );
+    }
+
     if (response.statusCode == 401 && !retried && !_isAuthPath(path)) {
       final refreshed = await AuthStore.instance.refresh();
       if (refreshed) {
-        return _send(method, path,
-            query: query, body: body, timeout: timeout, retried: true);
+        return _send(
+          method,
+          path,
+          query: query,
+          body: body,
+          timeout: timeout,
+          retried: true,
+        );
       }
     }
 
@@ -123,8 +158,10 @@ class ApiClient {
   }
 
   /// 목록을 돌려주는 경로용. 서버가 배열을 최상위로 주는 경우가 있다.
-  Future<List<dynamic>> getList(String path,
-      {Map<String, String>? query}) async {
+  Future<List<dynamic>> getList(
+    String path, {
+    Map<String, String>? query,
+  }) async {
     final out = await _send('GET', path, query: query);
     final data = out['data'];
     return data is List ? data : const [];
@@ -137,12 +174,10 @@ class ApiClient {
       try {
         final parsed = jsonDecode(utf8.decode(response.bodyBytes));
         if (parsed is Map<String, dynamic>) {
-          code = parsed['code'] as String? ??
-              parsed['error'] as String? ??
-              code;
-          message = parsed['message'] as String? ??
-              parsed['detail'] as String? ??
-              message;
+          final errorCode = parsed['code'] ?? parsed['error'];
+          final detail = parsed['message'] ?? parsed['detail'];
+          if (errorCode is String) code = errorCode;
+          if (detail is String) message = detail;
         }
       } on FormatException {
         // 본문이 JSON 이 아니면 상태 코드만 남긴다.

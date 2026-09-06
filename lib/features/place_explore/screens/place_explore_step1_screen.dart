@@ -6,9 +6,9 @@ import 'package:provider/provider.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../common/widgets/next_button.dart';
 import '../../../common/widgets/prev_button.dart';
-import '../../../core/naver_map/map_pointer.dart';
-import '../../../core/naver_map/naver_map_adapter.dart';
-import '../../../core/naver_map/naver_map_bootstrap.dart';
+import '../../../core/maps/map_pointer.dart';
+import '../../../core/maps/map_adapter.dart';
+import '../../../core/maps/map_bootstrap.dart';
 import '../models/place.dart';
 import '../providers/place_explore_provider.dart';
 import '../widgets/place_pin.dart';
@@ -16,8 +16,8 @@ import '../widgets/place_bottom_sheet.dart';
 import '../widgets/glass_icon_button.dart';
 import '../../trip/widgets/trip_step_header.dart';
 
-const _kInitialCamera = NCameraPosition(
-  target: NLatLng(37.5666, 126.9784),
+const _kInitialCamera = MapCameraPosition(
+  target: MapCoordinate(37.5666, 126.9784),
   zoom: 12.0,
 );
 
@@ -43,7 +43,7 @@ class PlaceExploreStep1Screen extends StatefulWidget {
 }
 
 class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
-  NaverMapController? _mapController;
+  AppMapController? _mapController;
   bool _markersInitialized = false;
 
   @override
@@ -90,7 +90,7 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
   ///
   /// 처음 보는 좌표는 고정값이라 다른 지역 일정이면 마커가 화면 밖에 남는다.
   Future<void> _fitCamera(
-      NaverMapController controller, List<Place> places) async {
+      AppMapController controller, List<Place> places) async {
     if (places.isEmpty) return;
 
     var minLat = places.first.latitude;
@@ -109,8 +109,8 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
     const minSpan = 1e-6;
     if (maxLat - minLat < minSpan && maxLng - minLng < minSpan) {
       await controller.updateCamera(
-        NCameraUpdate.scrollAndZoomTo(
-          target: NLatLng(minLat, minLng),
+        MapCameraUpdate.scrollAndZoomTo(
+          target: MapCoordinate(minLat, minLng),
           zoom: 14,
         ),
       );
@@ -118,10 +118,10 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
     }
 
     await controller.updateCamera(
-      NCameraUpdate.fitBounds(
-        NLatLngBounds(
-          southWest: NLatLng(minLat, minLng),
-          northEast: NLatLng(maxLat, maxLng),
+      MapCameraUpdate.fitBounds(
+        MapCoordinateBounds(
+          southWest: MapCoordinate(minLat, minLng),
+          northEast: MapCoordinate(maxLat, maxLng),
         ),
         padding: _mapInset(),
       ),
@@ -142,7 +142,7 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
   }
 
   Future<void> _initMarkers(
-      NaverMapController controller, List<Place> places, int pass) async {
+      AppMapController controller, List<Place> places, int pass) async {
     // 지도가 바뀌었는지도 함께 본다. 번호만으로는 같은 순번에서 지도가 갈린
     // 경우를 못 가른다.
     bool stale() =>
@@ -151,15 +151,15 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
     for (int i = 0; i < places.length; i++) {
       if (!mounted || stale()) return;
       final place = places[i];
-      final icon = await NOverlayImage.fromWidget(
+      final icon = await MapOverlayImage.fromWidget(
         widget: PlacePin(number: i + 1),
         size: const Size(32, 40),
         context: context,
       );
       if (stale()) return;
-      final marker = NMarker(
+      final marker = MapMarker(
         id: place.id,
-        position: NLatLng(place.latitude, place.longitude),
+        position: MapCoordinate(place.latitude, place.longitude),
         icon: icon,
       );
       marker.setOnTapListener((_) {
@@ -176,7 +176,7 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
     if (detail == null || !mounted) return;
     // 시트가 떠 있는 동안은 지도를 잠근다. 웹에서는 지도가 화면에 직접
     // 얹혀 있어, 잠그지 않으면 시트를 밀어도 지도만 움직인다.
-    setNaverMapPointerEnabled(false);
+    setMapPointerEnabled(false);
     try {
       await showModalBottomSheet(
         context: context,
@@ -192,7 +192,7 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
         ),
       );
     } finally {
-      setNaverMapPointerEnabled(true);
+      setMapPointerEnabled(true);
     }
   }
 
@@ -211,21 +211,18 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
 
     return Stack(
       children: [
-        // 지도 식별자가 다음 것으로 바뀌면 지도를 다시 만든다. 인증 판정은
-        // 지도를 그릴 때 오는데, 그때 이미 만들어진 지도는 처음 식별자로
-        // 인증을 끝낸 뒤라 스스로 다시 묻지 않는다 — 다시 만들지 않으면 첫
-        // 진입 화면만 계속 비어 있고 나갔다 들어와야 나온다.
         Positioned.fill(
           child: ValueListenableBuilder<int>(
-            valueListenable: naverMapAuthGeneration,
-            builder: (context, generation, _) => NaverMap(
+            valueListenable: mapGeneration,
+            builder: (context, generation, _) => AppMap(
               key: ValueKey('explore-map-$generation'),
-              options: const NaverMapViewOptions(
+              options: const AppMapOptions(
                 initialCameraPosition: _kInitialCamera,
                 scrollGesturesEnable: true,
                 zoomGesturesEnable: true,
                 rotationGesturesEnable: false,
-                mapType: NMapType.basic,
+                mapType: AppMapType.basic,
+                contentPadding: EdgeInsets.only(bottom: 160),
               ),
               onMapReady: (controller) {
                 // 새로 만든 지도에는 마커가 없다. 그렸다는 표시를 지워 다시
@@ -256,13 +253,13 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
                 GlassIconButton(
                   icon: Icons.add,
                   onPressed: () =>
-                      _mapController?.updateCamera(NCameraUpdate.zoomIn()),
+                      _mapController?.updateCamera(MapCameraUpdate.zoomIn()),
                 ),
                 const SizedBox(height: 8),
                 GlassIconButton(
                   icon: Icons.remove,
                   onPressed: () =>
-                      _mapController?.updateCamera(NCameraUpdate.zoomOut()),
+                      _mapController?.updateCamera(MapCameraUpdate.zoomOut()),
                 ),
               ],
             ),

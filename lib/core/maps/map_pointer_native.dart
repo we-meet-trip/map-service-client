@@ -1,0 +1,1 @@
+void setMapPointerEnabled(bool enabled) {}

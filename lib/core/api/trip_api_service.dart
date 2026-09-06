@@ -107,6 +107,7 @@ class TripRouteRequest {
   final String province;
   final String city;
   final List<SelectedPlace> places;
+  final bool optimize;
 
   const TripRouteRequest({
     required this.startDate,
@@ -117,6 +118,7 @@ class TripRouteRequest {
     required this.province,
     required this.city,
     required this.places,
+    this.optimize = false,
   });
 
   String _fmtDate(DateTime d) =>
@@ -135,6 +137,7 @@ class TripRouteRequest {
           'city': city,
         },
         'places': places.map((p) => p.toJson()).toList(),
+        'optimize': optimize,
       };
 }
 

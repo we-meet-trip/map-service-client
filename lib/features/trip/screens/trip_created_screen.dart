@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import '../../../core/naver_map/naver_map_adapter.dart';
-import '../../../core/naver_map/naver_map_bootstrap.dart';
+import '../../../core/maps/map_adapter.dart';
+import '../../../core/maps/map_bootstrap.dart';
 import 'package:go_router/go_router.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../common/theme/app_icons.dart';
@@ -17,7 +17,6 @@ import '../../../core/api/schedule_api_service.dart';
 import '../../../core/api/trip_api_service.dart';
 import '../../../core/router/app_router.dart';
 import '../../auth/widgets/kakao_login_button.dart';
-import '../../../common/widgets/draggable_vision_button.dart';
 import '../widgets/place_detail_sheet.dart';
 
 class TripCreatedScreen extends StatefulWidget {
@@ -57,7 +56,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
   late final int _totalDurationMinutes;
   late final List<int> _days;
   late int _selectedDay;
-  NaverMapController? _mapController;
+  AppMapController? _mapController;
 
   @override
   void initState() {
@@ -91,7 +90,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
         name: s.name,
         address: s.address,
         time: s.time,
-        latLng: NLatLng(s.latitude, s.longitude),
+        latLng: MapCoordinate(s.latitude, s.longitude),
         category: s.category,
         placeId: s.placeId,
         transport: s.transportToNext != null
@@ -100,7 +99,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
                 duration: '${s.transportToNext!.durationMinutes}분',
                 distance: '${s.transportToNext!.distanceKm}km',
                 path: s.transportToNext!.path
-                    ?.map((p) => NLatLng(p[0], p[1]))
+                    ?.map((p) => MapCoordinate(p[0], p[1]))
                     .toList(),
               )
             : null,
@@ -112,7 +111,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
       name: '속초 버스 터미널',
       address: '강원특별자치도 속초시 중앙로 96',
       time: '09:00',
-      latLng: const NLatLng(38.2052, 128.5917),
+      latLng: const MapCoordinate(38.2052, 128.5917),
       transport: _TransportInfo(
         label: '이동: 전동 킥보드',
         duration: '12분',
@@ -124,7 +123,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
       name: '속초해변',
       address: '강원특별자치도 속초시 청호동',
       time: '09:12',
-      latLng: const NLatLng(38.2014, 128.6008),
+      latLng: const MapCoordinate(38.2014, 128.6008),
       transport: _TransportInfo(
         label: '이동: 자전거',
         duration: '13분',
@@ -136,7 +135,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
       name: '속초 중앙시장',
       address: '강원특별자치도 속초시 중앙로 147',
       time: '09:25',
-      latLng: const NLatLng(38.2089, 128.5875),
+      latLng: const MapCoordinate(38.2089, 128.5875),
       transport: null,
     ),
   ];
@@ -298,19 +297,15 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
   // ── 지도 영역 ────────────────────────────────────────────────
 
   Widget _buildMapArea() {
-    // 지도 식별자가 다음 것으로 바뀌면 지도를 다시 만든다. 인증 판정은 지도를
-    // 그릴 때 오는데, 그때 이미 만들어진 지도는 처음 식별자로 인증을 끝낸
-    // 뒤라 스스로 다시 묻지 않는다 — 다시 만들지 않으면 첫 진입 화면만 계속
-    // 비어 있고 나갔다 들어와야 나온다.
     return SizedBox(
       width: double.infinity,
       height: 280,
       child: ValueListenableBuilder<int>(
-        valueListenable: naverMapAuthGeneration,
-        builder: (context, generation, _) => NaverMap(
+        valueListenable: mapGeneration,
+        builder: (context, generation, _) => AppMap(
           key: ValueKey('created-map-$generation'),
-          options: NaverMapViewOptions(
-            initialCameraPosition: NCameraPosition(
+          options: AppMapOptions(
+            initialCameraPosition: MapCameraPosition(
               target: _selectedDayStops.isNotEmpty
                   ? _selectedDayStops.first.latLng
                   : _stops.first.latLng,
@@ -319,7 +314,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
             scrollGesturesEnable: true,
             zoomGesturesEnable: true,
             rotationGesturesEnable: false,
-            mapType: NMapType.basic,
+            mapType: AppMapType.basic,
           ),
           onMapReady: _onMapReady,
         ),
@@ -362,7 +357,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
     );
   }
 
-  Future<void> _onMapReady(NaverMapController controller) async {
+  Future<void> _onMapReady(AppMapController controller) async {
     _mapController = controller;
     await _renderDayOverlays(controller);
   }
@@ -374,7 +369,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
   int _renderPass = 0;
   Future<void>? _renderInFlight;
 
-  Future<void> _renderDayOverlays(NaverMapController controller) async {
+  Future<void> _renderDayOverlays(AppMapController controller) async {
     // 번호를 먼저 올린다. 앞서 돌던 그리기가 이 값을 보고 다음 대기 지점에서
     // 스스로 물러난다.
     final pass = ++_renderPass;
@@ -391,7 +386,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
   }
 
   Future<void> _renderDayOverlaysPass(
-      NaverMapController controller, int pass) async {
+      AppMapController controller, int pass) async {
     final stops = _selectedDayStops;
     if (stops.isEmpty || !mounted) return;
     // 지도가 바뀌었는지도 함께 본다. 번호만으로는 같은 순번에서 지도가 갈린
@@ -405,13 +400,13 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
     // 번호 마커 추가
     for (int i = 0; i < stops.length; i++) {
       if (!mounted || stale()) return;
-      final icon = await NOverlayImage.fromWidget(
+      final icon = await MapOverlayImage.fromWidget(
         widget: _buildNumberMarker('${i + 1}'),
         size: const Size(36, 36),
         context: context,
       );
       if (stale()) return;
-      await controller.addOverlay(NMarker(
+      await controller.addOverlay(MapMarker(
         id: 'stop_$i',
         position: stops[i].latLng,
         icon: icon,
@@ -423,9 +418,9 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
     // 없으면 두 stop 을 잇는 직선을 이어 붙여 하나의 경로로 그린다.
     // 선택된 일차 안에서만 잇는다. 마지막 stop 의 이동 정보는 다음 날 첫
     // 장소로 이어지므로 여기서 쓰지 않는다(서버도 그 자리를 비워 보낸다).
-    final routeCoords = <NLatLng>[];
-    void addPoint(NLatLng p) {
-      // 구간 접점의 중복 좌표는 값 비교로 걸러 낸다(NLatLng == 에 의존하지 않음).
+    final routeCoords = <MapCoordinate>[];
+    void addPoint(MapCoordinate p) {
+      // 구간 접점의 중복 좌표는 값 비교로 걸러 낸다(MapCoordinate == 에 의존하지 않음).
       if (routeCoords.isEmpty ||
           routeCoords.last.latitude != p.latitude ||
           routeCoords.last.longitude != p.longitude) {
@@ -444,7 +439,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
     }
 
     if (routeCoords.length >= 2) {
-      await controller.addOverlay(NPathOverlay(
+      await controller.addOverlay(MapPathOverlay(
         id: 'route',
         coords: routeCoords,
         color: AppColors.primaryScale[400]!,
@@ -461,14 +456,14 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
         : stops.map((s) => s.latLng).toList();
     final lats = boundsPoints.map((p) => p.latitude);
     final lngs = boundsPoints.map((p) => p.longitude);
-    final bounds = NLatLngBounds(
-      southWest: NLatLng(lats.reduce(min), lngs.reduce(min)),
-      northEast: NLatLng(lats.reduce(max), lngs.reduce(max)),
+    final bounds = MapCoordinateBounds(
+      southWest: MapCoordinate(lats.reduce(min), lngs.reduce(min)),
+      northEast: MapCoordinate(lats.reduce(max), lngs.reduce(max)),
     );
     controller.updateCamera(
-      NCameraUpdate.fitBounds(bounds, padding: const EdgeInsets.all(56))
+      MapCameraUpdate.fitBounds(bounds, padding: const EdgeInsets.all(56))
         ..setAnimation(
-          animation: NCameraAnimation.fly,
+          animation: MapCameraAnimation.fly,
           duration: const Duration(milliseconds: 800),
         ),
     );
@@ -1463,7 +1458,7 @@ class _ScheduleStop {
   final String name;
   final String address;
   final String time;
-  final NLatLng latLng;
+  final MapCoordinate latLng;
   final _TransportInfo? transport;
 
   /// 장소 분류. 상세 시트의 분류 칩에 쓴다. 서버가 못 채우면 비어 있고,
@@ -1491,7 +1486,7 @@ class _TransportInfo {
   final String distance;
 
   /// 이 stop 에서 다음 stop 까지의 도로 추종 경로. 없으면 지도는 직선으로 잇는다.
-  final List<NLatLng>? path;
+  final List<MapCoordinate>? path;
 
   const _TransportInfo({
     required this.label,

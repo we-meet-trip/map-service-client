@@ -5,6 +5,7 @@ import 'package:map_service_client/core/api/api_client.dart';
 import 'package:map_service_client/core/api/chat_realtime_service.dart';
 import 'package:map_service_client/data/models/chat_message.dart';
 import 'package:map_service_client/data/models/chat_room.dart';
+import 'package:map_service_client/data/local/chat_outbox_store.dart';
 import 'package:map_service_client/data/repositories/chat_repository.dart';
 import 'package:map_service_client/data/repositories/invite_link_repository.dart';
 import 'package:map_service_client/features/chat/providers/chat_room_detail_provider.dart';
@@ -36,11 +37,13 @@ void main() {
     // 서버의 판단이 아니라 길이 막힌 것에 가깝다.
     final realtime = _FakeRealtime();
     final provider = _provider(
-      _FailingRepository(const ApiException(
-        statusCode: 408,
-        code: 'REQUEST_TIMEOUT',
-        message: '응답이 지연되고 있어요.',
-      )),
+      _FailingRepository(
+        const ApiException(
+          statusCode: 408,
+          code: 'REQUEST_TIMEOUT',
+          message: '응답이 지연되고 있어요.',
+        ),
+      ),
       realtime,
     );
 
@@ -53,11 +56,13 @@ void main() {
   test('서버가 거절하면 말풍선을 걷고 사유를 보여준다', () async {
     final realtime = _FakeRealtime();
     final provider = _provider(
-      _FailingRepository(const ApiException(
-        statusCode: 403,
-        code: 'CHAT_003',
-        message: '참가자가 아닙니다.',
-      )),
+      _FailingRepository(
+        const ApiException(
+          statusCode: 403,
+          code: 'CHAT_003',
+          message: '참가자가 아닙니다.',
+        ),
+      ),
       realtime,
     );
 
@@ -71,24 +76,30 @@ void main() {
     expect(provider.consumeSendError(), '참가자가 아닙니다.');
   });
 
-  test('다시 붙으면 보관해 둔 말이 순서대로 나간다', () async {
+  test('다시 붙으면 같은 식별자로 저장 확인을 받고 순서대로 비운다', () async {
     final realtime = _FakeRealtime();
-    final provider = _provider(_FailingRepository(_networkDown), realtime);
+    final repository = _FailingRepository(_networkDown);
+    final provider = _provider(repository, realtime);
     await provider.open(readOnly: false);
 
     await provider.sendMessage('첫째');
     await provider.sendMessage('둘째');
     expect(realtime.sent, isEmpty);
 
+    final ids = provider.messages.map((m) => m.clientMsgId).toList();
+    repository.failure = null;
+    repository.accepted.clear();
     realtime.becomeConnected();
     await Future<void>.delayed(Duration.zero);
 
     // 순서가 뒤집히면 대화가 뒤섞인다.
-    expect(realtime.sent, ['첫째', '둘째']);
+    expect(repository.accepted.map((m) => m.text), ['첫째', '둘째']);
+    expect(repository.accepted.map((m) => m.clientMsgId), ids);
     expect(provider.hasUnsent, isFalse);
+    expect(provider.messages.every((m) => !m.pending), isTrue);
   });
 
-  test('보관이 상한을 넘으면 오래된 것부터 버린다', () async {
+  test('보관 상한에서 이미 보관한 메시지를 조용히 버리지 않는다', () async {
     final realtime = _FakeRealtime();
     final provider = _provider(_FailingRepository(_networkDown), realtime);
     await provider.open(readOnly: false);
@@ -101,15 +112,85 @@ void main() {
     realtime.becomeConnected();
     await Future<void>.delayed(Duration.zero);
 
-    // 최근 것을 버리면 방금 친 말이 사라져 더 이상하게 보인다.
-    expect(realtime.sent.length, 20);
-    expect(realtime.sent.first, '말6');
-    expect(realtime.sent.last, '말25');
+    expect(provider.messages.length, 20);
+    expect(provider.messages.first.text, '말1');
+    expect(provider.messages.last.text, '말20');
+    expect(provider.hasUnsent, isTrue);
+    expect(provider.consumeSendError(), isNotNull);
+  });
+
+  test('화면을 닫았다 다시 열어도 미확인 메시지와 식별자가 복원된다', () async {
+    final store = _MemoryOutbox();
+    final first = ChatRoomDetailProvider(
+      _FailingRepository(_networkDown),
+      _StubInviteLinks(),
+      7,
+      realtime: _FakeRealtime(),
+      outboxStore: store,
+    );
+    await first.sendMessage('보관할 말');
+    final id = first.messages.single.clientMsgId;
+    first.dispose();
+    final second = ChatRoomDetailProvider(
+      _FailingRepository(_networkDown),
+      _StubInviteLinks(),
+      7,
+      realtime: _FakeRealtime(),
+      outboxStore: store,
+    );
+    addTearDown(second.dispose);
+    await second.open(readOnly: false);
+    expect(second.messages.single.clientMsgId, id);
+    expect(second.messages.single.text, '보관할 말');
+    expect(second.hasUnsent, isTrue);
+  });
+
+  test('저장 응답을 잃고 재조회한 경우 화면에 중복 메시지가 생기지 않는다', () async {
+    final repository = _FailingRepository(_networkDown);
+    final provider = _provider(repository, _FakeRealtime());
+    await provider.sendMessage('중복 금지');
+    final pending = provider.messages.single;
+    repository.history = [
+      ChatMessage(
+        roomId: 7,
+        seq: 1,
+        senderId: 1,
+        senderName: '나',
+        text: pending.text,
+        sentAt: pending.sentAt,
+        isMe: true,
+        clientMsgId: pending.clientMsgId,
+      ),
+    ];
+    await provider.loadMessages();
+    expect(provider.messages.length, 1);
+    expect(provider.messages.single.pending, isFalse);
+    expect(provider.hasUnsent, isFalse);
   });
 }
 
-ChatRoomDetailProvider _provider(ChatRepository repository, _FakeRealtime rt) =>
-    ChatRoomDetailProvider(repository, _StubInviteLinks(), 7, realtime: rt);
+ChatRoomDetailProvider _provider(ChatRepository repository, _FakeRealtime rt) {
+  final provider = ChatRoomDetailProvider(
+    repository,
+    _StubInviteLinks(),
+    7,
+    realtime: rt,
+    outboxStore: _MemoryOutbox(),
+  );
+  addTearDown(provider.dispose);
+  return provider;
+}
+
+class _MemoryOutbox extends ChatOutboxStore {
+  _MemoryOutbox() : super(7);
+  List<PendingChatMessage> held = [];
+  @override
+  Future<List<PendingChatMessage>> load() async => List.of(held);
+  @override
+  Future<void> save(List<PendingChatMessage> messages) async {
+    held = List.of(messages);
+  }
+}
 
 /// 망이 끊겼을 때 올라오는 모양. 공통 계층이 서버 오류로 바꿔 주지 못한다.
 final _networkDown = StateError('연결 끊김');
@@ -152,16 +233,34 @@ class _FakeRealtime extends ChatRealtimeService {
 class _FailingRepository implements ChatRepository {
   _FailingRepository(this.failure);
 
-  final Object failure;
+  Object? failure;
+  final List<ChatMessage> accepted = [];
+  List<ChatMessage> history = [];
 
   @override
   Future<ChatMessage> sendMessage(
-          int roomId, String text, String clientMsgId) async =>
-      throw failure;
+    int roomId,
+    String text,
+    String clientMsgId,
+  ) async {
+    if (failure != null) throw failure!;
+    final message = ChatMessage(
+      roomId: roomId,
+      seq: accepted.length + 1,
+      senderId: 1,
+      senderName: '나',
+      text: text,
+      sentAt: DateTime.now(),
+      isMe: true,
+      clientMsgId: clientMsgId,
+    );
+    accepted.add(message);
+    return message;
+  }
 
   @override
   Future<List<ChatMessage>> getMessages(int roomId, {int? beforeSeq}) async =>
-      const [];
+      history;
 
   @override
   Future<List<ChatRoom>> getChatRooms() async => const [];

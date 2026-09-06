@@ -174,9 +174,7 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
       context: context,
       builder: (dialogContext) => AppConfirmDialog(
         content: Text(
-          isOwner
-              ? '방장이 나가면 방이 종료됩니다.\n채팅방을 나갈까요?'
-              : '채팅방을 나갈까요?',
+          isOwner ? '방장이 나가면 방이 종료됩니다.\n채팅방을 나갈까요?' : '채팅방을 나갈까요?',
           textAlign: TextAlign.center,
           style: const TextStyle(
             fontSize: 16,
@@ -209,14 +207,22 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
   }
 
   /// 신고는 메일 양식으로 받는다. 빈칸은 사용자가 채워 보낸다.
-  void _reportRoom() {
-    launchSupportMail(
+  Future<void> _reportRoom() async {
+    final opened = await launchSupportMail(
       subject: '[MAP 신고] 채팅방 ${widget.roomId}',
-      body: '방 제목: ${_current?.title ?? ''}\n'
+      body:
+          '방 제목: ${_current?.title ?? ''}\n'
           '신고 대상: \n'
           '신고 사유: \n'
           '발생 시각: \n',
     );
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('메일 앱을 열 수 없어요. $supportEmail 로 신고해 주세요.'),
+        ),
+      );
+    }
   }
 
   /// 내보낼 수 있는 사람: 아직 방에 있고 내가 아닌 참가자.
@@ -296,21 +302,20 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
                                 final refreshed = await repository
                                     .getParticipants(widget.roomId);
                                 if (!sheetContext.mounted) return;
-                                setSheetState(() =>
-                                    candidates = _kickable(refreshed, me));
+                                setSheetState(
+                                  () => candidates = _kickable(refreshed, me),
+                                );
                               } catch (_) {
                                 messenger.showSnackBar(
                                   const SnackBar(
-                                    content:
-                                        Text('내보내지 못했어요. 잠시 후 다시 시도해주세요.'),
+                                    content: Text('내보내지 못했어요. 잠시 후 다시 시도해주세요.'),
                                   ),
                                 );
                               }
                             },
                             child: Container(
                               width: double.infinity,
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 16),
+                              padding: const EdgeInsets.symmetric(vertical: 16),
                               alignment: Alignment.center,
                               child: Text(
                                 p.nickname,
@@ -363,7 +368,8 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
                               builder: (context, provider, _) {
                                 if (provider.isLoading) {
                                   return const Center(
-                                      child: CircularProgressIndicator());
+                                    child: CircularProgressIndicator(),
+                                  );
                                 }
                                 return ListView.separated(
                                   controller: _scrollController,
@@ -372,7 +378,10 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
                                     right: 16,
                                     top: 64,
                                     bottom: _isUpcoming
-                                        ? 90 + MediaQuery.of(context).padding.bottom
+                                        ? 90 +
+                                              MediaQuery.of(
+                                                context,
+                                              ).padding.bottom
                                         : 16,
                                   ),
                                   itemCount: provider.messages.length,
@@ -381,24 +390,36 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
                                   itemBuilder: (context, index) {
                                     final msg = provider.messages[index];
                                     final color = _resolveColor(msg);
-                                    return ChatBubble(message: msg, senderColor: color);
+                                    return ChatBubble(
+                                      message: msg,
+                                      senderColor: color,
+                                    );
                                   },
                                 );
                               },
                             ),
-                            Positioned(
+                            if (_current?.scheduleId != null)
+                              Positioned(
                                 top: 12,
                                 left: 0,
                                 right: 0,
                                 child: ScheduleLinkButton(
                                   onTap: () {
                                     final allTrips = [
-                                      ...TripRepository.instance.plannedTrips.value,
-                                      ...TripRepository.instance.completedTrips.value,
+                                      ...TripRepository
+                                          .instance
+                                          .plannedTrips
+                                          .value,
+                                      ...TripRepository
+                                          .instance
+                                          .completedTrips
+                                          .value,
                                     ];
                                     final scheduleId = _current?.scheduleId;
                                     final trip = allTrips
-                                        .where((t) => t.scheduleId == scheduleId)
+                                        .where(
+                                          (t) => t.scheduleId == scheduleId,
+                                        )
                                         .firstOrNull;
                                     if (trip != null) {
                                       context.go('/saved/trip', extra: trip);

@@ -5,6 +5,49 @@ import 'package:map_service_client/core/api/invite_api_service.dart';
 /// 서버에 전역 이름 규칙이 없어 필드마다 표기를 따로 붙이는 구조다. 하나를
 /// 잘못 읽어도 컴파일은 통과하고 화면에서만 값이 비어 보이므로, 키를 직접 건다.
 void main() {
+  group('withdrawn owner room', () {
+    test(
+      'anonymized owner and removed schedule remain null, never account or schedule zero',
+      () {
+        final room = ChatRoomResponse.fromJson({
+          'room_id': 7,
+          'schedule_id': null,
+          'owner_id': null,
+          'title': '남아 있는 대화방',
+          'read_only': true,
+          'participant_count': 2,
+        });
+        final summary = ChatRoomSummary.fromJson({
+          'room_id': 7,
+          'schedule_id': null,
+          'title': '남아 있는 대화방',
+          'read_only': true,
+        });
+        expect(room.roomId, 7);
+        expect(room.ownerId, isNull);
+        expect(room.scheduleId, isNull);
+        expect(summary.scheduleId, isNull);
+        expect(room.readOnly, isTrue);
+      },
+    );
+
+    test(
+      'anonymized text sender remains null and keeps the original message',
+      () {
+        final message = ChatMessageResponse.fromJson({
+          'room_id': 7,
+          'seq': 3,
+          'sender_id': null,
+          'type': 'TEXT',
+          'content': '남아 있는 대화',
+        });
+        expect(message.senderId, isNull);
+        expect(message.type, 'TEXT');
+        expect(message.content, '남아 있는 대화');
+      },
+    );
+  });
+
   group('ChatRoomSummary', () {
     test('스네이크 케이스 키를 그대로 읽는다', () {
       final summary = ChatRoomSummary.fromJson({

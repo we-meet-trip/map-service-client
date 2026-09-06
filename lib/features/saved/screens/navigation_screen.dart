@@ -11,8 +11,8 @@ import '../../../common/theme/app_colors.dart';
 import '../../../common/theme/app_icons.dart';
 import '../../../core/api/schedule_api_service.dart';
 import '../../../core/api/trip_api_service.dart';
-import '../../../core/naver_map/naver_map_adapter.dart';
-import '../../../core/naver_map/naver_map_bootstrap.dart';
+import '../../../core/maps/map_adapter.dart';
+import '../../../core/maps/map_bootstrap.dart';
 import '../../../core/state/trip_repository.dart';
 import '../../trip/widgets/transport_theme.dart';
 
@@ -28,7 +28,7 @@ class NavigationScreen extends StatefulWidget {
 class _NavigationScreenState extends State<NavigationScreen>
     with SingleTickerProviderStateMixin {
   // ── 지도 ────────────────────────────────────────────────────────────────
-  NaverMapController? _mapController;
+  AppMapController? _mapController;
 
   /// 폰 나침반 센서 방위각 (도 단위, 0=북, 시계방향 증가)
   double _deviceHeading = 0.0;
@@ -43,9 +43,9 @@ class _NavigationScreenState extends State<NavigationScreen>
   bool _isFollowing = true;
 
   // ── 사용자 위치 마커 (파란 점 대체) ──────────────────────────────────────
-  NMarker? _fovMarker;
-  NMarker? _ringMarker;
-  NMarker? _triangleMarker;
+  MapMarker? _fovMarker;
+  MapMarker? _ringMarker;
+  MapMarker? _triangleMarker;
   static const _kFovConeSize  = Size(80, 80);
   static const _kRingSize     = Size(22, 22);
   // 아래쪽 ~9px 간격
@@ -143,14 +143,14 @@ class _NavigationScreenState extends State<NavigationScreen>
               name: s.name,
               address: s.address,
               time: s.time,
-              latLng: NLatLng(s.latitude, s.longitude),
+              latLng: MapCoordinate(s.latitude, s.longitude),
               transport: s.transportToNext != null
                   ? _Transport(
                       label: s.transportToNext!.label,
                       duration: '${s.transportToNext!.durationMinutes}분',
                       distance: '${s.transportToNext!.distanceKm}km',
                       path: s.transportToNext!.path
-                          ?.map((p) => NLatLng(p[0], p[1]))
+                          ?.map((p) => MapCoordinate(p[0], p[1]))
                           .toList(),
                     )
                   : null,
@@ -194,7 +194,7 @@ class _NavigationScreenState extends State<NavigationScreen>
       name: '속초 버스 터미널',
       address: '강원특별자치도 속초시 중앙로 96',
       time: '09:00',
-      latLng: const NLatLng(38.2052, 128.5917),
+      latLng: const MapCoordinate(38.2052, 128.5917),
       transport: const _Transport(
           label: '이동: 전동 킥보드', duration: '12분', distance: '1.8km'),
     ),
@@ -202,7 +202,7 @@ class _NavigationScreenState extends State<NavigationScreen>
       name: '속초해변',
       address: '강원특별자치도 속초시 청호동',
       time: '09:12',
-      latLng: const NLatLng(38.2014, 128.6008),
+      latLng: const MapCoordinate(38.2014, 128.6008),
       transport:
           const _Transport(label: '이동: 자전거', duration: '13분', distance: '3.8km'),
     ),
@@ -210,7 +210,7 @@ class _NavigationScreenState extends State<NavigationScreen>
       name: '속초 중앙시장',
       address: '강원특별자치도 속초시 중앙로 147',
       time: '09:25',
-      latLng: const NLatLng(38.2089, 128.5875),
+      latLng: const MapCoordinate(38.2089, 128.5875),
       transport: null,
     ),
   ];
@@ -328,7 +328,7 @@ class _NavigationScreenState extends State<NavigationScreen>
     _lastPosition = pos;
     _updateCurrentLeg(pos);
 
-    final latLng = NLatLng(pos.latitude, pos.longitude);
+    final latLng = MapCoordinate(pos.latitude, pos.longitude);
 
     // ── 사용자 위치 마커 업데이트
     _fovMarker?.setPosition(latLng);
@@ -345,13 +345,13 @@ class _NavigationScreenState extends State<NavigationScreen>
     // ── 팔로우 모드: 카메라가 사용자를 따라감 ────────────────────────────
     if (_isFollowing && _mapController != null) {
       await _mapController!.updateCamera(
-        NCameraUpdate.fromCameraPosition(NCameraPosition(
+        MapCameraUpdate.fromCameraPosition(MapCameraPosition(
           target: latLng,
           zoom: 16,
           bearing: bearing,
         ))
           ..setAnimation(
-            animation: NCameraAnimation.easing,
+            animation: MapCameraAnimation.easing,
             duration: const Duration(milliseconds: 1000),
           ),
       );
@@ -401,17 +401,17 @@ class _NavigationScreenState extends State<NavigationScreen>
     if (_lastPosition == null || _mapController == null) return;
 
     final latLng =
-        NLatLng(_lastPosition!.latitude, _lastPosition!.longitude);
+        MapCoordinate(_lastPosition!.latitude, _lastPosition!.longitude);
     setState(() => _isFollowing = true);
 
     await _mapController!.updateCamera(
-      NCameraUpdate.fromCameraPosition(NCameraPosition(
+      MapCameraUpdate.fromCameraPosition(MapCameraPosition(
         target: latLng,
         zoom: 16,
         bearing: _userHeading,
       ))
         ..setAnimation(
-          animation: NCameraAnimation.fly,
+          animation: MapCameraAnimation.fly,
           duration: const Duration(milliseconds: 600),
         ),
     );
@@ -422,13 +422,13 @@ class _NavigationScreenState extends State<NavigationScreen>
     if (_mapController == null) return;
     final current = await _mapController!.getCameraPosition();
     await _mapController!.updateCamera(
-      NCameraUpdate.fromCameraPosition(NCameraPosition(
+      MapCameraUpdate.fromCameraPosition(MapCameraPosition(
         target: current.target,
         zoom: current.zoom,
         bearing: 0,
       ))
         ..setAnimation(
-          animation: NCameraAnimation.easing,
+          animation: MapCameraAnimation.easing,
           duration: const Duration(milliseconds: 400),
         ),
     );
@@ -458,23 +458,20 @@ class _NavigationScreenState extends State<NavigationScreen>
   // ──────────────────────────────────────────────────────────── 지도 ──────
 
   Widget _buildMap() {
-    // 지도 식별자가 다음 것으로 바뀌면 지도를 다시 만든다. 인증 판정은 지도를
-    // 그릴 때 오는데, 그때 이미 만들어진 지도는 처음 식별자로 인증을 끝낸
-    // 뒤라 스스로 다시 묻지 않는다 — 다시 만들지 않으면 첫 진입 화면만 계속
-    // 비어 있고 나갔다 들어와야 나온다.
     return ValueListenableBuilder<int>(
-      valueListenable: naverMapAuthGeneration,
-      builder: (context, generation, _) => NaverMap(
+      valueListenable: mapGeneration,
+      builder: (context, generation, _) => AppMap(
         key: ValueKey('nav-map-$generation'),
-        options: NaverMapViewOptions(
-          initialCameraPosition: NCameraPosition(
+        options: AppMapOptions(
+          initialCameraPosition: MapCameraPosition(
             target: _stops.first.latLng,
             zoom: 14,
           ),
           scrollGesturesEnable: true,
           zoomGesturesEnable: true,
           rotationGesturesEnable: true, // 회전 허용 (나침반과 연동)
-          mapType: NMapType.basic,
+          mapType: AppMapType.basic,
+          contentPadding: const EdgeInsets.only(bottom: 280),
         ),
         onMapReady: _onMapReady,
         onCameraChange: _onCameraChange,
@@ -482,16 +479,16 @@ class _NavigationScreenState extends State<NavigationScreen>
     );
   }
 
-  Future<void> _onMapReady(NaverMapController controller) async {
+  Future<void> _onMapReady(AppMapController controller) async {
     _mapController = controller;
     await _renderDay(controller);
 
-    // ── NLocationOverlay: 파란 점
+    // ── MapLocationOverlay: 파란 점
     final overlay = controller.getLocationOverlay();
 
     // 맵 준비 전 수신된 GPS 위치가 있으면 즉시 반영
     if (_lastPosition != null) {
-      final latLng = NLatLng(_lastPosition!.latitude, _lastPosition!.longitude);
+      final latLng = MapCoordinate(_lastPosition!.latitude, _lastPosition!.longitude);
       overlay.setPosition(latLng);
       overlay.setIsVisible(true);
     } else {
@@ -511,7 +508,7 @@ class _NavigationScreenState extends State<NavigationScreen>
   int _renderPass = 0;
   Future<void>? _renderInFlight;
 
-  Future<void> _renderDay(NaverMapController controller) async {
+  Future<void> _renderDay(AppMapController controller) async {
     // 번호를 먼저 올린다. 앞서 돌던 그리기가 이 값을 보고 다음 대기 지점에서
     // 스스로 물러난다.
     final pass = ++_renderPass;
@@ -527,7 +524,7 @@ class _NavigationScreenState extends State<NavigationScreen>
     }
   }
 
-  Future<void> _renderDayPass(NaverMapController controller, int pass) async {
+  Future<void> _renderDayPass(AppMapController controller, int pass) async {
     final dayStops = _stops;
     if (dayStops.isEmpty || !mounted) return;
     // 지도가 바뀌었는지도 함께 본다. 번호만으로는 같은 순번에서 지도가 갈린
@@ -543,13 +540,13 @@ class _NavigationScreenState extends State<NavigationScreen>
     // 번호 마커 — 번호는 그날 안에서 다시 1부터 센다.
     for (int i = 0; i < dayStops.length; i++) {
       if (!mounted || stale()) return;
-      final icon = await NOverlayImage.fromWidget(
+      final icon = await MapOverlayImage.fromWidget(
         widget: _buildMarkerWidget('${i + 1}'),
         size: const Size(36, 36),
         context: context,
       );
       if (stale()) return;
-      await controller.addOverlay(NMarker(
+      await controller.addOverlay(MapMarker(
         id: 'nav_stop_${_selectedDay}_$i',
         position: dayStops[i].latLng,
         icon: icon,
@@ -559,8 +556,8 @@ class _NavigationScreenState extends State<NavigationScreen>
 
     // 경로 폴리라인 — 구간마다 도로 좌표가 있으면 그것을, 없으면 두 방문지를
     // 잇는 직선을 이어 붙인다.
-    final routeCoords = <NLatLng>[];
-    void addPoint(NLatLng p) {
+    final routeCoords = <MapCoordinate>[];
+    void addPoint(MapCoordinate p) {
       // 구간 접점의 중복 좌표는 값 비교로 걸러 낸다.
       if (routeCoords.isEmpty ||
           routeCoords.last.latitude != p.latitude ||
@@ -580,7 +577,7 @@ class _NavigationScreenState extends State<NavigationScreen>
     }
 
     if (routeCoords.length >= 2) {
-      await controller.addOverlay(NPathOverlay(
+      await controller.addOverlay(MapPathOverlay(
         id: 'nav_route_$_selectedDay',
         coords: routeCoords,
         color: AppColors.primaryScale[400]!,
@@ -598,30 +595,30 @@ class _NavigationScreenState extends State<NavigationScreen>
     final lats = boundsPoints.map((p) => p.latitude);
     final lngs = boundsPoints.map((p) => p.longitude);
     await controller.updateCamera(
-      NCameraUpdate.fitBounds(
-        NLatLngBounds(
-          southWest: NLatLng(lats.reduce(min), lngs.reduce(min)),
-          northEast: NLatLng(lats.reduce(max), lngs.reduce(max)),
+      MapCameraUpdate.fitBounds(
+        MapCoordinateBounds(
+          southWest: MapCoordinate(lats.reduce(min), lngs.reduce(min)),
+          northEast: MapCoordinate(lats.reduce(max), lngs.reduce(max)),
         ),
         padding: const EdgeInsets.fromLTRB(60, 120, 60, 420),
       )
         ..setAnimation(
-          animation: NCameraAnimation.fly,
+          animation: MapCameraAnimation.fly,
           duration: const Duration(milliseconds: 900),
         ),
     );
     if (stale()) return;
 
-    // ── NLocationOverlay(파란 점) 숨김
+    // ── MapLocationOverlay(파란 점) 숨김
     controller.getLocationOverlay().setIsVisible(false);
 
     // ── 사용자 위치 마커 생성 (링 + 삼각형 분리)
     final initPos = _lastPosition != null
-        ? NLatLng(_lastPosition!.latitude, _lastPosition!.longitude)
+        ? MapCoordinate(_lastPosition!.latitude, _lastPosition!.longitude)
         : _stops.first.latLng;
 
     if (!mounted || stale()) return;
-    final fovIcon = await NOverlayImage.fromWidget(
+    final fovIcon = await MapOverlayImage.fromWidget(
       widget: const SizedBox(
         width: 80,
         height: 80,
@@ -632,7 +629,7 @@ class _NavigationScreenState extends State<NavigationScreen>
     );
     if (!mounted || stale()) return;
 
-    final ringIcon = await NOverlayImage.fromWidget(
+    final ringIcon = await MapOverlayImage.fromWidget(
       widget: const SizedBox(
         width: 22,
         height: 22,
@@ -642,7 +639,7 @@ class _NavigationScreenState extends State<NavigationScreen>
       context: context,
     );
     if (!mounted || stale()) return;
-    final triangleIcon = await NOverlayImage.fromWidget(
+    final triangleIcon = await MapOverlayImage.fromWidget(
       widget: const SizedBox(
         width: 22,
         height: 26,
@@ -653,27 +650,30 @@ class _NavigationScreenState extends State<NavigationScreen>
     );
     if (stale()) return;
 
-    _fovMarker = NMarker(
+    _fovMarker = MapMarker(
       id: 'user_fov',
+      flat: true,
       position: initPos,
       icon: fovIcon,
-      anchor: const NPoint(0.5, 1.0), // 하단 중앙 = 사용자 위치
+      anchor: const MapPoint(0.5, 1.0), // 하단 중앙 = 사용자 위치
       size: _kFovConeSize,
       angle: _deviceHeading,
     );
 
-    _ringMarker = NMarker(
+    _ringMarker = MapMarker(
       id: 'user_ring',
+      flat: true,
       position: initPos,
       icon: ringIcon,
-      anchor: const NPoint(0.5, 0.5), // 링 중앙 = 사용자 위치
+      anchor: const MapPoint(0.5, 0.5), // 링 중앙 = 사용자 위치
       size: _kRingSize,
     );
-    _triangleMarker = NMarker(
+    _triangleMarker = MapMarker(
       id: 'user_triangle',
+      flat: true,
       position: initPos,
       icon: triangleIcon,
-      anchor: const NPoint(0.5, 1.0), // 이미지 하단(= 투명 패딩 끝) = 사용자 위치
+      anchor: const MapPoint(0.5, 1.0), // 이미지 하단(= 투명 패딩 끝) = 사용자 위치
       size: _kTriangleSize,
       angle: _deviceHeading,
     );
@@ -693,8 +693,8 @@ class _NavigationScreenState extends State<NavigationScreen>
   }
 
   /// 사용자가 지도를 수동으로 드래그하면 팔로우 모드 해제
-  void _onCameraChange(NCameraUpdateReason reason, bool animated) {
-    if (reason == NCameraUpdateReason.gesture) {
+  void _onCameraChange(MapCameraUpdateReason reason, bool animated) {
+    if (reason == MapCameraUpdateReason.gesture) {
       if (mounted) setState(() => _isFollowing = false);
     }
   }
@@ -1406,7 +1406,7 @@ class _Stop {
   final String name;
   final String address;
   final String time;
-  final NLatLng latLng;
+  final MapCoordinate latLng;
   final _Transport? transport;
 
   const _Stop({
@@ -1425,7 +1425,7 @@ class _Transport {
   final String distance;
 
   /// 서버가 내려준 도로 좌표. 없으면 두 방문지를 직선으로 잇는다.
-  final List<NLatLng>? path;
+  final List<MapCoordinate>? path;
 
   const _Transport({
     required this.label,

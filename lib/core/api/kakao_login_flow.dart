@@ -3,110 +3,203 @@ import 'dart:async';
 import 'package:app_links/app_links.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../config/app_config.dart';
+import '../state/auth_store.dart';
 import 'api_client.dart';
 import 'auth_api_service.dart';
 
-/// 카카오 로그인 한 판.
-///
-/// 흐름:
-///   1) 서버에서 카카오 인가 화면 주소를 받는다.
-///   2) 기기 브라우저로 그 주소를 연다(앱 안 웹뷰가 아니라 브라우저를 쓴다 —
-///      카카오가 이미 로그인해 둔 세션을 그대로 쓸 수 있다).
-///   3) 카카오가 서버 콜백으로 보내고, 서버가 앱 주소로 되돌려보낸다.
-///   4) 되돌아온 주소에서 인가 코드를 꺼내 서버에 넘겨 토큰으로 바꾼다.
-///
-/// 되돌아온 주소의 state 가 내가 보낸 것과 다르면 버린다. 내가 시작하지
-/// 않은 로그인을 받아들이면 남의 계정으로 들어가게 된다.
+/// 요청의 state와 시작한 세션을 확인한 뒤 외부 브라우저의 인가 코드를 교환한다.
 class KakaoLoginFlow {
-  KakaoLoginFlow._();
-  static final KakaoLoginFlow instance = KakaoLoginFlow._();
+  KakaoLoginFlow({
+    Future<String> Function(String)? authorizeUrl,
+    Future<bool> Function(Uri)? launch,
+    Stream<Uri> Function()? callbacks,
+    Future<void> Function(String)? exchange,
+    int Function()? sessionVersion,
+    String Function()? storageScope,
+    Timer Function(Duration, void Function())? callbackTimer,
+    Duration timeout = const Duration(minutes: 3),
+  }) : _authorizeUrl =
+           authorizeUrl ?? AuthApiService.instance.kakaoAuthorizeUrl,
+       _launch =
+           launch ??
+           ((uri) => launchUrl(uri, mode: LaunchMode.externalApplication)),
+       _callbacks = callbacks ?? (() => AppLinks().uriLinkStream),
+       _exchange = exchange ?? AuthApiService.instance.kakaoLogin,
+       _sessionVersion =
+           sessionVersion ?? (() => AuthStore.instance.sessionVersion),
+       _storageScope = storageScope ?? (() => AppConfig.instance.storageScope),
+       _callbackTimer = callbackTimer ?? Timer.new,
+       _timeout = timeout;
 
-  /// 서버가 되돌려보내는 앱 주소의 체계. 서버 설정과 같아야 한다.
-  static const _callbackScheme = 'mapauth';
+  static final KakaoLoginFlow instance = KakaoLoginFlow();
 
-  /// 브라우저에서 돌아오지 않는 상태로 영원히 기다리지 않도록 두는 상한.
-  static const _timeout = Duration(minutes: 3);
+  final Future<String> Function(String) _authorizeUrl;
+  final Future<bool> Function(Uri) _launch;
+  final Stream<Uri> Function() _callbacks;
+  final Future<void> Function(String) _exchange;
+  final int Function() _sessionVersion;
+  final String Function() _storageScope;
+  final Timer Function(Duration, void Function()) _callbackTimer;
+  final Duration _timeout;
+  bool _running = false;
 
-  final _appLinks = AppLinks();
+  static const _timedOut = ApiException(
+    statusCode: 0,
+    code: 'KAKAO_TIMEOUT',
+    message: '로그인이 완료되지 않았어요. 다시 시도해주세요.',
+  );
 
-  /// 로그인을 끝까지 진행한다. 성공하면 토큰이 보관소에 들어간다.
-  ///
-  /// state: 이번 요청을 가리키는 값. 호출 측이 매번 다른 값을 준다.
   Future<void> run(String state) async {
-    final url = await AuthApiService.instance.kakaoAuthorizeUrl(state);
-
-    // 브라우저에서 돌아오는 주소를 먼저 듣기 시작한다. 브라우저를 연 뒤에
-    // 듣기 시작하면 그 사이에 돌아온 주소를 놓친다.
-    final returned = _awaitCallback(state);
-
-    final opened = await launchUrl(
-      Uri.parse(url),
-      mode: LaunchMode.externalApplication,
-    );
-    if (!opened) {
+    if (_running) {
       throw const ApiException(
-        statusCode: 0,
-        code: 'BROWSER_UNAVAILABLE',
-        message: '브라우저를 열지 못했어요.',
+        statusCode: 409,
+        code: 'KAKAO_IN_PROGRESS',
+        message: '진행 중인 로그인을 먼저 완료해주세요.',
       );
     }
-
-    final code = await returned;
-    await AuthApiService.instance.kakaoLogin(code);
-  }
-
-  /// 앱으로 되돌아온 주소에서 인가 코드를 꺼낸다.
-  Future<String> _awaitCallback(String state) async {
-    final completer = Completer<String>();
-    late final StreamSubscription<Uri> sub;
-
-    void finish(String code) {
-      if (!completer.isCompleted) completer.complete(code);
+    if (state.trim().isEmpty) {
+      throw const ApiException(
+        statusCode: 400,
+        code: 'KAKAO_INVALID_STATE',
+        message: '로그인을 다시 시도해주세요.',
+      );
     }
+    _running = true;
+    final version = _sessionVersion();
+    final scope = _storageScope();
+    StreamSubscription<Uri>? subscription;
+    Timer? timer;
 
-    void fail(ApiException e) {
-      if (!completer.isCompleted) completer.completeError(e);
+    void checkSession() {
+      if (version != _sessionVersion() || scope != _storageScope()) {
+        throw const ApiException(
+          statusCode: 409,
+          code: 'SESSION_CHANGED',
+          message: '로그인 상태가 변경됐어요. 다시 시도해주세요.',
+        );
+      }
     }
-
-    sub = _appLinks.uriLinkStream.listen((uri) {
-      if (uri.scheme != _callbackScheme) return;
-      if (uri.queryParameters['state'] != state) {
-        // 내가 시작하지 않은 복귀다. 조용히 무시하고 계속 기다린다.
-        return;
-      }
-      final error = uri.queryParameters['error'];
-      if (error != null && error.isNotEmpty) {
-        fail(ApiException(
-          statusCode: 0,
-          code: error,
-          message: uri.queryParameters['error_description'] ??
-              '카카오 로그인이 취소되었어요.',
-        ));
-        return;
-      }
-      final code = uri.queryParameters['code'];
-      if (code == null || code.isEmpty) {
-        fail(const ApiException(
-          statusCode: 0,
-          code: 'KAKAO_NO_CODE',
-          message: '카카오에서 인가 정보를 받지 못했어요.',
-        ));
-        return;
-      }
-      finish(code);
-    });
 
     try {
-      return await completer.future.timeout(
-        _timeout,
-        onTimeout: () => throw const ApiException(
+      final url = await _authorizeUrl(state);
+      checkSession();
+      // 브라우저가 즉시 돌아와도 놓치지 않도록 먼저 구독한다. 결과 자체에는
+      // 오류를 값으로 보관하여 launch 실패 중의 콜백 오류도 미처리 Future가 되지 않는다.
+      final returned = Completer<_CallbackResult>();
+      void finish(_CallbackResult result) {
+        if (!returned.isCompleted) returned.complete(result);
+      }
+
+      subscription = _callbacks().listen(
+        (uri) {
+          if (uri.scheme != 'mapauth' ||
+              uri.host != 'kakao' ||
+              (uri.path.isNotEmpty && uri.path != '/') ||
+              uri.queryParameters['state'] != state) {
+            return;
+          }
+          final error = uri.queryParameters['error'];
+          if (error != null && error.isNotEmpty) {
+            finish(
+              const _CallbackResult.failure(
+                ApiException(
+                  statusCode: 0,
+                  code: 'KAKAO_CANCELLED',
+                  message: '카카오 로그인이 취소되었어요.',
+                ),
+              ),
+            );
+            return;
+          }
+          final code = uri.queryParameters['code'];
+          finish(
+            code == null || code.isEmpty
+                ? const _CallbackResult.failure(
+                    ApiException(
+                      statusCode: 0,
+                      code: 'KAKAO_NO_CODE',
+                      message: '카카오에서 인가 정보를 받지 못했어요.',
+                    ),
+                  )
+                : _CallbackResult.success(code),
+          );
+        },
+        onError: (Object _, StackTrace _) {
+          finish(
+            const _CallbackResult.failure(
+              ApiException(
+                statusCode: 0,
+                code: 'KAKAO_CALLBACK_UNAVAILABLE',
+                message: '로그인 정보를 받지 못했어요. 다시 시도해주세요.',
+              ),
+            ),
+          );
+        },
+        onDone: () {
+          finish(
+            const _CallbackResult.failure(
+              ApiException(
+                statusCode: 0,
+                code: 'KAKAO_CALLBACK_UNAVAILABLE',
+                message: '로그인 정보를 받지 못했어요. 다시 시도해주세요.',
+              ),
+            ),
+          );
+        },
+      );
+      timer = _callbackTimer(_timeout, () {
+        finish(const _CallbackResult.failure(_timedOut));
+      });
+
+      final bool opened;
+      try {
+        opened = await _launch(Uri.parse(url)).timeout(_timeout);
+      } on TimeoutException {
+        throw _timedOut;
+      } catch (_) {
+        throw const ApiException(
           statusCode: 0,
-          code: 'KAKAO_TIMEOUT',
-          message: '로그인이 완료되지 않았어요. 다시 시도해주세요.',
-        ),
+          code: 'BROWSER_UNAVAILABLE',
+          message: '브라우저를 열지 못했어요.',
+        );
+      }
+      if (!opened) {
+        throw const ApiException(
+          statusCode: 0,
+          code: 'BROWSER_UNAVAILABLE',
+          message: '브라우저를 열지 못했어요.',
+        );
+      }
+
+      final result = await returned.future;
+      checkSession();
+      if (result.error != null) throw result.error!;
+      // 교환 중 다른 계정으로 바뀐 경우는 ApiClient의 응답 epoch 검사도 막는다.
+      await _exchange(result.code!);
+    } on ApiException {
+      rethrow;
+    } catch (_) {
+      throw const ApiException(
+        statusCode: 0,
+        code: 'KAKAO_UNAVAILABLE',
+        message: '카카오 로그인에 연결하지 못했어요. 다시 시도해주세요.',
       );
     } finally {
-      await sub.cancel();
+      timer?.cancel();
+      try {
+        await subscription?.cancel();
+      } finally {
+        _running = false;
+      }
     }
   }
+}
+
+class _CallbackResult {
+  const _CallbackResult.success(this.code) : error = null;
+  const _CallbackResult.failure(this.error) : code = null;
+
+  final String? code;
+  final ApiException? error;
 }

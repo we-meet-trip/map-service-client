@@ -1,4 +1,10 @@
+import 'dart:convert';
+import 'dart:math';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import '../../../core/api/apple_login_flow.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import '../../../common/theme/app_colors.dart';
@@ -21,8 +27,12 @@ class _AuthScreenState extends State<AuthScreen> {
 
   /// 이번 카카오 요청을 가리키는 값. 되돌아온 주소가 이 값을 그대로 달고
   /// 와야 내가 시작한 로그인으로 인정한다.
-  String _newState() =>
-      DateTime.now().microsecondsSinceEpoch.toRadixString(36);
+  String _newState() {
+    final random = Random.secure();
+    return base64UrlEncode(
+      List.generate(32, (_) => random.nextInt(256)),
+    ).replaceAll('=', '');
+  }
 
   Future<void> _kakaoLogin() async {
     if (_kakaoBusy) return;
@@ -32,8 +42,9 @@ class _AuthScreenState extends State<AuthScreen> {
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => _kakaoBusy = false);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.message)));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
       return;
     }
     if (!mounted) return;
@@ -41,6 +52,23 @@ class _AuthScreenState extends State<AuthScreen> {
     // 카카오로 처음 들어온 사용자는 취향을 고르는 단계를 거치지 않는다.
     // 그 자리를 한 번 채우게 하고, 이미 고른 사용자는 곧장 넘긴다.
     context.go('/signup/interests');
+  }
+
+  Future<void> _appleLogin() async {
+    if (_kakaoBusy) return;
+    setState(() => _kakaoBusy = true);
+    try {
+      final signedIn = await AppleLoginFlow().run();
+      if (mounted && signedIn) context.go('/signup/interests');
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.message)));
+      }
+    } finally {
+      if (mounted) setState(() => _kakaoBusy = false);
+    }
   }
 
   @override
@@ -106,7 +134,10 @@ class _AuthScreenState extends State<AuthScreen> {
                           ),
                         ),
                         const SizedBox(width: 10),
-                        SvgPicture.asset('assets/svg/character.svg', height: 40),
+                        SvgPicture.asset(
+                          'assets/svg/character.svg',
+                          height: 40,
+                        ),
                       ],
                     ),
                   ],
@@ -120,9 +151,22 @@ class _AuthScreenState extends State<AuthScreen> {
                     KakaoLoginButton(
                       onPressed: _kakaoBusy ? () {} : _kakaoLogin,
                     ),
+                    if (!kIsWeb &&
+                        defaultTargetPlatform == TargetPlatform.iOS) ...[
+                      const SizedBox(height: 12),
+                      IgnorePointer(
+                        ignoring: _kakaoBusy,
+                        child: SignInWithAppleButton(
+                          onPressed: _appleLogin,
+                          text: 'Apple로 로그인',
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 12),
                     EmailLoginButton(
-                      onPressed: () => context.push('/auth/email'),
+                      onPressed: () {
+                        if (!_kakaoBusy) context.push('/auth/email');
+                      },
                     ),
                     const SizedBox(height: 16),
                     Row(
@@ -131,15 +175,16 @@ class _AuthScreenState extends State<AuthScreen> {
                         TextButton(
                           onPressed: () => context.push('/signup/step1'),
                           child: Text(
-                              '간편 회원가입',
-                              style: TextStyle(
-                                color: AppColors.background,
-                                fontWeight: FontWeight.w400,
-                                fontSize: 12,
-                              ),
+                            '간편 회원가입',
+                            style: TextStyle(
+                              color: AppColors.background,
+                              fontWeight: FontWeight.w400,
+                              fontSize: 12,
+                            ),
                           ),
                         ),
-                        const Text('|',
+                        const Text(
+                          '|',
                           style: TextStyle(
                             color: AppColors.background,
                             fontWeight: FontWeight.w100,
@@ -147,16 +192,15 @@ class _AuthScreenState extends State<AuthScreen> {
                           ),
                         ),
                         TextButton(
-                          onPressed: () => launchSupportMail(
-                            subject: '[MAP 문의]',
-                          ),
+                          onPressed: () =>
+                              launchSupportMail(subject: '[MAP 문의]'),
                           child: Text(
-                              '문의하기',
-                              style: TextStyle(
-                                color: AppColors.background,
-                                fontWeight: FontWeight.w400,
-                                fontSize: 12,
-                              )
+                            '문의하기',
+                            style: TextStyle(
+                              color: AppColors.background,
+                              fontWeight: FontWeight.w400,
+                              fontSize: 12,
+                            ),
                           ),
                         ),
                       ],

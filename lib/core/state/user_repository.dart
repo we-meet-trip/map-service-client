@@ -11,9 +11,7 @@ class UserRepository {
 
   static Future<void> init() async {
     final saved = ProfileLocalStore.instance.load();
-    if (saved != null) {
-      instance.profile.value = saved;
-    }
+    instance.profile.value = saved ?? UserProfile.empty();
   }
 
   void _persist() => ProfileLocalStore.instance.save(profile.value);
@@ -51,31 +49,19 @@ class UserRepository {
     );
   }
 
-  /// 로그아웃할 때 계정에서 온 항목만 비운다.
-  ///
-  /// 비우지 않으면 로그아웃한 뒤에도 홈 화면이 방금 나간 사람의 이름으로
-  /// 인사한다. 한 기기를 여러 사람이 번갈아 쓰는 경우 특히 헷갈린다.
-  ///
-  /// 기기에만 있는 항목(프로필 사진·이름 표기·연락처·주소·알림 설정)은 그대로
-  /// 둔다. 계정과 무관하게 이 기기에서 정한 값이다.
-  void clearAccount() {
-    final current = profile.value;
-    profile.value = UserProfile(
-      id: current.id,
-      nickname: '',
-      interests: const [],
-      themes: const [],
-      profileImagePath: current.profileImagePath,
-      englishName: current.englishName,
-      phone: current.phone,
-      homeAddress: current.homeAddress,
-      otherAddresses: current.otherAddresses,
-      notificationsEnabled: current.notificationsEnabled,
-    );
+  /// 다음 계정에 사진·연락처·주소를 포함한 개인 정보를 넘기지 않는다.
+  Future<void> clearAccount() async {
+    profile.value = UserProfile.empty();
+    signUpEmail = null;
+    signUpPassword = null;
+    await ProfileLocalStore.instance.clear();
   }
 
   void updateBirthGender({DateTime? birthdate, String? gender}) {
-    profile.value = profile.value.copyWith(birthdate: birthdate, gender: gender);
+    profile.value = profile.value.copyWith(
+      birthdate: birthdate,
+      gender: gender,
+    );
   }
 
   void updateInterests(List<String> interests) {
@@ -177,9 +163,9 @@ class UserProfile {
   });
 
   factory UserProfile.empty() => UserProfile(
-        id: 'local_${DateTime.now().millisecondsSinceEpoch}',
-        nickname: '',
-      );
+    id: 'local_${DateTime.now().millisecondsSinceEpoch}',
+    nickname: '',
+  );
 
   /// 화면에 보여 줄 이름.
   ///
@@ -210,7 +196,9 @@ class UserProfile {
       gender: gender ?? this.gender,
       interests: interests ?? this.interests,
       themes: themes ?? this.themes,
-      profileImagePath: clearImage ? null : (profileImagePath ?? this.profileImagePath),
+      profileImagePath: clearImage
+          ? null
+          : (profileImagePath ?? this.profileImagePath),
       englishName: englishName ?? this.englishName,
       phone: phone ?? this.phone,
       email: email ?? this.email,

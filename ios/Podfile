@@ -1,7 +1,7 @@
 # 프로젝트 전체가 맞출 최소 iOS 판. 여기서 못박지 않으면 각 의존 모듈이
 # 저마다 기본값을 쓰는데, 그중 하나라도 이 프로젝트보다 높은 값을 요구하면
 # 링크 단계에서야 어긋남이 드러난다. 값은 Runner 프로젝트 설정과 같게 둔다.
-platform :ios, '13.0'
+platform :ios, '14.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'

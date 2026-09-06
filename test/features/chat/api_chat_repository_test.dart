@@ -5,7 +5,11 @@ import 'package:map_service_client/data/models/chat_room.dart';
 import 'package:map_service_client/data/repositories/api_chat_repository.dart';
 
 class _FakeChatApi implements ChatApiService {
-  _FakeChatApi({this.rooms = const [], this.messages = const [], this.people = const []});
+  _FakeChatApi({
+    this.rooms = const [],
+    this.messages = const [],
+    this.people = const [],
+  });
 
   final List<ChatRoomSummary> rooms;
   final List<ChatMessageResponse> messages;
@@ -15,21 +19,30 @@ class _FakeChatApi implements ChatApiService {
   Future<List<ChatRoomSummary>> listRooms() async => rooms;
 
   @override
-  Future<ChatHistoryResponse> history(int roomId, {int? beforeSeq, int? limit}) async =>
-      ChatHistoryResponse(messages: messages, nextCursor: null);
+  Future<ChatHistoryResponse> history(
+    int roomId, {
+    int? beforeSeq,
+    int? limit,
+  }) async => ChatHistoryResponse(messages: messages, nextCursor: null);
 
   @override
-  Future<List<ChatParticipantResponse>> participants(int roomId) async => people;
+  Future<List<ChatParticipantResponse>> participants(int roomId) async =>
+      people;
 
   @override
-  Future<ChatRoomResponse> createOrGetRoom(int scheduleId) => throw UnimplementedError();
+  Future<ChatRoomResponse> createOrGetRoom(int scheduleId) =>
+      throw UnimplementedError();
   @override
   Future<ChatRoomResponse> getRoom(int roomId) => throw UnimplementedError();
   @override
-  Future<ChatRoomResponse> getRoomBySchedule(int scheduleId) => throw UnimplementedError();
-  @override
-  Future<ChatMessageResponse> send(int roomId, String content, String clientMsgId) =>
+  Future<ChatRoomResponse> getRoomBySchedule(int scheduleId) =>
       throw UnimplementedError();
+  @override
+  Future<ChatMessageResponse> send(
+    int roomId,
+    String content,
+    String clientMsgId,
+  ) => throw UnimplementedError();
   @override
   Future<ChatUnreadResponse> markRead(int roomId, int lastReadSeq) =>
       throw UnimplementedError();
@@ -50,15 +63,18 @@ class _FakeChatApi implements ChatApiService {
   }
 }
 
-ChatParticipantResponse _person(int id, String name, {String status = 'ACTIVE'}) =>
-    ChatParticipantResponse(
-      userId: id,
-      nickname: name,
-      role: id == 1 ? 'OWNER' : 'MEMBER',
-      status: status,
-      lastReadSeq: 0,
-      joinedAt: DateTime.now(),
-    );
+ChatParticipantResponse _person(
+  int id,
+  String name, {
+  String status = 'ACTIVE',
+}) => ChatParticipantResponse(
+  userId: id,
+  nickname: name,
+  role: id == 1 ? 'OWNER' : 'MEMBER',
+  status: status,
+  lastReadSeq: 0,
+  joinedAt: DateTime.now(),
+);
 
 ChatMessageResponse _message(int seq, {int? senderId, String type = 'TEXT'}) =>
     ChatMessageResponse(
@@ -73,7 +89,8 @@ ChatMessageResponse _message(int seq, {int? senderId, String type = 'TEXT'}) =>
       clientMsgId: null,
     );
 
-ChatRoomSummary _summary({bool readOnly = false, DateTime? lastAt}) => ChatRoomSummary(
+ChatRoomSummary _summary({bool readOnly = false, DateTime? lastAt}) =>
+    ChatRoomSummary(
       roomId: 7,
       scheduleId: 11,
       title: '속초 당일치기',
@@ -86,9 +103,42 @@ ChatRoomSummary _summary({bool readOnly = false, DateTime? lastAt}) => ChatRoomS
     );
 
 void main() {
+  test('일정이 삭제된 방은 목록에서도 null 일정을 보존한다', () async {
+    final repository = ApiChatRepository(
+      api: _FakeChatApi(
+        rooms: [
+          ChatRoomSummary.fromJson({
+            'room_id': 7,
+            'schedule_id': null,
+            'title': '보관된 대화',
+            'read_only': true,
+          }),
+        ],
+      ),
+    );
+    final room = (await repository.getChatRooms()).single;
+    expect(room.id, 7);
+    expect(room.scheduleId, isNull);
+    expect(room.copyWith(unreadCount: 1).scheduleId, isNull);
+  });
+
+  test('익명화된 보낸 사람은 0번 사용자나 내 메시지로 바뀌지 않는다', () async {
+    final repository = ApiChatRepository(
+      api: _FakeChatApi(messages: [_message(3, senderId: null)]),
+    );
+    final message = (await repository.getMessages(7)).single;
+    expect(message.senderId, isNull);
+    expect(message.isMe, isFalse);
+    expect(message.senderName, '알 수 없음');
+    expect(message.type, ChatMessageType.text);
+    expect(message.text, '내용 3');
+  });
+
   test('목록은 방 번호와 일정 번호를 서로 다른 값으로 옮긴다', () async {
     // 둘을 같은 것으로 두면 "일정 보러가기"가 조용히 아무 데도 닿지 않는다.
-    final repository = ApiChatRepository(api: _FakeChatApi(rooms: [_summary()]));
+    final repository = ApiChatRepository(
+      api: _FakeChatApi(rooms: [_summary()]),
+    );
 
     final rooms = await repository.getChatRooms();
 
@@ -98,8 +148,9 @@ void main() {
   });
 
   test('보관된 방은 지난 방으로 분류된다', () async {
-    final repository =
-        ApiChatRepository(api: _FakeChatApi(rooms: [_summary(readOnly: true)]));
+    final repository = ApiChatRepository(
+      api: _FakeChatApi(rooms: [_summary(readOnly: true)]),
+    );
 
     final rooms = await repository.getChatRooms();
 
@@ -107,7 +158,9 @@ void main() {
   });
 
   test('대화가 없는 방은 정렬에서 뒤로 밀리도록 아주 과거를 쓴다', () async {
-    final repository = ApiChatRepository(api: _FakeChatApi(rooms: [_summary()]));
+    final repository = ApiChatRepository(
+      api: _FakeChatApi(rooms: [_summary()]),
+    );
 
     final rooms = await repository.getChatRooms();
 
@@ -162,7 +215,11 @@ void main() {
     // 서버는 최신부터 내려 주고 화면은 위에서 아래로 읽는다.
     final repository = ApiChatRepository(
       api: _FakeChatApi(
-        messages: [_message(3, senderId: 1), _message(2, senderId: 1), _message(1, senderId: 1)],
+        messages: [
+          _message(3, senderId: 1),
+          _message(2, senderId: 1),
+          _message(1, senderId: 1),
+        ],
         people: [_person(1, '나')],
       ),
     );

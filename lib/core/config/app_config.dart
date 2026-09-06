@@ -27,6 +27,15 @@ class AppConfig {
 
   static final AppConfig instance = AppConfig._();
 
+  static const String environment = String.fromEnvironment(
+    'APP_ENV',
+    defaultValue: 'test',
+  );
+  static const String _allowedOrigins = String.fromEnvironment(
+    'API_ALLOWED_ORIGINS',
+    defaultValue: 'https://mapapptest.duckdns.org',
+  );
+
   /// 빌드 때 주소를 넘겼는지. 넘겼다면 그 값이 무조건 이긴다.
   static const bool _hasInjectedBaseUrl = bool.hasEnvironment('API_BASE_URL');
   static const String _injectedBaseUrl = String.fromEnvironment('API_BASE_URL');
@@ -42,13 +51,8 @@ class AppConfig {
   /// 첫 화면 직전에 하는 일이라 짧게 끊는다.
   static const Duration _remoteTimeout = Duration(seconds: 3);
 
-  /// 첫 조회가 실패했을 때 뒤에서 다시 물어보는 간격.
-  ///
-  /// 첫 조회는 화면을 막지 않으려고 짧게 끊는데, 그 짧은 창에 걸리는 상황이
-  /// 실제로 있다. 막 설치한 기기를 느린 망에서 처음 켜면 이름 조회와 연결
-  /// 수립만으로 상한을 넘긴다. 그때 한 번으로 끝내면 캐시도 없어 로컬 기본값에
-  /// 갇히고, 통신이 회복돼도 앱을 완전히 종료했다 켜기 전에는 빠져나올 길이
-  /// 없다. 간격을 늘려 가며 몇 번 더 물어 스스로 회복하게 둔다.
+  /// 초기 조회 실패 시 다음 실행에 쓸 설정을 다시 받아 저장한다.
+  /// 실행 중 API origin과 그 origin에 연결된 토큰은 바꾸지 않는다.
   static const List<Duration> _retryDelays = [
     Duration(seconds: 3),
     Duration(seconds: 10),
@@ -57,7 +61,7 @@ class AppConfig {
     Duration(minutes: 5),
   ];
 
-  static const String _cacheKey = 'app_config.api_base_url';
+  static const String _cacheKey = 'app_config.$environment.api_base_url';
 
   final _storage = const FlutterSecureStorage();
 
@@ -65,6 +69,17 @@ class AppConfig {
 
   /// 이번 실행에서 쓸 서버 주소. 뒤에 슬래시가 없다(경로를 붙여 쓴다).
   String get apiBaseUrl => _apiBaseUrl;
+  String get storageScope => '$environment:${Uri.parse(_apiBaseUrl).origin}';
+  bool get requestsAllowed =>
+      !kReleaseMode ||
+      (_source != 'fallback' && Uri.parse(_apiBaseUrl).scheme == 'https');
+
+  static String? _trustedRemote(String? raw) {
+    final value = _normalize(raw, requireHttps: true);
+    if (value == null) return null;
+    final allowed = _allowedOrigins.split(',').map((s) => s.trim());
+    return allowed.contains(Uri.parse(value).origin) ? value : null;
+  }
 
   /// 주소를 어디서 얻었는지. 문제 추적용이며 동작에는 쓰지 않는다.
   String get source => _source;
@@ -81,7 +96,7 @@ class AppConfig {
     _initialized = true;
 
     if (_hasInjectedBaseUrl) {
-      final injected = _normalize(_injectedBaseUrl);
+      final injected = _normalize(_injectedBaseUrl, requireHttps: kReleaseMode);
       if (injected != null) {
         _apiBaseUrl = injected;
         _source = 'dart-define';
@@ -90,20 +105,17 @@ class AppConfig {
       // 주었는데 쓸 수 없는 형태다(스킴 누락, 빈 값 등). 여기서 조용히
       // 원격으로 내려가면, 방금 띄운 로컬 서버를 보고 있다고 믿는 채로
       // 실제로는 게시된 주소를 호출하게 된다.
-      debugPrint(
-        'AppConfig: 주입된 주소를 쓸 수 없어 무시한다 '
-        '(값="$_injectedBaseUrl" — http/https 스킴이 필요하다)',
-      );
+      debugPrint('AppConfig: 주입된 서버 주소의 형식이 올바르지 않다');
     }
 
     // 원격을 못 읽었을 때 곧바로 쓸 수 있도록 캐시를 먼저 깔아 둔다.
-    final cached = _normalize(await _readCache(), requireHttps: true);
+    final cached = _trustedRemote(await _readCache());
     if (cached != null) {
       _apiBaseUrl = cached;
       _source = 'cache';
     }
 
-    final remote = _normalize(await _fetchRemote(), requireHttps: true);
+    final remote = _trustedRemote(await _fetchRemote());
     if (remote != null) {
       _apiBaseUrl = remote;
       _source = 'remote';
@@ -115,8 +127,7 @@ class AppConfig {
     debugPrint('AppConfig: apiBaseUrl=$_apiBaseUrl (source=$_source)');
 
     // 원격까지 닿지 못했으면 뒤에서 다시 시도한다. 여기서 기다리지 않으므로
-    // 첫 화면이 늦어지지 않고, 성공하면 그 뒤의 호출부터 새 주소를 쓴다
-    // (주소는 호출 시점에 읽는다).
+    // 첫 화면이 늦어지지 않고, 성공한 값은 다음 시작에서 사용한다.
     if (_source != 'remote') {
       unawaited(_retryUntilRemote());
     }
@@ -129,16 +140,11 @@ class AppConfig {
   Future<void> _retryUntilRemote() async {
     for (final delay in _retryDelays) {
       await Future<void>.delayed(delay);
-      final remote = _normalize(await _fetchRemote(), requireHttps: true);
+      final remote = _trustedRemote(await _fetchRemote());
       if (remote == null) continue;
-      final changed = remote != _apiBaseUrl;
-      _apiBaseUrl = remote;
-      _source = 'remote';
       await _writeCache(remote);
-      debugPrint(
-        'AppConfig: 뒤늦게 원격 주소 확보 apiBaseUrl=$remote'
-        '${changed ? ' (바뀜)' : ''}',
-      );
+      // 이미 시작한 세션의 목적지는 바꾸지 않는다. 새 주소는 다음 시작에 적용한다.
+      debugPrint('AppConfig: 다음 시작에 사용할 설정을 저장했다');
       return;
     }
     debugPrint('AppConfig: 원격 주소를 끝내 못 받았다 (현재=$_apiBaseUrl, source=$_source)');
@@ -179,6 +185,7 @@ class AppConfig {
     if (uri.scheme != 'http' && uri.scheme != 'https') return null;
     if (requireHttps && uri.scheme != 'https') return null;
     if (uri.host.isEmpty) return null;
+    if (uri.userInfo.isNotEmpty || uri.hasQuery || uri.hasFragment) return null;
     var normalized = trimmed;
     while (normalized.endsWith('/')) {
       normalized = normalized.substring(0, normalized.length - 1);

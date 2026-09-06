@@ -25,14 +25,14 @@ class VisionRequest {
   });
 
   Map<String, dynamic> toJson() => {
-        'session_id': sessionId,
-        'frame_b64': frameB64,
-        'voice_triggered': voiceTriggered,
-        'voice_text': voiceText,
-        'prior_context': priorContext,
-        'conversation_history': conversationHistory,
-        'location': location?.toJson(),
-      };
+    'session_id': sessionId,
+    'frame_b64': frameB64,
+    'voice_triggered': voiceTriggered,
+    'voice_text': voiceText,
+    'prior_context': priorContext,
+    'conversation_history': conversationHistory,
+    'location': location?.toJson(),
+  };
 }
 
 class DetectedObject {
@@ -47,10 +47,10 @@ class DetectedObject {
   });
 
   factory DetectedObject.fromJson(Map<String, dynamic> json) => DetectedObject(
-        label: json['label'] as String,
-        confidence: (json['confidence'] as num).toDouble(),
-        bbox: List<double>.from(json['bbox'] as List),
-      );
+    label: json['label'] as String,
+    confidence: (json['confidence'] as num).toDouble(),
+    bbox: List<double>.from(json['bbox'] as List),
+  );
 }
 
 class IdentifyResult {
@@ -67,11 +67,11 @@ class IdentifyResult {
   });
 
   factory IdentifyResult.fromJson(Map<String, dynamic> json) => IdentifyResult(
-        name: json['name'] as String,
-        category: json['category'] as String,
-        description: json['description'] as String,
-        searchQuery: json['search_query'] as String,
-      );
+    name: json['name'] as String,
+    category: json['category'] as String,
+    description: json['description'] as String,
+    searchQuery: json['search_query'] as String,
+  );
 }
 
 class SearchResult {
@@ -88,11 +88,11 @@ class SearchResult {
   });
 
   factory SearchResult.fromJson(Map<String, dynamic> json) => SearchResult(
-        title: json['title'] as String,
-        summary: json['summary'] as String,
-        source: json['source'] as String,
-        url: json['url'] as String?,
-      );
+    title: json['title'] as String,
+    summary: json['summary'] as String,
+    source: json['source'] as String,
+    url: json['url'] as String?,
+  );
 }
 
 class VisionResponse {
@@ -115,19 +115,21 @@ class VisionResponse {
   bool get isSuccess => status == 'done' && error == null;
 
   factory VisionResponse.fromJson(Map<String, dynamic> json) => VisionResponse(
-        sessionId: json['session_id'] as String,
-        detectedObject: json['detected_object'] != null
-            ? DetectedObject.fromJson(
-                json['detected_object'] as Map<String, dynamic>)
-            : null,
-        identifyResult: json['identify_result'] != null
-            ? IdentifyResult.fromJson(
-                json['identify_result'] as Map<String, dynamic>)
-            : null,
-        searchResults: (json['search_results'] as List? ?? [])
-            .map((e) => SearchResult.fromJson(e as Map<String, dynamic>))
-            .toList(),
-        status: json['status'] as String,
-        error: json['error'] as String?,
-      );
+    sessionId: json['session_id'] as String,
+    detectedObject: json['detected_object'] != null
+        ? DetectedObject.fromJson(
+            json['detected_object'] as Map<String, dynamic>,
+          )
+        : null,
+    identifyResult: json['identify_result'] != null
+        ? IdentifyResult.fromJson(
+            json['identify_result'] as Map<String, dynamic>,
+          )
+        : null,
+    searchResults: (json['search_results'] as List? ?? [])
+        .map((e) => SearchResult.fromJson(e as Map<String, dynamic>))
+        .toList(),
+    status: json['status'] as String,
+    error: json['error'] as String?,
+  );
 }

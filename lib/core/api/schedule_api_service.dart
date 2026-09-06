@@ -90,9 +90,9 @@ class ScheduleApiService {
   }) async {
     final json = await _api.put('/api/v1/schedules/$scheduleId', body: {
       'job_id': jobId,
-      if (transport != null) 'transport': transport,
-      if (activeStartHour != null) 'active_start_hour': activeStartHour,
-      if (activeEndHour != null) 'active_end_hour': activeEndHour,
+      'transport': ?transport,
+      'active_start_hour': ?activeStartHour,
+      'active_end_hour': ?activeEndHour,
     });
     return ScheduleDetail.fromJson(json);
   }

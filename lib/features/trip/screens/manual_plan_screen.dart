@@ -6,6 +6,8 @@ import '../../../common/widgets/prev_button.dart';
 import '../../../core/api/places_api_service.dart';
 import '../../../core/api/trip_api_service.dart';
 import '../utils/manual_route_request.dart';
+import '../utils/plan_edit_draft.dart';
+import '../widgets/transport_theme.dart';
 
 /// 직접 장소를 고르고 고쳐서 일정을 짜는 화면.
 ///
@@ -19,6 +21,8 @@ class ManualPlanScreen extends StatefulWidget {
   const ManualPlanScreen({
     super.key,
     required this.initialStops,
+    this.draft,
+    this.route,
     required this.startDate,
     required this.endDate,
     required this.activeStartHour,
@@ -31,6 +35,8 @@ class ManualPlanScreen extends StatefulWidget {
   });
 
   final List<TripStop> initialStops;
+  final PlanEditDraft? draft;
+  final Future<TripGenerateResponse> Function(TripRouteRequest)? route;
   final DateTime startDate;
   final DateTime endDate;
   final int activeStartHour;
@@ -51,7 +57,10 @@ class ManualPlanScreen extends StatefulWidget {
 }
 
 class _ManualPlanScreenState extends State<ManualPlanScreen> {
-  late List<TripStop> _stops;
+  late final PlanEditDraft _draft;
+  List<TripStop> get _stops => _draft.stops;
+  bool _allowPop = false;
+  bool _confirmingCancel = false;
 
   Future<void>? _routeFuture;
   TripGenerateResponse? _result;
@@ -59,7 +68,9 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
   @override
   void initState() {
     super.initState();
-    _stops = List.of(widget.initialStops);
+    _draft =
+        widget.draft ??
+        PlanEditDraft(stops: widget.initialStops, transport: widget.transport);
   }
 
   /// 여행 일수. 장소를 어느 날에 넣을지 고를 때 쓴다.
@@ -67,70 +78,92 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
       widget.endDate.difference(widget.startDate).inDays.abs() + 1;
 
   /// 화면에 보이는 순서 그대로, 일차별로 묶어서 보여 준다.
-  List<TripStop> _stopsOf(int day) =>
-      [for (final s in _stops) if (s.day == day) s];
+  List<TripStop> _stopsOf(int day) => [
+    for (final s in _stops)
+      if (s.day == day) s,
+  ];
 
   void _remove(TripStop stop) {
     setState(() => _stops.remove(stop));
   }
 
   void _moveToDay(TripStop stop, int day) {
-    final index = _stops.indexOf(stop);
-    if (index < 0) return;
-    setState(() {
-      _stops[index] = _copyWithDay(stop, day);
-      // 일차가 섞이지 않게 정렬해 둔다. 같은 일차 안의 순서는 그대로다.
-      _stops.sort((a, b) => a.day.compareTo(b.day));
-    });
+    setState(() => _draft.moveToDay(stop, day));
   }
 
   void _reorderWithinDay(int day, int oldIndex, int newIndex) {
-    final inDay = _stopsOf(day);
-    if (oldIndex < 0 || oldIndex >= inDay.length) return;
-    // ReorderableListView 는 내려 옮길 때 자리 하나를 더 세어 준다.
-    if (newIndex > oldIndex) newIndex -= 1;
-    final moved = inDay.removeAt(oldIndex);
-    inDay.insert(newIndex.clamp(0, inDay.length), moved);
-
-    // 다른 일차는 건드리지 않고 이 일차의 자리만 새 순서로 채운다.
-    final positions = [
-      for (int i = 0; i < _stops.length; i++)
-        if (_stops[i].day == day) i,
-    ];
-    setState(() {
-      for (int i = 0; i < positions.length; i++) {
-        _stops[positions[i]] = inDay[i];
-      }
-    });
+    setState(() => _draft.reorderWithinDay(day, oldIndex, newIndex));
   }
+
+  Future<void> _cancel() async {
+    if (_confirmingCancel) return;
+    _confirmingCancel = true;
+    try {
+      final discard =
+          !_draft.isDirty ||
+          await showDialog<bool>(
+                context: context,
+                builder: (dialogContext) => AlertDialog(
+                  title: const Text('수정한 내용을 버릴까요?'),
+                  content: const Text('저장된 일정은 바뀌지 않아요.'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(dialogContext, false),
+                      child: const Text('계속 수정'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(dialogContext, true),
+                      child: const Text('수정 취소'),
+                    ),
+                  ],
+                ),
+              ) ==
+              true;
+      if (!discard || !mounted) return;
+      _draft.reset();
+      setState(() => _allowPop = true);
+      await WidgetsBinding.instance.endOfFrame;
+      if (mounted) widget.onCancel();
+    } finally {
+      _confirmingCancel = false;
+    }
+  }
+
+  Widget _guardDraft(Widget child) => PopScope(
+    canPop: _allowPop || !_draft.isDirty,
+    onPopInvokedWithResult: (didPop, _) {
+      if (!didPop) _cancel();
+    },
+    child: child,
+  );
 
   Future<void> _addPlace() async {
     final picked = await showModalBottomSheet<PlaceSearchItem>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _PlaceSearchSheet(
-        province: widget.province,
-        city: widget.city,
-      ),
+      builder: (_) =>
+          _PlaceSearchSheet(province: widget.province, city: widget.city),
     );
     if (picked == null || !mounted) return;
     setState(() {
-      _stops.add(TripStop(
-        order: _stops.length + 1,
-        // 마지막 일차에 붙인다. 어느 날인지는 눌러서 옮길 수 있다.
-        day: _stops.isEmpty ? 1 : _stops.last.day,
-        name: picked.name,
-        address: picked.displayAddress,
-        // 시각은 서버가 동선을 짜며 채운다. 여기서 지어내면 화면에는 있는데
-        // 실제 일정과 다른 시각이 보인다.
-        time: '',
-        latitude: picked.latitude,
-        longitude: picked.longitude,
-        category: picked.category,
-        placeUrl: picked.placeUrl,
-        contentId: picked.contentId.isEmpty ? null : picked.contentId,
-      ));
+      _stops.add(
+        TripStop(
+          order: _stops.length + 1,
+          // 마지막 일차에 붙인다. 어느 날인지는 눌러서 옮길 수 있다.
+          day: _stops.isEmpty ? 1 : _stops.last.day,
+          name: picked.name,
+          address: picked.displayAddress,
+          // 시각은 서버가 동선을 짜며 채운다. 여기서 지어내면 화면에는 있는데
+          // 실제 일정과 다른 시각이 보인다.
+          time: '',
+          latitude: picked.latitude,
+          longitude: picked.longitude,
+          category: picked.category,
+          placeUrl: picked.placeUrl,
+          contentId: picked.contentId.isEmpty ? null : picked.contentId,
+        ),
+      );
     });
   }
 
@@ -141,16 +174,19 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
       endDate: widget.endDate,
       activeStartHour: widget.activeStartHour,
       activeEndHour: widget.activeEndHour,
-      transport: widget.transport,
+      transport: _draft.transport,
       province: widget.province,
       city: widget.city,
     );
     final request = draft.request;
     if (request == null) return;
     setState(() {
-      _routeFuture = TripApiService.instance
-          .routeTrip(request)
-          .then((response) => _result = response);
+      _routeFuture = (widget.route ?? TripApiService.instance.routeTrip)(
+        request,
+      ).then((response) => _result = response);
+      // Attach immediately, before the next frame installs the loading widget.
+      // That widget still receives the same failure and restores the draft.
+      _routeFuture!.ignore();
     });
   }
 
@@ -171,18 +207,21 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       setState(() => _routeFuture = null);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(message)));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     });
   }
 
   @override
   Widget build(BuildContext context) {
     if (_routeFuture != null) {
-      return AppLoadingScreen(
-        future: _routeFuture,
-        onComplete: _onRouteComplete,
-        onError: _onRouteError,
+      return _guardDraft(
+        AppLoadingScreen(
+          future: _routeFuture,
+          onComplete: _onRouteComplete,
+          onError: _onRouteError,
+        ),
       );
     }
 
@@ -192,79 +231,99 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
       endDate: widget.endDate,
       activeStartHour: widget.activeStartHour,
       activeEndHour: widget.activeEndHour,
-      transport: widget.transport,
+      transport: _draft.transport,
       province: widget.province,
       city: widget.city,
     ).blockedBy;
 
-    return Column(
-      children: [
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(24, 32, 24, 16),
-            children: [
-              Text(
-                '일정 직접 고치기',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.neutralScale[600],
+    return _guardDraft(
+      Column(
+        children: [
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(24, 32, 24, 16),
+              children: [
+                Text(
+                  '일정 직접 고치기',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.neutralScale[600],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '장소를 눌러 지우거나 옮기고, 끌어서 순서를 바꿔요.\n'
-                '방문 시각과 이동 시간은 동선을 만들 때 다시 계산돼요.',
-                style: TextStyle(
-                  fontSize: 13,
-                  height: 1.5,
-                  color: AppColors.neutralScale[400],
+                const SizedBox(height: 8),
+                Text(
+                  '장소를 눌러 지우거나 옮기고, 끌어서 순서를 바꿔요.\n'
+                  '방문 시각과 이동 시간은 동선을 만들 때 다시 계산돼요.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.5,
+                    color: AppColors.neutralScale[400],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 20),
-              for (int day = 1; day <= _dayCount; day++) ...[
-                _buildDayHeader(day),
-                _buildDayList(day),
-                const SizedBox(height: 12),
+                const SizedBox(height: 20),
+                const Text(
+                  '이동수단',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    for (final mode in TransportTheme.all)
+                      ChoiceChip(
+                        label: Text(mode.name),
+                        selected: _draft.transport == mode.id,
+                        onSelected: (_) =>
+                            setState(() => _draft.transport = mode.id),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                for (int day = 1; day <= _dayCount; day++) ...[
+                  _buildDayHeader(day),
+                  _buildDayList(day),
+                  const SizedBox(height: 12),
+                ],
+                const SizedBox(height: 8),
+                _buildAddButton(),
               ],
-              const SizedBox(height: 8),
-              _buildAddButton(),
-            ],
+            ),
           ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-          child: Column(
-            children: [
-              NextButton(
-                onPressed: blocked == null ? _makeRoute : null,
-                label: '동선 만들기  →',
-                info: switch (blocked) {
-                  ManualRouteBlock.tooFew => '장소를 2곳 이상 넣어 주세요',
-                  ManualRouteBlock.tooMany => '한 번에 10곳까지 넣을 수 있어요',
-                  null => '${_stops.length}곳으로 동선을 만들어요',
-                },
-              ),
-              const SizedBox(height: 12),
-              PrevButton(onPressed: widget.onCancel, label: '← 돌아가기'),
-            ],
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+            child: Column(
+              children: [
+                NextButton(
+                  onPressed: blocked == null ? _makeRoute : null,
+                  label: '동선 만들기  →',
+                  info: switch (blocked) {
+                    ManualRouteBlock.tooFew => '장소를 2곳 이상 넣어 주세요',
+                    ManualRouteBlock.tooMany => '한 번에 10곳까지 넣을 수 있어요',
+                    null => '${_stops.length}곳으로 동선을 만들어요',
+                  },
+                ),
+                const SizedBox(height: 12),
+                PrevButton(onPressed: _cancel, label: '수정 취소'),
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
   Widget _buildDayHeader(int day) => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Text(
-          '$day일차',
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.bold,
-            color: AppColors.neutralScale[500],
-          ),
-        ),
-      );
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Text(
+      '$day일차',
+      style: TextStyle(
+        fontSize: 15,
+        fontWeight: FontWeight.bold,
+        color: AppColors.neutralScale[500],
+      ),
+    ),
+  );
 
   Widget _buildDayList(int day) {
     final inDay = _stopsOf(day);
@@ -293,7 +352,11 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
           _reorderWithinDay(day, oldIndex, newIndex),
       itemBuilder: (context, index) {
         final stop = inDay[index];
-        return _buildStopTile(stop, index, key: ValueKey('$day-$index-${stop.name}'));
+        return _buildStopTile(
+          stop,
+          index,
+          key: ValueKey('$day-$index-${stop.name}'),
+        );
       },
     );
   }
@@ -321,15 +384,21 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
             ),
           ),
         ),
-        title: Text(stop.name,
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+        title: Text(
+          stop.name,
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+        ),
         subtitle: stop.address.isEmpty
             ? null
-            : Text(stop.address,
+            : Text(
+                stop.address,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style:
-                    TextStyle(fontSize: 12, color: AppColors.neutralScale[400])),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.neutralScale[400],
+                ),
+              ),
         trailing: ReorderableDragStartListener(
           index: index,
           child: Icon(Icons.drag_handle, color: AppColors.neutralScale[300]),
@@ -370,36 +439,15 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
   }
 
   Widget _buildAddButton() => OutlinedButton.icon(
-        onPressed: _addPlace,
-        icon: const Icon(Icons.add),
-        label: const Text('장소 추가하기'),
-        style: OutlinedButton.styleFrom(
-          minimumSize: const Size.fromHeight(52),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      );
+    onPressed: _addPlace,
+    icon: const Icon(Icons.add),
+    label: const Text('장소 추가하기'),
+    style: OutlinedButton.styleFrom(
+      minimumSize: const Size.fromHeight(52),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    ),
+  );
 }
-
-/// 일차만 바꾼 사본. TripStop 은 값 객체라 바꾼 값으로 새로 만든다.
-TripStop _copyWithDay(TripStop stop, int day) => TripStop(
-      order: stop.order,
-      day: day,
-      name: stop.name,
-      address: stop.address,
-      time: stop.time,
-      latitude: stop.latitude,
-      longitude: stop.longitude,
-      transportToNext: stop.transportToNext,
-      placeId: stop.placeId,
-      placeUrl: stop.placeUrl,
-      reason: stop.reason,
-      category: stop.category,
-      bullets: stop.bullets,
-      endTime: stop.endTime,
-      stayMinutes: stop.stayMinutes,
-      contentId: stop.contentId,
-    );
 
 /// 장소를 검색해 고르는 시트. 검색 범위는 이 일정의 지역이다.
 class _PlaceSearchSheet extends StatefulWidget {
@@ -498,8 +546,10 @@ class _PlaceSearchSheetState extends State<_PlaceSearchSheet> {
               child: Text(
                 _error!,
                 textAlign: TextAlign.center,
-                style:
-                    TextStyle(fontSize: 13, color: AppColors.neutralScale[400]),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: AppColors.neutralScale[400],
+                ),
               ),
             ),
           Expanded(
@@ -514,7 +564,9 @@ class _PlaceSearchSheetState extends State<_PlaceSearchSheet> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                        fontSize: 12, color: AppColors.neutralScale[400]),
+                      fontSize: 12,
+                      color: AppColors.neutralScale[400],
+                    ),
                   ),
                   trailing: const Icon(Icons.add_circle_outline),
                   onTap: () => Navigator.of(context).pop(item),

@@ -5,6 +5,7 @@ import '../../../common/widgets/prev_button.dart';
 import '../../../core/api/trip_api_service.dart';
 import '../../../core/state/trip_repository.dart';
 import 'manual_plan_screen.dart';
+import '../utils/plan_edit_draft.dart';
 import 'trip_created_screen.dart';
 
 /// 저장 전 일정을 직접 고치는 자리.
@@ -25,31 +26,38 @@ class ManualPlanEntryScreen extends StatefulWidget {
 class _ManualPlanEntryScreenState extends State<ManualPlanEntryScreen> {
   late final TripPlanContext? _plan;
   TripGenerateResponse? _result;
+  PlanEditDraft? _draft;
 
   @override
   void initState() {
     super.initState();
     _plan = TripRepository.instance.lastPlan;
+    final plan = _plan;
+    if (plan != null) {
+      _draft = PlanEditDraft(stops: plan.stops, transport: plan.transport);
+    }
   }
 
   void _onRouted(TripGenerateResponse response) {
     final plan = _plan;
     if (plan != null) {
       // 고친 일정이 이후 흐름의 출발점이 된다. 조건은 그대로 물려준다.
-      TripRepository.instance.setLastPlan(TripPlanContext(
-        startDate: plan.startDate,
-        endDate: plan.endDate,
-        activeStartHour: plan.activeStartHour,
-        activeEndHour: plan.activeEndHour,
-        transport: plan.transport,
-        province: plan.province,
-        city: plan.city,
-        stops: response.stops,
-        tripId: response.tripId,
-        minBudget: plan.minBudget,
-        maxBudget: plan.maxBudget,
-        themes: plan.themes,
-      ));
+      TripRepository.instance.setLastPlan(
+        TripPlanContext(
+          startDate: plan.startDate,
+          endDate: plan.endDate,
+          activeStartHour: plan.activeStartHour,
+          activeEndHour: plan.activeEndHour,
+          transport: _draft!.transport,
+          province: plan.province,
+          city: plan.city,
+          stops: response.stops,
+          tripId: response.tripId,
+          minBudget: plan.minBudget,
+          maxBudget: plan.maxBudget,
+          themes: plan.themes,
+        ),
+      );
     }
     setState(() => _result = response);
   }
@@ -71,6 +79,7 @@ class _ManualPlanEntryScreenState extends State<ManualPlanEntryScreen> {
     }
 
     return ManualPlanScreen(
+      draft: _draft,
       initialStops: plan.stops,
       startDate: plan.startDate,
       endDate: plan.endDate,
@@ -85,27 +94,24 @@ class _ManualPlanEntryScreenState extends State<ManualPlanEntryScreen> {
   }
 
   Widget _buildBlocked() => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.tune_rounded,
-                size: 48, color: AppColors.neutralScale[200]),
-            const SizedBox(height: 16),
-            Text(
-              '고칠 일정을 찾지 못했어요.\n일정을 먼저 만들어 주세요.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  fontSize: 14,
-                  color: AppColors.neutralScale[400],
-                  height: 1.5),
-            ),
-            const SizedBox(height: 24),
-            PrevButton(
-              onPressed: () => context.go('/trip'),
-              label: '← 여행 계획으로',
-            ),
-          ],
+    padding: const EdgeInsets.all(24),
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(Icons.tune_rounded, size: 48, color: AppColors.neutralScale[200]),
+        const SizedBox(height: 16),
+        Text(
+          '고칠 일정을 찾지 못했어요.\n일정을 먼저 만들어 주세요.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 14,
+            color: AppColors.neutralScale[400],
+            height: 1.5,
+          ),
         ),
-      );
+        const SizedBox(height: 24),
+        PrevButton(onPressed: () => context.go('/trip'), label: '← 여행 계획으로'),
+      ],
+    ),
+  );
 }

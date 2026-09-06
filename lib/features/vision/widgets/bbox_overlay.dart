@@ -96,10 +96,26 @@ class _BboxPainter extends CustomPainter {
       ..strokeWidth = 3;
 
     final corners = [
-      [rect.topLeft, Offset(rect.left + len, rect.top), Offset(rect.left, rect.top + len)],
-      [rect.topRight, Offset(rect.right - len, rect.top), Offset(rect.right, rect.top + len)],
-      [rect.bottomLeft, Offset(rect.left + len, rect.bottom), Offset(rect.left, rect.bottom - len)],
-      [rect.bottomRight, Offset(rect.right - len, rect.bottom), Offset(rect.right, rect.bottom - len)],
+      [
+        rect.topLeft,
+        Offset(rect.left + len, rect.top),
+        Offset(rect.left, rect.top + len),
+      ],
+      [
+        rect.topRight,
+        Offset(rect.right - len, rect.top),
+        Offset(rect.right, rect.top + len),
+      ],
+      [
+        rect.bottomLeft,
+        Offset(rect.left + len, rect.bottom),
+        Offset(rect.left, rect.bottom - len),
+      ],
+      [
+        rect.bottomRight,
+        Offset(rect.right - len, rect.bottom),
+        Offset(rect.right, rect.bottom - len),
+      ],
     ];
 
     for (final c in corners) {

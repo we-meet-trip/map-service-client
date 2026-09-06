@@ -1,79 +1,79 @@
-# 태그를 밀면 서명된 설치본이 만들어져 테스터 폰으로 배달된다.
-#
-# 서버 주소를 빌드에 넣지 않는 것이 이 파이프라인의 전제다. 앱은 시작할 때
-# 고정된 위치에서 현재 주소를 읽으므로, 서버가 옮겨 다녀도 설치본은 그대로
-# 쓴다. 여기서 주소를 주입하면 그 설치본만 특정 주소에 묶여 버린다.
 name: release
 
-# iosbuild-* 태그는 iOS 빌드가 서는지만 확인하는 용도다. 설치본을 만들지도,
-# 테스터에게 보내지도 않는다 — 아래 두 잡의 실행 조건이 서로 배타적이다.
-# 수동 실행 버튼은 이 파일이 기본 브랜치에 있어야 나타나므로, 병합 전에도
-# 확인할 수 있도록 태그 경로를 따로 둔다.
 on:
   push:
     tags: ["v*", "iosbuild-*"]
   workflow_dispatch:
     inputs:
+      app_environment:
+        description: "앱의 서버 환경"
+        type: choice
+        options: [test, prod]
+        default: test
+      signed_android:
+        description: "Android 서명 설치본 생성 및 테스터 배포 (기본은 debug 컴파일 검사)"
+        type: boolean
+        default: false
       build_ios:
-        description: "iOS 빌드 건전성까지 확인"
+        description: "iOS 서명 없는 컴파일 검사 추가"
         type: boolean
         default: false
 
-# 릴리스 산출물을 저장소의 릴리스에 붙이려면 쓰기 권한이 필요하다.
 permissions:
-  contents: write
+  contents: read
 
-# 같은 참조로 두 번 돌면 뒤엣것이 앞엣것의 산출물을 덮는다.
 concurrency:
-  group: release-${{ github.ref }}
-  cancel-in-progress: true
+  group: release-${{ github.ref }}-${{ inputs.app_environment || 'test' }}
+  cancel-in-progress: false
 
 env:
-  # 로컬 툴체인과 같은 값으로 못박는다. 여기가 떠 있으면 손에서 되던 빌드가
-  # 러너에서만 깨지고, 그 차이를 재현할 방법이 없다.
   FLUTTER_VERSION: "3.41.9"
-  # 배포용 서명 키의 인증서 지문. 이 값과 다르면 릴리스로 내보내지 않는다.
   EXPECTED_SIGNER_SHA256: "f749f89d945a627170a79d01d7c08a0ebf67dfaa97e8021a66ce491189166839"
 
 jobs:
-  # 확인 전용 태그로는 돌지 않는다. 돌면 테스터에게 판이 하나 더 배달된다.
   android:
     if: ${{ !startsWith(github.ref, 'refs/tags/iosbuild-') }}
     runs-on: ubuntu-latest
+    environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'prod' || inputs.app_environment || 'test' }}
+    permissions:
+      contents: write
+    env:
+      APP_ENV: ${{ startsWith(github.ref, 'refs/tags/v') && 'prod' || inputs.app_environment || 'test' }}
+      SIGNED_RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') || inputs.signed_android || false }}
     steps:
-      # 판번호를 커밋 수에서 뽑으므로 이력을 전부 받아야 한다. 기본값은 한 개만
-      # 받아 와서, 그대로 두면 번호가 항상 1 이 된다.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
-
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
 
-      # 지도 키 등 실행 설정. 앱에 자산으로 실리고 안드로이드 매니페스트의
-      # 지도 식별자도 여기서 읽는다. 저장소에 두지 않으므로 매번 되살린다.
-      - name: 실행 설정 복원
+      - name: 릴리스 설정 회귀 검사
+        run: python3 -m unittest discover -s scripts/tests -v
+
+      - name: 플랫폼 설정 및 판번호 검증
+        id: config
         env:
-          APP_DOTENV_B64: ${{ secrets.APP_DOTENV_B64 }}
+          API_ALLOWED_ORIGINS: ${{ vars.API_ALLOWED_ORIGINS }}
+          APP_CONFIG_URL: ${{ vars.APP_CONFIG_URL }}
+          GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.GOOGLE_MAPS_ANDROID_API_KEY }}
         run: |
           set -euo pipefail
-          test -n "$APP_DOTENV_B64" || { echo "APP_DOTENV_B64 비어 있음"; exit 1; }
-          printf '%s' "$APP_DOTENV_B64" | base64 -d > .env
-          # 값은 찍지 않는다. 키 이름만으로 복원 여부를 판단한다.
-          echo "복원된 키: $(grep -cE '^[A-Z_]+=' .env) 개"
+          args=(--environment "$APP_ENV" --platform android --output "$RUNNER_TEMP/mobile-android.json")
+          if [[ "$SIGNED_RELEASE" == 'true' ]]; then args+=(--signed); fi
+          python3 scripts/mobile-release-config.py "${args[@]}"
 
-      # 서명 키. 저장 위치를 절대경로로 적는다 — 상대경로는 gradle 이 어느
-      # 기준으로 푸는지에 따라 달라져, 키를 못 찾는 실패가 서명 단계에서야
-      # 드러난다.
       - name: 서명 키 복원
+        if: env.SIGNED_RELEASE == 'true'
         env:
           ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -81,142 +81,153 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
           set -euo pipefail
-          test -n "$ANDROID_KEYSTORE_B64" || { echo "ANDROID_KEYSTORE_B64 비어 있음"; exit 1; }
-          printf '%s' "$ANDROID_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/map-release.jks"
-          cat > android/key.properties <<EOF
-          storePassword=$ANDROID_KEYSTORE_PASSWORD
-          keyPassword=$ANDROID_KEY_PASSWORD
-          keyAlias=$ANDROID_KEY_ALIAS
-          storeFile=$RUNNER_TEMP/map-release.jks
-          EOF
-
-      # 이름은 태그에서, 번호는 커밋 수에서 가져온다. 번호는 항상 증가해야
-      # 기기가 같은 앱의 새 설치본으로 알아보고, 스토어도 이전보다 큰 값만
-      # 받는다. 실행 회차를 쓰면 워크플로를 다시 만들 때 되감겨 그 뒤로는
-      # 어떤 설치본도 올릴 수 없게 된다.
-      - name: 판번호 결정
-        id: version
-        run: |
-          set -euo pipefail
-          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
-            name="${GITHUB_REF#refs/tags/}"
-            name="${name#v}"
-          else
-            name="$(sed -n 's/^version: *\([^+]*\).*/\1/p' pubspec.yaml | tr -d ' ')"
-          fi
-          echo "build_name=$name" >> "$GITHUB_OUTPUT"
-          number="$(git rev-list --count HEAD)"
-          echo "build_number=$number" >> "$GITHUB_OUTPUT"
-          echo "판: $name ($number)"
+          python3 - <<'PY'
+          import base64, os
+          from pathlib import Path
+          keys = ['ANDROID_KEYSTORE_B64', 'ANDROID_KEYSTORE_PASSWORD', 'ANDROID_KEY_PASSWORD', 'ANDROID_KEY_ALIAS']
+          for key in keys:
+              if not os.environ.get(key):
+                  raise SystemExit(f'{key} is required for signed release')
+          path = Path(os.environ['RUNNER_TEMP']) / 'map-release.jks'
+          try:
+              data = base64.b64decode(os.environ['ANDROID_KEYSTORE_B64'], validate=True)
+          except ValueError:
+              raise SystemExit('ANDROID_KEYSTORE_B64 is invalid')
+          path.write_bytes(data)
+          path.chmod(0o600)
+          def prop(value):
+              return (value.replace('\\', '\\\\').replace('\n', '\\n').replace('\r', '\\r')
+                      .replace('=', '\\=').replace(':', '\\:').replace(' ', '\\ '))
+          values = {'storePassword': os.environ['ANDROID_KEYSTORE_PASSWORD'],
+                    'keyPassword': os.environ['ANDROID_KEY_PASSWORD'],
+                    'keyAlias': os.environ['ANDROID_KEY_ALIAS'], 'storeFile': str(path)}
+          target = Path('android/key.properties')
+          target.write_text(''.join(f'{key}={prop(value)}\n' for key, value in values.items()))
+          target.chmod(0o600)
+          PY
 
       - name: 의존성 받기
         run: flutter pub get
-
-      # 검사를 여기서 한 번 더 돌린다.
-      #
-      # 평소 검사는 가지에 밀어 넣을 때 돈다. 그런데 판을 내보내는 이 흐름은
-      # 이름표를 밀어 실행되고, 이름표는 그 검사를 켜지 않는다. 그래서 검사가
-      # 한 번도 돌지 않은 코드가 테스터 기기까지 그대로 나갈 수 있었다.
       - name: 검사
         run: flutter test
 
-      # 설치본 두 가지를 만든다. 스토어(Play)는 묶음(aab)만 받고, 테스터
-      # 배포와 원스토어는 낱개(apk)를 그대로 쓴다. 하나만 만들면 두 경로 중
-      # 하나가 막힌다.
       - name: 설치본 빌드
+        env:
+          BUILD_NAME: ${{ steps.config.outputs.build_name }}
+          BUILD_NUMBER: ${{ steps.config.outputs.build_number }}
         run: |
-          flutter build apk --release \
-            --build-name=${{ steps.version.outputs.build_name }} \
-            --build-number=${{ steps.version.outputs.build_number }}
-          flutter build appbundle --release \
-            --build-name=${{ steps.version.outputs.build_name }} \
-            --build-number=${{ steps.version.outputs.build_number }}
+          set -euo pipefail
+          common=(--build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" --dart-define-from-file "$RUNNER_TEMP/mobile-android.json")
+          if [[ "$SIGNED_RELEASE" == 'true' ]]; then
+            flutter build apk --release "${common[@]}"
+            flutter build appbundle --release "${common[@]}"
+          else
+            flutter build apk --debug "${common[@]}"
+          fi
 
-      # 키가 없으면 gradle 은 개발용 키로 조용히 서명하고 빌드를 성공시킨다.
-      # 그 설치본은 기존 설치를 덮어쓰지 못하고 초대 링크 검증도 통과하지
-      # 못하는데, 겉으로는 정상 산출물과 구분되지 않는다. 여기서 막는다.
       - name: 서명 확인
+        if: env.SIGNED_RELEASE == 'true'
         run: |
           set -euo pipefail
           apk=build/app/outputs/flutter-apk/app-release.apk
-          apksigner="$(ls -d "$ANDROID_SDK_ROOT"/build-tools/*/apksigner | sort -V | tail -1)"
-          actual="$("$apksigner" verify --print-certs "$apk" \
-            | grep -i 'SHA-256 digest' | head -1 \
-            | sed 's/.*digest: *//' | tr -d ' :' | tr 'A-Z' 'a-z')"
-          echo "서명 지문: $actual"
-          if [ "$actual" != "$EXPECTED_SIGNER_SHA256" ]; then
-            echo "✗ 배포용 키로 서명되지 않았다(기대: $EXPECTED_SIGNER_SHA256)"
-            exit 1
-          fi
-          echo "✓ 배포용 키 확인"
+          apksigner="$(find "$ANDROID_SDK_ROOT/build-tools" -name apksigner -type f | sort -V | tail -1)"
+          actual="$("$apksigner" verify --print-certs "$apk" | sed -n 's/.*SHA-256 digest: *//p' | head -1 | tr -d ' :' | tr 'A-Z' 'a-z')"
+          [[ "$actual" == "$EXPECTED_SIGNER_SHA256" ]] || { echo 'Release signing certificate mismatch'; exit 1; }
 
       - uses: actions/upload-artifact@v4
         with:
-          name: app-release-${{ steps.version.outputs.build_name }}-${{ steps.version.outputs.build_number }}
+          name: android-${{ env.APP_ENV }}-${{ env.SIGNED_RELEASE == 'true' && 'signed' || 'compile-only' }}-${{ steps.config.outputs.build_name }}-${{ steps.config.outputs.build_number }}
           path: |
-            build/app/outputs/flutter-apk/app-release.apk
-            build/app/outputs/bundle/release/app-release.aab
+            build/app/outputs/flutter-apk/*.apk
+            build/app/outputs/bundle/release/*.aab
           if-no-files-found: error
 
-      # 테스터 폰으로 보낸다. 받는 쪽은 메일의 링크에서 바로 설치한다.
       - name: 테스터 배포
+        if: env.SIGNED_RELEASE == 'true'
         env:
           FIREBASE_ANDROID_APP_ID: ${{ secrets.FIREBASE_ANDROID_APP_ID }}
           FIREBASE_SERVICE_ACCOUNT_B64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_B64 }}
+          BUILD_NAME: ${{ steps.config.outputs.build_name }}
+          BUILD_NUMBER: ${{ steps.config.outputs.build_number }}
         run: |
           set -euo pipefail
-          test -n "$FIREBASE_ANDROID_APP_ID" || { echo "FIREBASE_ANDROID_APP_ID 비어 있음"; exit 1; }
-          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_B64" | base64 -d > "$RUNNER_TEMP/sa.json"
-          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          test -n "$FIREBASE_ANDROID_APP_ID" || { echo 'FIREBASE_ANDROID_APP_ID is required'; exit 1; }
+          test -n "$FIREBASE_SERVICE_ACCOUNT_B64" || { echo 'FIREBASE_SERVICE_ACCOUNT_B64 is required'; exit 1; }
+          umask 077
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_B64" | base64 -d > "$RUNNER_TEMP/firebase-sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase-sa.json"
           npm i -g firebase-tools@15
-          firebase appdistribution:distribute \
-            build/app/outputs/flutter-apk/app-release.apk \
-            --app "$FIREBASE_ANDROID_APP_ID" \
-            --groups testers \
-            --release-notes "$(printf '%s\n%s\n%s' \
-              "판 ${{ steps.version.outputs.build_name }} (${{ steps.version.outputs.build_number }})" \
-              "커밋 ${{ github.sha }}" \
-              "서버 주소는 앱이 시작할 때 받아온다 — 서버가 떠 있어야 로그인부터 동작한다.")"
+          firebase appdistribution:distribute build/app/outputs/flutter-apk/app-release.apk \
+            --app "$FIREBASE_ANDROID_APP_ID" --groups testers \
+            --release-notes "Map $BUILD_NAME ($BUILD_NUMBER), environment=$APP_ENV, commit=$GITHUB_SHA"
 
-      # 태그로 돌 때만 저장소 릴리스에 붙인다. 나중에 특정 판을 다시 받아야
-      # 할 때 산출물 보관 기간(90일)에 매이지 않기 위해서다.
       - name: 릴리스에 첨부
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           tag="${GITHUB_REF#refs/tags/}"
-          cp build/app/outputs/flutter-apk/app-release.apk "$RUNNER_TEMP/map-$tag.apk"
-          gh release create "$tag" "$RUNNER_TEMP/map-$tag.apk" \
-            --title "$tag" --generate-notes \
-            || gh release upload "$tag" "$RUNNER_TEMP/map-$tag.apk" --clobber
+          artifacts=(build/app/outputs/flutter-apk/app-release.apk build/app/outputs/bundle/release/app-release.aab)
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "${artifacts[@]}"
+          else
+            gh release create "$tag" "${artifacts[@]}" --title "$tag" --generate-notes
+          fi
 
-  # 서명 없이 빌드가 서는지만 본다. 실기기 설치는 애플 계정이 정해진 뒤의
-  # 일이라 여기서 다루지 않는다. 손으로 켤 때만 도는 이유는 맥 러너가 같은
-  # 시간에 열 배로 과금되기 때문이다.
+      - name: 임시 자격증명 정리
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          for path in [Path('android/key.properties'), Path(os.environ['RUNNER_TEMP']) / 'map-release.jks',
+                       Path(os.environ['RUNNER_TEMP']) / 'firebase-sa.json', Path(os.environ['RUNNER_TEMP']) / 'mobile-android.json']:
+              path.unlink(missing_ok=True)
+          PY
+
   ios:
     if: ${{ startsWith(github.ref, 'refs/tags/iosbuild-') || (github.event_name == 'workflow_dispatch' && inputs.build_ios) }}
     runs-on: macos-15
+    environment: ${{ inputs.app_environment || 'test' }}
+    env:
+      APP_ENV: ${{ inputs.app_environment || 'test' }}
     steps:
       - uses: actions/checkout@v4
-
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
-
-      - name: 실행 설정 복원
+      - name: 플랫폼 설정 검증
+        id: config
         env:
-          APP_DOTENV_B64: ${{ secrets.APP_DOTENV_B64 }}
+          API_ALLOWED_ORIGINS: ${{ vars.API_ALLOWED_ORIGINS }}
+          APP_CONFIG_URL: ${{ vars.APP_CONFIG_URL }}
+          GOOGLE_MAPS_IOS_API_KEY: ${{ secrets.GOOGLE_MAPS_IOS_API_KEY }}
         run: |
-          set -euo pipefail
-          test -n "$APP_DOTENV_B64" || { echo "APP_DOTENV_B64 비어 있음"; exit 1; }
-          printf '%s' "$APP_DOTENV_B64" | base64 -d > .env
-
+          python3 scripts/mobile-release-config.py --environment "$APP_ENV" --platform ios \
+            --output "$RUNNER_TEMP/mobile-ios.json"
       - name: 의존성 받기
         run: flutter pub get
-
       - name: 빌드 건전성 확인
-        run: flutter build ios --release --no-codesign
+        env:
+          BUILD_NAME: ${{ steps.config.outputs.build_name }}
+          BUILD_NUMBER: ${{ steps.config.outputs.build_number }}
+        run: |
+          flutter build ios --release --no-codesign \
+            --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" \
+            --dart-define-from-file "$RUNNER_TEMP/mobile-ios.json"
+      - name: 임시 지도 설정 정리
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          (Path(os.environ['RUNNER_TEMP']) / 'mobile-ios.json').unlink(missing_ok=True)
+          PY
