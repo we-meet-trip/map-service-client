@@ -15,6 +15,7 @@ import '../../../core/maps/map_adapter.dart';
 import '../../../core/maps/map_bootstrap.dart';
 import '../../../core/state/trip_repository.dart';
 import '../../trip/widgets/transport_theme.dart';
+import '../../trip/widgets/route_data_attribution.dart';
 
 class NavigationScreen extends StatefulWidget {
   const NavigationScreen({super.key, required this.trip});
@@ -147,9 +148,9 @@ class _NavigationScreenState extends State<NavigationScreen>
               transport: s.transportToNext != null
                   ? _Transport(
                       label: s.transportToNext!.label,
-                      duration: '${s.transportToNext!.durationMinutes}분',
+                      duration: '${s.transportToNext!.durationMinutes}분 (${s.transportToNext!.routeDescription})',
                       distance: '${s.transportToNext!.distanceKm}km',
-                      path: s.transportToNext!.path
+                      path: (s.transportToNext!.hasRoadRoute ? s.transportToNext!.path : null)
                           ?.map((p) => MapCoordinate(p[0], p[1]))
                           .toList(),
                     )
@@ -446,6 +447,11 @@ class _NavigationScreenState extends State<NavigationScreen>
           Positioned.fill(child: _buildMap()),
           // ── 뒤로가기 ──
           _buildBackButton(),
+          if (_stops.any((stop) => stop.transport?.path != null))
+            const Positioned(
+              top: 0, right: 8,
+              child: SafeArea(bottom: false, child: RouteDataAttribution()),
+            ),
           // ── 나침반 + 내 위치 버튼 ──
           _buildCompassAndLocation(),
           // ── 하단 정보 시트 ──
@@ -555,31 +561,16 @@ class _NavigationScreenState extends State<NavigationScreen>
     }
 
     // 경로 폴리라인 — 구간마다 도로 좌표가 있으면 그것을, 없으면 두 방문지를
-    // 잇는 직선을 이어 붙인다.
+    // 잇는 선을 만들지 않는다.
     final routeCoords = <MapCoordinate>[];
-    void addPoint(MapCoordinate p) {
-      // 구간 접점의 중복 좌표는 값 비교로 걸러 낸다.
-      if (routeCoords.isEmpty ||
-          routeCoords.last.latitude != p.latitude ||
-          routeCoords.last.longitude != p.longitude) {
-        routeCoords.add(p);
-      }
-    }
-
     for (int i = 0; i < dayStops.length - 1; i++) {
       final legPath = dayStops[i].transport?.path;
-      final seg = (legPath != null && legPath.length >= 2)
-          ? legPath
-          : [dayStops[i].latLng, dayStops[i + 1].latLng];
-      for (final p in seg) {
-        addPoint(p);
-      }
-    }
-
-    if (routeCoords.length >= 2) {
+      if (legPath == null || legPath.length < 2) continue;
+      // Separate overlays preserve gaps: missing routes must not become straight roads.
+      routeCoords.addAll(legPath);
       await controller.addOverlay(MapPathOverlay(
-        id: 'nav_route_$_selectedDay',
-        coords: routeCoords,
+        id: 'nav_route_${_selectedDay}_$i',
+        coords: legPath,
         color: AppColors.primaryScale[400]!,
         width: 6,
         outlineColor: Colors.white,
@@ -1424,7 +1415,7 @@ class _Transport {
   final String duration;
   final String distance;
 
-  /// 서버가 내려준 도로 좌표. 없으면 두 방문지를 직선으로 잇는다.
+  /// 서버가 확인한 도로 좌표. 없으면 두 방문지를 연결하지 않는다.
   final List<MapCoordinate>? path;
 
   const _Transport({

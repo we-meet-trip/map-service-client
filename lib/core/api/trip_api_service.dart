@@ -231,9 +231,27 @@ class TripTransportToNext {
   final String label;
   final int durationMinutes;
   final double distanceKm;
+  final String source;
+  final String? routeProfile;
+  final String? dataVersion;
+
+  bool get hasRoadRoute => source == 'OSRM' &&
+      (type?.trim().toLowerCase() == 'walk' ? routeProfile == 'foot'
+          : ['bicycle', 'scooter'].contains(type?.trim().toLowerCase()) && routeProfile == 'bicycle') &&
+      durationMinutes > 0 && distanceKm.isFinite && distanceKm > 0 &&
+      path != null && path!.length >= 2 &&
+      path!.every((p) => p.length == 2 && p.every((v) => v.isFinite) &&
+          p[0].abs() <= 90 && p[1].abs() <= 180) &&
+      path!.any((p) => p[0] != path!.first[0] || p[1] != path!.first[1]);
+
+  String get routeDescription => !hasRoadRoute
+      ? '경로 미확인 · 시간·거리 추정'
+      : type?.toLowerCase() == 'scooter'
+          ? '자전거 경로 기준 · 킥보드 시간 추정'
+          : '도로 경로 · 예상 소요 시간';
 
   /// 다음 stop 까지의 도로 추종 폴리라인 [[lat, lng], ...].
-  /// 경로 조회가 성공한 구간에만 채워지며(없으면 null), 없을 때 지도는 직선 폴백.
+  /// 출처와 프로파일까지 확인한 구간만 지도에 표시한다. 누락 구간은 잇지 않는다.
   final List<List<double>>? path;
 
   const TripTransportToNext({
@@ -242,6 +260,9 @@ class TripTransportToNext {
     required this.durationMinutes,
     required this.distanceKm,
     this.path,
+    this.source = 'UNKNOWN',
+    this.routeProfile,
+    this.dataVersion,
   });
 
   /// 값이 빠져 있어도 카드를 만든다.
@@ -255,6 +276,9 @@ class TripTransportToNext {
         label: json['label'] as String? ?? '이동',
         durationMinutes: (json['duration_minutes'] as num?)?.toInt() ?? 0,
         distanceKm: (json['distance_km'] as num?)?.toDouble() ?? 0,
+        source: json['source'] as String? ?? 'UNKNOWN',
+        routeProfile: json['route_profile'] as String?,
+        dataVersion: json['data_version'] as String?,
         path: (json['path'] as List<dynamic>?)
             ?.map((p) => (p as List<dynamic>)
                 .map((v) => (v as num).toDouble())
@@ -353,10 +377,10 @@ class TripStop {
 
 class WeatherForecast {
   final String date;
-  final String condition; // sunny | cloudy | rainy | snowy
-  final int tempHigh;
-  final int tempLow;
-  final int precipitationProbability;
+  final String? condition; // sunny | cloudy | rainy | snowy
+  final int? tempHigh;
+  final int? tempLow;
+  final int? precipitationProbability;
 
   const WeatherForecast({
     required this.date,
@@ -368,10 +392,10 @@ class WeatherForecast {
 
   factory WeatherForecast.fromJson(Map<String, dynamic> json) => WeatherForecast(
         date: json['date'] as String,
-        condition: json['condition'] as String,
-        tempHigh: json['temp_high'] as int,
-        tempLow: json['temp_low'] as int,
-        precipitationProbability: json['precipitation_probability'] as int,
+        condition: json['condition'] as String?,
+        tempHigh: (json['temp_high'] as num?)?.toInt(),
+        tempLow: (json['temp_low'] as num?)?.toInt(),
+        precipitationProbability: (json['precipitation_probability'] as num?)?.toInt(),
       );
 }
 

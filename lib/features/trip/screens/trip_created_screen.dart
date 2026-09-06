@@ -18,6 +18,10 @@ import '../../../core/api/trip_api_service.dart';
 import '../../../core/router/app_router.dart';
 import '../../auth/widgets/kakao_login_button.dart';
 import '../widgets/place_detail_sheet.dart';
+import '../models/trip_forecast.dart';
+import '../services/trip_weather_service.dart';
+import '../widgets/trip_weather_card.dart';
+import '../widgets/route_data_attribution.dart';
 
 class TripCreatedScreen extends StatefulWidget {
   const TripCreatedScreen({
@@ -57,12 +61,24 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
   late final List<int> _days;
   late int _selectedDay;
   AppMapController? _mapController;
+  late Future<TripForecast?> _forecastFuture;
+  DateTime? _forecastStart;
 
   @override
   void initState() {
     super.initState();
     final saved = widget.savedTrip;
     final res = widget.response;
+    final plan = TripRepository.instance.lastPlan;
+    _forecastStart = saved?.tripStartDate ?? widget.startDate;
+    final end = saved?.tripEndDate ?? widget.endDate;
+    final province = saved?.province ?? (plan?.tripId == res?.tripId ? plan?.province : null);
+    final city = saved?.city ?? (plan?.tripId == res?.tripId ? plan?.city : null);
+    _forecastFuture = _forecastStart != null && end != null &&
+        province != null && province.isNotEmpty && city != null && city.isNotEmpty
+        ? TripWeatherService().fetch(province: province, city: city,
+            start: _forecastStart!, end: end)
+        : Future<TripForecast?>.value(null);
     if (saved != null) {
       _stops = saved.stops.map(_fromApiStop).toList();
       _totalDurationMinutes = saved.totalDurationMinutes;
@@ -96,9 +112,9 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
         transport: s.transportToNext != null
             ? _TransportInfo(
                 label: s.transportToNext!.label,
-                duration: '${s.transportToNext!.durationMinutes}분',
+                duration: '${s.transportToNext!.durationMinutes}분 (${s.transportToNext!.routeDescription})',
                 distance: '${s.transportToNext!.distanceKm}km',
-                path: s.transportToNext!.path
+                path: (s.transportToNext!.hasRoadRoute ? s.transportToNext!.path : null)
                     ?.map((p) => MapCoordinate(p[0], p[1]))
                     .toList(),
               )
@@ -216,6 +232,8 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 saved != null ? _buildMapAreaWithBackButton() : _buildMapArea(),
+                if (_selectedDayStops.any((stop) => stop.transport?.path != null))
+                  const RouteDataAttribution(),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
                   child: Column(
@@ -229,6 +247,11 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
                       ],
                       if (_days.length > 1) ...[
                         _buildDayTabs(),
+                        const SizedBox(height: 16),
+                      ],
+                      if (_forecastStart != null) ...[
+                        TripWeatherCard(forecast: _forecastFuture,
+                            date: _forecastStart!.add(Duration(days: _selectedDay - 1))),
                         const SizedBox(height: 16),
                       ],
                       _buildTotalTime(),
@@ -415,33 +438,18 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
     }
 
     // 경로 폴리라인 추가 — 구간마다 도로 추종 path 가 있으면 그 좌표를,
-    // 없으면 두 stop 을 잇는 직선을 이어 붙여 하나의 경로로 그린다.
+    // 검증되지 않은 구간은 지도에서 연결하지 않는다.
     // 선택된 일차 안에서만 잇는다. 마지막 stop 의 이동 정보는 다음 날 첫
     // 장소로 이어지므로 여기서 쓰지 않는다(서버도 그 자리를 비워 보낸다).
     final routeCoords = <MapCoordinate>[];
-    void addPoint(MapCoordinate p) {
-      // 구간 접점의 중복 좌표는 값 비교로 걸러 낸다(MapCoordinate == 에 의존하지 않음).
-      if (routeCoords.isEmpty ||
-          routeCoords.last.latitude != p.latitude ||
-          routeCoords.last.longitude != p.longitude) {
-        routeCoords.add(p);
-      }
-    }
-
     for (int i = 0; i < stops.length - 1; i++) {
       final legPath = stops[i].transport?.path;
-      final seg = (legPath != null && legPath.length >= 2)
-          ? legPath
-          : [stops[i].latLng, stops[i + 1].latLng];
-      for (final p in seg) {
-        addPoint(p);
-      }
-    }
-
-    if (routeCoords.length >= 2) {
+      if (legPath == null || legPath.length < 2) continue;
+      // Separate overlays preserve gaps: missing routes must not become straight roads.
+      routeCoords.addAll(legPath);
       await controller.addOverlay(MapPathOverlay(
-        id: 'route',
-        coords: routeCoords,
+        id: 'route_$i',
+        coords: legPath,
         color: AppColors.primaryScale[400]!,
         width: 6,
         outlineColor: Colors.white,
@@ -1485,7 +1493,7 @@ class _TransportInfo {
   final String duration;
   final String distance;
 
-  /// 이 stop 에서 다음 stop 까지의 도로 추종 경로. 없으면 지도는 직선으로 잇는다.
+  /// 이 stop 에서 다음 stop 까지의 확인된 도로 경로. 없으면 선을 그리지 않는다.
   final List<MapCoordinate>? path;
 
   const _TransportInfo({
