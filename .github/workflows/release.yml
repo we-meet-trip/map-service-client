@@ -11,7 +11,11 @@ on:
         options: [test, prod]
         default: test
       signed_android:
-        description: "Android 서명 설치본 생성 및 테스터 배포 (기본은 debug 컴파일 검사)"
+        description: "Android 서명 APK/AAB 생성 (기본은 debug 컴파일 검사)"
+        type: boolean
+        default: false
+      distribute_android:
+        description: "서명 APK를 Firebase testers 그룹에 배포 (별도 선택 필요)"
         type: boolean
         default: false
       build_ios:
@@ -143,7 +147,7 @@ jobs:
           if-no-files-found: error
 
       - name: 테스터 배포
-        if: env.SIGNED_RELEASE == 'true'
+        if: env.SIGNED_RELEASE == 'true' && github.event_name == 'workflow_dispatch' && inputs.distribute_android
         env:
           FIREBASE_ANDROID_APP_ID: ${{ secrets.FIREBASE_ANDROID_APP_ID }}
           FIREBASE_SERVICE_ACCOUNT_B64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_B64 }}
