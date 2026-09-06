@@ -6,6 +6,7 @@ import 'package:stomp_dart_client/stomp_dart_client.dart';
 
 import '../config/app_config.dart';
 import '../state/auth_store.dart';
+import '../state/service_consent_store.dart';
 
 /// 채팅 실시간 연결의 상태.
 ///
@@ -92,6 +93,26 @@ class ChatEvent {
     }
   }
 
+  /// CONNECT errors can omit the regular event envelope and its `type` field.
+  static String? policyErrorCode(String? body) {
+    try {
+      final value = jsonDecode(body ?? '');
+      if (value is! Map<String, dynamic>) return null;
+      final nested = value['data'];
+      final code =
+          value['code'] ??
+          value['error'] ??
+          (nested is Map<String, dynamic>
+              ? nested['code'] ?? nested['error']
+              : null);
+      return code is String && ServiceConsentStore.isPolicyDenial(403, code)
+          ? code
+          : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   static ChatEventKind _kindOf(String? type) {
     switch (type) {
       case 'MESSAGE':
@@ -129,7 +150,14 @@ class ChatEvent {
 /// 보내 주지 않기 때문이다. 그래서 다시 붙으면 화면이 REST 로 지난 대화를
 /// 새로 읽어야 하고, 그 신호로 [reconnected] 를 흘린다.
 class ChatRealtimeService {
-  ChatRealtimeService();
+  ChatRealtimeService({ServiceConsentStore? consentStore})
+    : _consent = consentStore ?? ServiceConsentStore.instance {
+    _consent.addListener(_policyChanged);
+  }
+  final ServiceConsentStore _consent;
+  void _policyChanged() {
+    if (!_consent.canAccess) disconnect();
+  }
 
   static const _baseBackoff = Duration(milliseconds: 500);
   static const _maxBackoff = Duration(seconds: 30);
@@ -176,6 +204,11 @@ class ChatRealtimeService {
 
   /// 방에 붙는다. 이미 같은 방에 붙어 있으면 아무것도 하지 않는다.
   void connect(int roomId) {
+    if (!_consent.canAccess) {
+      disconnect();
+      _emit(ChatConnectionState.authRequired);
+      return;
+    }
     if (_client != null && _roomId == roomId) return;
     disconnect();
 
@@ -218,6 +251,10 @@ class ChatRealtimeService {
       await Future<void>.delayed(_backoff());
     }
     _attempt += 1;
+    if (!_consent.canAccess) {
+      disconnect();
+      return;
+    }
 
     if (_refreshedForThisFailure) {
       final renewed = await AuthStore.instance.refresh();
@@ -230,7 +267,7 @@ class ChatRealtimeService {
     }
 
     final token = AuthStore.instance.accessToken;
-    if (token == null) {
+    if (token == null || !_consent.canAccess) {
       _emit(ChatConnectionState.authRequired);
       _client?.deactivate();
       return;
@@ -242,6 +279,10 @@ class ChatRealtimeService {
   }
 
   void _onConnect(StompFrame _) {
+    if (!_consent.canAccess) {
+      disconnect();
+      return;
+    }
     final roomId = _roomId;
     if (roomId == null) return;
 
@@ -251,11 +292,13 @@ class ChatRealtimeService {
     // 구독 주소에 와일드카드를 쓰면 서버가 거절한다. 방 번호를 그대로 적는다.
     client.subscribe(
       destination: '/topic/rooms/$roomId',
-      callback: (frame) => _events.add(ChatEvent.parse(frame.body)),
+      callback: (frame) {
+        if (_consent.canAccess) _events.add(ChatEvent.parse(frame.body));
+      },
     );
     client.subscribe(
       destination: '/user/queue/errors',
-      callback: (frame) => _events.add(ChatEvent.parse(frame.body)),
+      callback: (frame) => _onPolicyAwareEvent(frame),
     );
 
     final wasReconnect = _hadConnected;
@@ -278,11 +321,26 @@ class ChatRealtimeService {
   /// 한 번도 붙은 적 없는 상태에서의 오류는 CONNECT 거절로 본다. 그 사유는
   /// 대개 토큰이라, 다음 시도 전에 갱신을 한 번 시켜 본다.
   void _onStompError(StompFrame frame) {
+    if (_onPolicyAwareEvent(frame, emitOther: false)) return;
     if (!_hadConnected) {
       _refreshedForThisFailure = true;
       return;
     }
     _events.add(ChatEvent.parse(frame.body));
+  }
+
+  bool _onPolicyAwareEvent(StompFrame frame, {bool emitOther = true}) {
+    final event = ChatEvent.parse(frame.body);
+    final code = ChatEvent.policyErrorCode(frame.body);
+    if (code != null) {
+      _consent.invalidate(reason: code);
+      disconnect();
+      return true;
+    }
+    if (emitOther && _consent.canAccess && event.kind == ChatEventKind.error) {
+      _events.add(event);
+    }
+    return false;
   }
 
   void _onDone() {
@@ -313,7 +371,9 @@ class ChatRealtimeService {
   /// 한다.
   bool _send(String destination, Map<String, dynamic> body) {
     final client = _client;
-    if (client == null || !client.connected) return false;
+    if (client == null || !client.connected || !_consent.canAccess) {
+      return false;
+    }
     client.send(destination: destination, body: jsonEncode(body));
     return true;
   }
@@ -329,6 +389,7 @@ class ChatRealtimeService {
   }
 
   void dispose() {
+    _consent.removeListener(_policyChanged);
     disconnect();
     _events.close();
     _states.close();

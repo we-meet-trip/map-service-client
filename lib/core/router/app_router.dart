@@ -50,6 +50,9 @@ import '../../features/trip/screens/transit_route_map_screen.dart';
 import '../../common/widgets/address_search_screen.dart';
 import '../../data/local/permission_notice_store.dart';
 import '../state/auth_store.dart';
+import '../state/service_consent_store.dart';
+import '../../features/auth/screens/service_consent_screen.dart';
+import '../../features/auth/screens/policy_account_screen.dart';
 
 /// 로그인 여부 — 화면들이 오래 전부터 이 값을 보고 그린다.
 ///
@@ -78,6 +81,7 @@ String? authRedirect({
   required bool authed,
   required bool noticeSeen,
   required String location,
+  bool policyAccepted = false,
 }) {
   // 권한 고지 관문이 로그인 관문보다 먼저다. 초대를 면제하는 이유는 위와
   // 같다 — 여기서 먼저 돌려보내면 링크에 실려 온 초대 토큰이 사라진다.
@@ -87,6 +91,17 @@ String? authRedirect({
   }
   final isPublic = _publicPrefixes.any((p) => location.startsWith(p));
   if (!authed && !isPublic) return '/auth';
+  final accountOnly =
+      location == '/service-consent' || location == '/service-consent/profile';
+  final authenticationFlow = const [
+    '/splash',
+    '/permission-notice',
+    '/auth',
+    '/signup',
+  ].any((prefix) => location == prefix || location.startsWith('$prefix/'));
+  if (authed && !policyAccepted && !accountOnly && !authenticationFlow) {
+    return '/service-consent';
+  }
   return null;
 }
 
@@ -100,35 +115,51 @@ final appRouter = GoRouter(
   // 서버가 인증을 켜면 토큰 없는 호출은 전부 401 이 되는데, 화면은 그것을
   // "잠시 후 다시 시도" 로만 보여 준다. 그러면 무엇이 문제인지도, 어디서
   // 로그인하는지도 알 길이 없이 앱 전체가 조용히 멎은 것처럼 보인다.
-  refreshListenable: isAuthenticated,
-  redirect: (context, state) => authRedirect(
-    authed: isAuthenticated.value,
-    noticeSeen: PermissionNoticeStore.instance.confirmed,
-    location: state.matchedLocation,
-  ),
+  refreshListenable: Listenable.merge([
+    isAuthenticated,
+    AuthStore.instance.sessionChanges,
+    ServiceConsentStore.instance,
+  ]),
+  redirect: (context, state) {
+    final destination = authRedirect(
+      authed: isAuthenticated.value,
+      noticeSeen: PermissionNoticeStore.instance.confirmed,
+      location: state.matchedLocation,
+      policyAccepted: ServiceConsentStore.instance.canAccess,
+    );
+    if (destination == '/service-consent') {
+      ServiceConsentStore.instance.rememberDestination(
+        state.uri.toString(),
+        state.extra,
+      );
+    }
+    return destination;
+  },
   routes: [
     GoRoute(
-      path: '/splash',
-      builder: (context, state) => const SplashScreen(),
+      path: '/service-consent',
+      builder: (context, state) => const ServiceConsentScreen(),
     ),
+    GoRoute(
+      path: '/service-consent/profile',
+      builder: (context, state) => const PolicyAccountScreen(),
+    ),
+    GoRoute(path: '/splash', builder: (context, state) => const SplashScreen()),
     GoRoute(
       path: '/permission-notice',
       builder: (context, state) => const PermissionNoticeScreen(),
     ),
     GoRoute(
       path: '/invite/:token',
-      builder: (context, state) => InviteHandlerScreen(
-        token: state.pathParameters['token']!,
-      ),
+      builder: (context, state) =>
+          InviteHandlerScreen(token: state.pathParameters['token']!),
     ),
-    GoRoute(
-      path: '/vision',
-      builder: (context, state) => const VisionScreen(),
-    ),
+    GoRoute(path: '/vision', builder: (context, state) => const VisionScreen()),
     GoRoute(
       path: '/navigation',
       builder: (context, state) {
-        final trip = state.extra as SavedTrip? ??
+        final trip =
+            state.extra as SavedTrip? ??
             SavedTrip(
               name: '',
               route: '',
@@ -141,10 +172,7 @@ final appRouter = GoRouter(
         return NavigationScreen(trip: trip);
       },
     ),
-    GoRoute(
-      path: '/auth',
-      builder: (context, state) => const AuthScreen(),
-    ),
+    GoRoute(path: '/auth', builder: (context, state) => const AuthScreen()),
     GoRoute(
       path: '/auth/email',
       builder: (context, state) => const EmailLoginScreen(),
@@ -181,7 +209,8 @@ final appRouter = GoRouter(
       path: '/google-map',
       builder: (context, state) => GoogleMapScreen(
         stops: state.extra is List<TripStop>
-            ? state.extra! as List<TripStop> : const [],
+            ? state.extra! as List<TripStop>
+            : const [],
         showBackButton: true,
       ),
     ),
@@ -195,10 +224,7 @@ final appRouter = GoRouter(
       branches: [
         StatefulShellBranch(
           routes: [
-            GoRoute(
-              path: '/',
-              builder: (context, state) => const HomeScreen(),
-            ),
+            GoRoute(path: '/', builder: (context, state) => const HomeScreen()),
           ],
         ),
         StatefulShellBranch(
@@ -226,8 +252,7 @@ final appRouter = GoRouter(
                   path: 'place-explore/step1',
                   builder: (context, state) => PlaceExploreStep1Screen(
                     onNext: () {
-                      final provider =
-                          context.read<PlaceExploreProvider>();
+                      final provider = context.read<PlaceExploreProvider>();
                       provider.commitSelection();
                       provider.loadAllDetails();
                       context.go('/trip/place-explore/step2');
@@ -248,8 +273,9 @@ final appRouter = GoRouter(
                 GoRoute(
                   path: 'place-explore/result',
                   builder: (context, state) => PlaceExploreResultScreen(
-                    selectedIds:
-                        context.read<PlaceExploreProvider>().selectedIds,
+                    selectedIds: context
+                        .read<PlaceExploreProvider>()
+                        .selectedIds,
                   ),
                 ),
               ],
@@ -274,7 +300,9 @@ final appRouter = GoRouter(
                     GoRoute(
                       path: 'edit',
                       builder: (context, state) => SavedPlanEditScreen(
-                        trip: state.extra is SavedTrip ? state.extra as SavedTrip : null,
+                        trip: state.extra is SavedTrip
+                            ? state.extra as SavedTrip
+                            : null,
                       ),
                     ),
                     GoRoute(
@@ -293,20 +321,23 @@ final appRouter = GoRouter(
                           path: 'transit',
                           // mode 는 쿼리로 받는다. 지하철·버스 버튼이 같은
                           // 화면을 서로 다른 조회 조건으로 연다.
-                          builder: (context, state) => TransitRouteOptionsScreen(
-                            args: state.extra as SubwayRouteArgs,
-                            mode: switch (state.uri.queryParameters['mode']) {
-                              'subway' => TransitSearchMode.subway,
-                              'bus' => TransitSearchMode.bus,
-                              _ => TransitSearchMode.all,
-                            },
-                          ),
+                          builder: (context, state) =>
+                              TransitRouteOptionsScreen(
+                                args: state.extra as SubwayRouteArgs,
+                                mode:
+                                    switch (state.uri.queryParameters['mode']) {
+                                      'subway' => TransitSearchMode.subway,
+                                      'bus' => TransitSearchMode.bus,
+                                      _ => TransitSearchMode.all,
+                                    },
+                              ),
                           routes: [
                             GoRoute(
                               path: 'map',
-                              builder: (context, state) => TransitRouteMapScreen(
-                                args: state.extra as TransitRouteMapArgs,
-                              ),
+                              builder: (context, state) =>
+                                  TransitRouteMapScreen(
+                                    args: state.extra as TransitRouteMapArgs,
+                                  ),
                             ),
                           ],
                         ),
@@ -337,7 +368,9 @@ final appRouter = GoRouter(
                     // 브라우저에서 새로 고치면 들고 올 것이 없다. 그때 값이 있다고
                     // 단정하면 화면이 뜨기도 전에 죽는다.
                     final room = state.extra as ChatRoom?;
-                    final roomId = room?.id ?? int.tryParse(state.pathParameters['id'] ?? '');
+                    final roomId =
+                        room?.id ??
+                        int.tryParse(state.pathParameters['id'] ?? '');
                     if (roomId == null) {
                       return const ChatRoomMissingScreen();
                     }

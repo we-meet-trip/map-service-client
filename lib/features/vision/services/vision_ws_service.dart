@@ -4,16 +4,25 @@ import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/state/auth_store.dart';
+import '../../../core/state/service_consent_store.dart';
 import '../models/vision_models.dart';
 
 class VisionWsService {
   VisionWsService({
     this.responseTimeout = const Duration(seconds: 60),
     WebSocketChannel Function(Uri, Iterable<String>)? channelFactory,
-  }) : _channelFactory =
+    ServiceConsentStore? consentStore,
+  }) : _consent = consentStore ?? ServiceConsentStore.instance,
+       _channelFactory =
            channelFactory ??
            ((uri, protocols) =>
-               WebSocketChannel.connect(uri, protocols: protocols));
+               WebSocketChannel.connect(uri, protocols: protocols)) {
+    _consent.addListener(_policyChanged);
+  }
+  final ServiceConsentStore _consent;
+  void _policyChanged() {
+    if (!_consent.canAccess) disconnect();
+  }
 
   final Duration responseTimeout;
   final WebSocketChannel Function(Uri, Iterable<String>) _channelFactory;
@@ -48,6 +57,10 @@ class VisionWsService {
 
   Future<void> connect(String sessionId) async {
     if (_disposed) return;
+    if (!_consent.canAccess) {
+      _error('이용 조건 확인이 필요해요.');
+      return;
+    }
     if (_sessionVersion != AuthStore.instance.sessionVersion) disconnect();
     if (_channel != null && _connecting == null) return;
     final active = _connecting;
@@ -63,7 +76,9 @@ class VisionWsService {
 
   Future<void> _connect() async {
     final token = AuthStore.instance.accessToken;
-    if (token == null || !AppConfig.instance.requestsAllowed) {
+    if (token == null ||
+        !AppConfig.instance.requestsAllowed ||
+        !_consent.canAccess) {
       _error('로그인 후 다시 시도해주세요.');
       return;
     }
@@ -78,12 +93,20 @@ class VisionWsService {
       _sub = channel.stream.listen(
         (data) {
           if (_disposed ||
+              !_consent.canAccess ||
               version != _connectionVersion ||
               _sessionVersion != AuthStore.instance.sessionVersion) {
             return;
           }
           try {
             final json = jsonDecode(data as String) as Map<String, dynamic>;
+            final code = json['code'] ?? json['error'];
+            if (code is String &&
+                ServiceConsentStore.isPolicyDenial(403, code)) {
+              _consent.invalidate(reason: code);
+              _error('이용 조건을 다시 확인해주세요.');
+              return;
+            }
             final response = VisionResponse.fromJson(json);
             if (_pendingId == null ||
                 (response.sessionId != _pendingId &&
@@ -114,7 +137,9 @@ class VisionWsService {
         await channel.sink.close();
         return;
       }
-      if (_disposed || _sessionVersion != AuthStore.instance.sessionVersion) {
+      if (_disposed ||
+          !_consent.canAccess ||
+          _sessionVersion != AuthStore.instance.sessionVersion) {
         disconnect();
       }
     } catch (_) {
@@ -129,6 +154,10 @@ class VisionWsService {
     bool Function()? canSend,
   }) async {
     if (_disposed) return;
+    if (!_consent.canAccess) {
+      _error('이용 조건을 확인한 뒤 다시 시도해주세요.');
+      return;
+    }
     final requestSession = AuthStore.instance.sessionVersion;
     if (canSend != null && !canSend()) {
       _error('외부 AI 전송 동의를 다시 확인해주세요.');
@@ -138,6 +167,7 @@ class VisionWsService {
     if (_connecting != null) await _connecting;
     if (_channel == null) await connect(request.sessionId);
     if (_channel == null ||
+        !_consent.canAccess ||
         _sessionVersion != AuthStore.instance.sessionVersion ||
         requestSession != AuthStore.instance.sessionVersion ||
         (canSend != null && !canSend())) {
@@ -182,6 +212,7 @@ class VisionWsService {
 
   void dispose() {
     _disposed = true;
+    _consent.removeListener(_policyChanged);
     disconnect();
     _responseController.close();
     _errorController.close();

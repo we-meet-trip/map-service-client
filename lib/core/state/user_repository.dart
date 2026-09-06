@@ -57,10 +57,17 @@ class UserRepository {
     await ProfileLocalStore.instance.clear();
   }
 
-  void updateBirthGender({DateTime? birthdate, String? gender}) {
+  void updateBirthGender({
+    DateTime? birthdate,
+    String? gender,
+    bool clearBirthdate = false,
+    bool clearGender = false,
+  }) {
     profile.value = profile.value.copyWith(
       birthdate: birthdate,
       gender: gender,
+      clearBirthdate: clearBirthdate,
+      clearGender: clearGender,
     );
   }
 
@@ -178,6 +185,8 @@ class UserProfile {
     String? nickname,
     DateTime? birthdate,
     String? gender,
+    bool clearBirthdate = false,
+    bool clearGender = false,
     List<String>? interests,
     List<String>? themes,
     String? profileImagePath,
@@ -192,8 +201,8 @@ class UserProfile {
     return UserProfile(
       id: id,
       nickname: nickname ?? this.nickname,
-      birthdate: birthdate ?? this.birthdate,
-      gender: gender ?? this.gender,
+      birthdate: clearBirthdate ? null : (birthdate ?? this.birthdate),
+      gender: clearGender ? null : (gender ?? this.gender),
       interests: interests ?? this.interests,
       themes: themes ?? this.themes,
       profileImagePath: clearImage

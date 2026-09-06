@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 
 import '../config/app_config.dart';
 import '../state/auth_store.dart';
+import '../state/service_consent_store.dart';
 
 /// 서버가 돌려준 오류.
 ///
@@ -96,6 +97,15 @@ class ApiClient {
       );
     }
     final sessionVersion = AuthStore.instance.sessionVersion;
+    if (AuthStore.instance.accessToken != null &&
+        !ServiceConsentStore.permitsWithoutConsent(method, path) &&
+        !ServiceConsentStore.instance.canAccess) {
+      throw const ApiException(
+        statusCode: 403,
+        code: 'SERVICE_POLICY_REQUIRED',
+        message: '만 18세 이상 및 이용약관·개인정보처리방침 확인이 필요해요.',
+      );
+    }
     final uri = Uri.parse(
       '$kApiBaseUrl$path',
     ).replace(queryParameters: query == null || query.isEmpty ? null : query);
@@ -134,6 +144,13 @@ class ApiClient {
 
     if (response.statusCode == 401 && !retried && !_isAuthPath(path)) {
       final refreshed = await AuthStore.instance.refresh();
+      if (sessionVersion != AuthStore.instance.sessionVersion) {
+        throw const ApiException(
+          statusCode: 409,
+          code: 'SESSION_CHANGED',
+          message: '로그인 상태가 변경됐어요. 다시 시도해주세요.',
+        );
+      }
       if (refreshed) {
         return _send(
           method,
@@ -147,6 +164,16 @@ class ApiClient {
     }
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
+      // Another concurrent response may have invalidated policy while this was in flight.
+      if (token != null &&
+          !ServiceConsentStore.permitsWithoutConsent(method, path) &&
+          !ServiceConsentStore.instance.canAccess) {
+        throw const ApiException(
+          statusCode: 403,
+          code: 'SERVICE_POLICY_REQUIRED',
+          message: '이용 조건을 다시 확인해주세요.',
+        );
+      }
       if (response.body.isEmpty) {
         return const {};
       }
@@ -154,7 +181,11 @@ class ApiClient {
       return decoded is Map<String, dynamic> ? decoded : {'data': decoded};
     }
 
-    throw _toException(response);
+    final error = _toException(response);
+    if (ServiceConsentStore.isPolicyDenial(error.statusCode, error.code)) {
+      ServiceConsentStore.instance.invalidate(reason: error.code);
+    }
+    throw error;
   }
 
   /// 목록을 돌려주는 경로용. 서버가 배열을 최상위로 주는 경우가 있다.

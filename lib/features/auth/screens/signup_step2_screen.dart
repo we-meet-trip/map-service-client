@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../common/widgets/gender_choice_chip.dart';
 import '../../../core/state/user_repository.dart';
+import '../../../core/state/service_consent_store.dart';
 import '../widgets/birthdate_field.dart';
 import '../widgets/signup_step_scaffold.dart';
 
@@ -17,13 +18,13 @@ class _SignupStep2ScreenState extends State<SignupStep2Screen> {
   DateTime? _birthdate;
   String? _gender;
 
-  bool get _canProceed => _birthdate != null;
+  bool get _canProceed => _birthdate == null || isAtLeast18(_birthdate!);
 
   @override
   Widget build(BuildContext context) {
     return SignupStepScaffold(
       title: '생년월일과 성별을 알려주세요',
-      subtitle: '나랑 비슷한 사람들이 좋아하는 여행 콘텐츠를 추천드려요.',
+      subtitle: 'MAP은 만 18세 이상만 이용할 수 있어요. 생년월일과 성별은 선택 항목입니다.',
       currentStep: 2,
       onBack: () => context.pop(),
       onNext: _canProceed
@@ -31,6 +32,8 @@ class _SignupStep2ScreenState extends State<SignupStep2Screen> {
               UserRepository.instance.updateBirthGender(
                 birthdate: _birthdate,
                 gender: _gender,
+                clearBirthdate: _birthdate == null,
+                clearGender: _gender == null,
               );
               context.push('/signup/step3');
             }
@@ -40,7 +43,7 @@ class _SignupStep2ScreenState extends State<SignupStep2Screen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            '생년월일',
+            '생년월일 (선택)',
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w500,
@@ -52,6 +55,13 @@ class _SignupStep2ScreenState extends State<SignupStep2Screen> {
             value: _birthdate,
             onChanged: (date) => setState(() => _birthdate = date),
           ),
+          if (_birthdate != null && !_canProceed)
+            const Text('만 18세 미만은 가입할 수 없습니다.'),
+          if (_birthdate != null)
+            TextButton(
+              onPressed: () => setState(() => _birthdate = null),
+              child: const Text('생년월일 입력 취소'),
+            ),
           const SizedBox(height: 45),
           Text(
             '성별 (선택)',
@@ -74,7 +84,8 @@ class _SignupStep2ScreenState extends State<SignupStep2Screen> {
                     width: w,
                     height: 120,
                     selected: _gender == '남성',
-                    onTap: () => setState(() => _gender = _gender == '남성' ? null : '남성'),
+                    onTap: () =>
+                        setState(() => _gender = _gender == '남성' ? null : '남성'),
                   ),
                   const SizedBox(width: 20),
                   GenderChoiceChip(
@@ -83,7 +94,8 @@ class _SignupStep2ScreenState extends State<SignupStep2Screen> {
                     width: w,
                     height: 120,
                     selected: _gender == '여성',
-                    onTap: () => setState(() => _gender = _gender == '여성' ? null : '여성'),
+                    onTap: () =>
+                        setState(() => _gender = _gender == '여성' ? null : '여성'),
                   ),
                 ],
               );

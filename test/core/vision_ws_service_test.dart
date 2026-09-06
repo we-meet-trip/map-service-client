@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:map_service_client/core/state/auth_store.dart';
+import 'package:map_service_client/core/state/service_consent_store.dart';
 import 'package:map_service_client/features/vision/models/vision_models.dart';
 import 'package:map_service_client/features/vision/services/vision_ws_service.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -58,6 +59,16 @@ void main() {
     await auth.save(
       const AuthTokens(accessToken: 'token-a', refreshToken: 'ra', userId: 1),
     );
+    final consent = ServiceConsentStore.instance;
+    consent.loadStatus = () async => ServiceConsentStatus.fromJson({
+      'terms_version': servicePolicyVersion,
+      'privacy_version': servicePolicyVersion,
+      'minimum_age': 18,
+      'accepted': true,
+      'age_eligible': null,
+      'accepted_at': '2026-09-07T00:00:00Z',
+    });
+    await consent.refresh();
     channels = [];
     errors = [];
     responses = [];
@@ -136,6 +147,10 @@ void main() {
     expect(responses, isEmpty);
     await service.sendFrame(request);
     expect(channels.first.sink.closed, isTrue);
+    expect(channels, hasLength(1));
+    expect(ServiceConsentStore.instance.canAccess, isFalse);
+    await ServiceConsentStore.instance.refresh();
+    await service.sendFrame(request);
     expect(protocols.last, 'bearer.token-b');
   });
 
