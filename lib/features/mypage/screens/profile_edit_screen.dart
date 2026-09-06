@@ -358,7 +358,8 @@ class ProfileEditScreen extends StatelessWidget {
       context: context,
       builder: (ctx) => AppConfirmDialog(
         content: Text(
-          '정말 탈퇴하시겠어요?\n탈퇴 시 모든 정보가 삭제됩니다.',
+          '정말 탈퇴하시겠어요?\n계정·프로필·본인 일정과 추천 결과·본인이 작성한 채팅 내용이 삭제됩니다.\n'
+          '다른 참여자가 작성한 메시지는 보존되고, 본인 소유 채팅방은 종료됩니다. 탈퇴는 되돌릴 수 없습니다.',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 16, color: AppColors.neutralScale[600], height: 1.5),
         ),
