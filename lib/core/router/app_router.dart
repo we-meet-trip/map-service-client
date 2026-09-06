@@ -38,6 +38,8 @@ import '../../features/invite/screens/invite_handler_screen.dart';
 import '../../features/splash/screens/splash_screen.dart';
 import '../../features/mobility/screens/bike_scooter_location_screen.dart';
 import '../../features/vision/screens/vision_screen.dart';
+import '../../features/trip/screens/google_map_screen.dart';
+import '../api/trip_api_service.dart';
 import '../../features/saved/screens/navigation_screen.dart';
 import '../../features/trip/screens/subway_route_screen.dart';
 import '../api/transit_route_options_service.dart';
@@ -150,6 +152,13 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/bike-scooter',
       builder: (context, state) => const BikeScooterLocationScreen(),
+    ),
+    GoRoute(
+      path: '/google-map',
+      builder: (context, state) => GoogleMapScreen(
+        stops: state.extra as List<TripStop>? ?? const [],
+        showBackButton: true,
+      ),
     ),
     GoRoute(
       path: '/address-search',
