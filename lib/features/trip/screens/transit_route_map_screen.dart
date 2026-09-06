@@ -89,10 +89,12 @@ class _TransitRouteMapScreenState extends State<TransitRouteMapScreen> {
     points.add(destination);
 
     await controller.addOverlay(
-      MapMarker(id: 'origin', position: points.first),
+      MapMarker(id: 'origin', position: points.first,
+          icon: MapOverlayImage.defaultMarker(hue: 120)),
     );
     await controller.addOverlay(
-      MapMarker(id: 'destination', position: destination),
+      MapMarker(id: 'destination', position: destination,
+          icon: MapOverlayImage.defaultMarker()),
     );
 
     final lats = points.map((p) => p.latitude);

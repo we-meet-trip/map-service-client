@@ -232,6 +232,16 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 saved != null ? _buildMapAreaWithBackButton() : _buildMapArea(),
+                if ((widget.savedTrip?.stops ?? widget.response?.stops ?? const <TripStop>[]).isNotEmpty)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      icon: const Icon(Icons.fullscreen),
+                      label: const Text('지도 크게 보기'),
+                      onPressed: () => context.push('/google-map',
+                          extra: widget.savedTrip?.stops ?? widget.response!.stops),
+                    ),
+                  ),
                 if (_selectedDayStops.any((stop) => stop.transport?.path != null))
                   const RouteDataAttribution(),
                 Padding(
@@ -328,6 +338,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
         builder: (context, generation, _) => AppMap(
           key: ValueKey('created-map-$generation'),
           options: AppMapOptions(
+            captureScrollGestures: true,
             initialCameraPosition: MapCameraPosition(
               target: _selectedDayStops.isNotEmpty
                   ? _selectedDayStops.first.latLng

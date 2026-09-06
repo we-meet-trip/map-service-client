@@ -458,6 +458,7 @@ class _TripStep5ScreenState extends State<TripStep5Screen> {
             builder: (context, generation, _) => AppMap(
               key: ValueKey('step5-map-$generation'),
               options: const AppMapOptions(
+                captureScrollGestures: true,
                 initialCameraPosition: _kKoreaOverview,
                 scrollGesturesEnable: true,
                 zoomGesturesEnable: true,

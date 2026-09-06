@@ -8,6 +8,8 @@ import '../../data/repositories/invite_link_repository.dart';
 import '../../features/home/screens/home_screen.dart';
 import '../../features/trip/screens/trip_regenerate_screen.dart';
 import '../../features/trip/screens/trip_created_screen.dart';
+import '../../features/trip/screens/google_map_screen.dart';
+import '../api/trip_api_service.dart' show TripStop;
 import '../../features/place_explore/screens/place_explore_result_screen.dart';
 import '../../features/place_explore/screens/place_explore_step1_screen.dart';
 import '../../features/place_explore/screens/place_explore_step2_screen.dart';
@@ -174,6 +176,14 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/bike-scooter',
       builder: (context, state) => const BikeScooterLocationScreen(),
+    ),
+    GoRoute(
+      path: '/google-map',
+      builder: (context, state) => GoogleMapScreen(
+        stops: state.extra is List<TripStop>
+            ? state.extra! as List<TripStop> : const [],
+        showBackButton: true,
+      ),
     ),
     GoRoute(
       path: '/address-search',
