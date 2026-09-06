@@ -30,12 +30,22 @@ class TripForecast {
   TripForecastDay? forDate(String date, {DateTime? now}) {
     for (final day in daily) {
       if (day.date == date &&
-          (day.expiresAt == null ||
-              day.expiresAt!.isAfter(now ?? DateTime.now()))) {
+          day.expiresAt != null &&
+          day.expiresAt!.isAfter(now ?? DateTime.now())) {
         return day;
       }
     }
     return null;
+  }
+
+  String? unavailableReasonForDate(String date, {DateTime? now}) {
+    for (final day in daily) {
+      if (day.date != date) continue;
+      if (day.expiresAt == null) return 'freshness_unknown';
+      if (!day.expiresAt!.isAfter(now ?? DateTime.now())) return 'expired';
+      return null;
+    }
+    return missingReasons[date] ?? 'unavailable_or_stale';
   }
 }
 
