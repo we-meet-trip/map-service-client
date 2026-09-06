@@ -11,7 +11,13 @@ import '../state/auth_store.dart';
 ///
 /// [authRequired] 는 토큰을 새로 받아도 거절당한 상태다. 다시 붙어 봐야
 /// 같은 결과라 재연결을 멈추고 화면이 로그인을 요구해야 한다.
-enum ChatConnectionState { idle, connecting, connected, disconnected, authRequired }
+enum ChatConnectionState {
+  idle,
+  connecting,
+  connected,
+  disconnected,
+  authRequired,
+}
 
 /// 실시간 프레임의 종류.
 ///
@@ -19,6 +25,7 @@ enum ChatConnectionState { idle, connecting, connected, disconnected, authRequir
 /// 만나 예외를 던지면 이미 배포된 앱이 죽으므로, 해석만 포기하고 흘려보낸다.
 enum ChatEventKind {
   message,
+  messageRemoved,
   system,
   read,
   typing,
@@ -45,12 +52,7 @@ class ChatEvent {
   /// destination 이 최상위에 있으므로 프레임 자체가 그대로 본문이 된다.
   final Map<String, dynamic>? data;
 
-  const ChatEvent({
-    required this.kind,
-    this.roomId,
-    this.reason,
-    this.data,
-  });
+  const ChatEvent({required this.kind, this.roomId, this.reason, this.data});
 
   factory ChatEvent.fromJson(Map<String, dynamic> json) {
     final type = json['type'] as String?;
@@ -94,6 +96,8 @@ class ChatEvent {
     switch (type) {
       case 'MESSAGE':
         return ChatEventKind.message;
+      case 'MESSAGE_REMOVED':
+        return ChatEventKind.messageRemoved;
       case 'SYSTEM':
         return ChatEventKind.system;
       case 'READ':

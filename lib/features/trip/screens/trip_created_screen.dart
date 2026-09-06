@@ -15,6 +15,8 @@ import '../../../common/widgets/text_field.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/schedule_api_service.dart';
 import '../../../core/api/trip_api_service.dart';
+import '../../../core/api/moderation_api_service.dart';
+import '../../moderation/report_dialog.dart';
 import '../../../core/router/app_router.dart';
 import '../../auth/widgets/kakao_login_button.dart';
 import '../widgets/place_detail_sheet.dart';
@@ -72,12 +74,24 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
     final plan = TripRepository.instance.lastPlan;
     _forecastStart = saved?.tripStartDate ?? widget.startDate;
     final end = saved?.tripEndDate ?? widget.endDate;
-    final province = saved?.province ?? (plan?.tripId == res?.tripId ? plan?.province : null);
-    final city = saved?.city ?? (plan?.tripId == res?.tripId ? plan?.city : null);
-    _forecastFuture = _forecastStart != null && end != null &&
-        province != null && province.isNotEmpty && city != null && city.isNotEmpty
-        ? TripWeatherService().fetch(province: province, city: city,
-            start: _forecastStart!, end: end)
+    final province =
+        saved?.province ??
+        (plan?.tripId == res?.tripId ? plan?.province : null);
+    final city =
+        saved?.city ?? (plan?.tripId == res?.tripId ? plan?.city : null);
+    _forecastFuture =
+        _forecastStart != null &&
+            end != null &&
+            province != null &&
+            province.isNotEmpty &&
+            city != null &&
+            city.isNotEmpty
+        ? TripWeatherService().fetch(
+            province: province,
+            city: city,
+            start: _forecastStart!,
+            end: end,
+          )
         : Future<TripForecast?>.value(null);
     if (saved != null) {
       _stops = saved.stops.map(_fromApiStop).toList();
@@ -86,8 +100,8 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
       _stops = res.stops.map(_fromApiStop).toList();
       _totalDurationMinutes = res.totalDurationMinutes;
     } else {
-      _stops = _placeholder;
-      _totalDurationMinutes = 25;
+      _stops = [];
+      _totalDurationMinutes = 0;
     }
     _days = _stops.map((s) => s.day).toSet().toList()..sort();
     _selectedDay = _days.isNotEmpty ? _days.first : 1;
@@ -102,59 +116,28 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
       _stops.where((s) => s.day == _selectedDay).toList();
 
   static _ScheduleStop _fromApiStop(TripStop s) => _ScheduleStop(
-        day: s.day,
-        name: s.name,
-        address: s.address,
-        time: s.time,
-        latLng: MapCoordinate(s.latitude, s.longitude),
-        category: s.category,
-        placeId: s.placeId,
-        transport: s.transportToNext != null
-            ? _TransportInfo(
-                label: s.transportToNext!.label,
-                duration: '${s.transportToNext!.durationMinutes}분 (${s.transportToNext!.routeDescription})',
-                distance: '${s.transportToNext!.distanceKm}km',
-                path: (s.transportToNext!.hasRoadRoute ? s.transportToNext!.path : null)
+    day: s.day,
+    name: s.name,
+    address: s.address,
+    time: s.time,
+    latLng: MapCoordinate(s.latitude, s.longitude),
+    category: s.category,
+    placeId: s.placeId,
+    transport: s.transportToNext != null
+        ? _TransportInfo(
+            label: s.transportToNext!.label,
+            duration:
+                '${s.transportToNext!.durationMinutes}분 (${s.transportToNext!.routeDescription})',
+            distance: '${s.transportToNext!.distanceKm}km',
+            path:
+                (s.transportToNext!.hasRoadRoute
+                        ? s.transportToNext!.path
+                        : null)
                     ?.map((p) => MapCoordinate(p[0], p[1]))
                     .toList(),
-              )
-            : null,
-      );
-
-  static final List<_ScheduleStop> _placeholder = [
-    _ScheduleStop(
-      day: 1,
-      name: '속초 버스 터미널',
-      address: '강원특별자치도 속초시 중앙로 96',
-      time: '09:00',
-      latLng: const MapCoordinate(38.2052, 128.5917),
-      transport: _TransportInfo(
-        label: '이동: 전동 킥보드',
-        duration: '12분',
-        distance: '1.8km',
-      ),
-    ),
-    _ScheduleStop(
-      day: 1,
-      name: '속초해변',
-      address: '강원특별자치도 속초시 청호동',
-      time: '09:12',
-      latLng: const MapCoordinate(38.2014, 128.6008),
-      transport: _TransportInfo(
-        label: '이동: 자전거',
-        duration: '13분',
-        distance: '3.8km',
-      ),
-    ),
-    _ScheduleStop(
-      day: 1,
-      name: '속초 중앙시장',
-      address: '강원특별자치도 속초시 중앙로 147',
-      time: '09:25',
-      latLng: const MapCoordinate(38.2089, 128.5875),
-      transport: null,
-    ),
-  ];
+          )
+        : null,
+  );
 
   int _minutesSinceMidnight(String hhmm) {
     final parts = hhmm.split(':');
@@ -198,6 +181,12 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
 
   Widget _buildBody(BuildContext context) {
     final saved = widget.savedTrip;
+    if (_stops.isEmpty) {
+      return const Center(child: Text('표시할 일정 결과가 없어요. 여행 일정을 먼저 만들어주세요.'));
+    }
+    final reportTarget = (_startTarget?.scheduleId ?? 0) > 0
+        ? ReportTarget.trip(scheduleId: _startTarget!.scheduleId)
+        : ReportTarget.trip(recommendJobId: widget.response?.tripId);
     return Column(
       children: [
         // ── 저장 탭에서 열렸을 때 뒤로가기 헤더 (savedTrip 없이 열린 경우) ──
@@ -209,8 +198,11 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
               child: Row(
                 children: [
                   IconButton(
-                    icon: Icon(Icons.arrow_back_ios_new_rounded,
-                        size: 20, color: AppColors.neutralScale[500]),
+                    icon: Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      size: 20,
+                      color: AppColors.neutralScale[500],
+                    ),
                     onPressed: () => context.go('/saved'),
                   ),
                   Text(
@@ -232,24 +224,36 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 saved != null ? _buildMapAreaWithBackButton() : _buildMapArea(),
-                if ((widget.savedTrip?.stops ?? widget.response?.stops ?? const <TripStop>[]).isNotEmpty)
+                if ((widget.savedTrip?.stops ??
+                        widget.response?.stops ??
+                        const <TripStop>[])
+                    .isNotEmpty)
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton.icon(
                       icon: const Icon(Icons.fullscreen),
                       label: const Text('지도 크게 보기'),
-                      onPressed: () => context.push('/google-map',
-                          extra: widget.savedTrip?.stops ?? widget.response!.stops),
+                      onPressed: () => context.push(
+                        '/google-map',
+                        extra:
+                            widget.savedTrip?.stops ?? widget.response!.stops,
+                      ),
                     ),
                   ),
-                if (_selectedDayStops.any((stop) => stop.transport?.path != null))
+                if (_selectedDayStops.any(
+                  (stop) => stop.transport?.path != null,
+                ))
                   const RouteDataAttribution(),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      saved != null ? _buildSavedTripHeader(saved) : _buildTitle(),
+                      saved != null
+                          ? _buildSavedTripHeader(saved)
+                          : _buildTitle(),
+                      if (reportTarget.valid)
+                        ContentReportActions(target: reportTarget),
                       const SizedBox(height: 16),
                       if (_warnings.isNotEmpty) ...[
                         _buildWarningsNotice(),
@@ -260,15 +264,22 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
                         const SizedBox(height: 16),
                       ],
                       if (_forecastStart != null) ...[
-                        TripWeatherCard(forecast: _forecastFuture,
-                            date: _forecastStart!.add(Duration(days: _selectedDay - 1))),
+                        TripWeatherCard(
+                          forecast: _forecastFuture,
+                          date: _forecastStart!.add(
+                            Duration(days: _selectedDay - 1),
+                          ),
+                        ),
                         const SizedBox(height: 16),
                       ],
                       _buildTotalTime(),
                       const SizedBox(height: 28),
-                      ..._selectedDayStops.asMap().entries.map((entry) =>
-                          _buildStopItem(entry.value,
-                              entry.key == _selectedDayStops.length - 1)),
+                      ..._selectedDayStops.asMap().entries.map(
+                        (entry) => _buildStopItem(
+                          entry.value,
+                          entry.key == _selectedDayStops.length - 1,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -301,27 +312,32 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: _warnings
-            .map((line) => Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Padding(
-                      padding: EdgeInsets.only(top: 1),
-                      child: Icon(Icons.info_outline_rounded,
-                          size: 16, color: Color(0xFFB98A00)),
+            .map(
+              (line) => Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.only(top: 1),
+                    child: Icon(
+                      Icons.info_outline_rounded,
+                      size: 16,
+                      color: Color(0xFFB98A00),
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        line,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          height: 1.4,
-                          color: Color(0xFF7A5C00),
-                        ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      line,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        height: 1.4,
+                        color: Color(0xFF7A5C00),
                       ),
                     ),
-                  ],
-                ))
+                  ),
+                ],
+              ),
+            )
             .toList(),
       ),
     );
@@ -381,8 +397,11 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
                     ),
                   ],
                 ),
-                child: Icon(Icons.arrow_back_ios_new_rounded,
-                    size: 16, color: AppColors.neutralScale[600]),
+                child: Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  size: 16,
+                  color: AppColors.neutralScale[600],
+                ),
               ),
             ),
           ),
@@ -420,7 +439,9 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
   }
 
   Future<void> _renderDayOverlaysPass(
-      AppMapController controller, int pass) async {
+    AppMapController controller,
+    int pass,
+  ) async {
     final stops = _selectedDayStops;
     if (stops.isEmpty || !mounted) return;
     // 지도가 바뀌었는지도 함께 본다. 번호만으로는 같은 순번에서 지도가 갈린
@@ -440,11 +461,9 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
         context: context,
       );
       if (stale()) return;
-      await controller.addOverlay(MapMarker(
-        id: 'stop_$i',
-        position: stops[i].latLng,
-        icon: icon,
-      ));
+      await controller.addOverlay(
+        MapMarker(id: 'stop_$i', position: stops[i].latLng, icon: icon),
+      );
       if (stale()) return;
     }
 
@@ -458,14 +477,16 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
       if (legPath == null || legPath.length < 2) continue;
       // Separate overlays preserve gaps: missing routes must not become straight roads.
       routeCoords.addAll(legPath);
-      await controller.addOverlay(MapPathOverlay(
-        id: 'route_$i',
-        coords: legPath,
-        color: AppColors.primaryScale[400]!,
-        width: 6,
-        outlineColor: Colors.white,
-        outlineWidth: 2,
-      ));
+      await controller.addOverlay(
+        MapPathOverlay(
+          id: 'route_$i',
+          coords: legPath,
+          color: AppColors.primaryScale[400]!,
+          width: 6,
+          outlineColor: Colors.white,
+          outlineWidth: 2,
+        ),
+      );
       if (stale()) return;
     }
 
@@ -557,13 +578,18 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
             const SizedBox(height: 6),
             Row(
               children: [
-                Icon(Icons.calendar_today_outlined,
-                    size: 13, color: AppColors.neutralScale[300]),
+                Icon(
+                  Icons.calendar_today_outlined,
+                  size: 13,
+                  color: AppColors.neutralScale[300],
+                ),
                 const SizedBox(width: 4),
                 Text(
                   dateStr,
                   style: TextStyle(
-                      fontSize: 13, color: AppColors.neutralScale[300]),
+                    fontSize: 13,
+                    color: AppColors.neutralScale[300],
+                  ),
                 ),
               ],
             ),
@@ -624,7 +650,10 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [AppColors.savedBadgeUrgent, AppColors.tripDirectionsPinkEnd],
+                colors: [
+                  AppColors.savedBadgeUrgent,
+                  AppColors.tripDirectionsPinkEnd,
+                ],
               ),
               borderRadius: BorderRadius.circular(100),
               boxShadow: [
@@ -661,10 +690,12 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
           scrollDirection: Axis.horizontal,
           child: Row(
             children: _days
-                .map((day) => Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: _buildDayTab(day),
-                    ))
+                .map(
+                  (day) => Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: _buildDayTab(day),
+                  ),
+                )
                 .toList(),
           ),
         ),
@@ -699,7 +730,9 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.secondaryScale[200]!.withAlpha(153) : null,
+          color: isSelected
+              ? AppColors.secondaryScale[200]!.withAlpha(153)
+              : null,
           borderRadius: BorderRadius.circular(100),
         ),
         child: Text(
@@ -707,7 +740,9 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
           style: TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w600,
-            color: isSelected ? AppColors.gradientScale[500] : AppColors.neutralScale[300],
+            color: isSelected
+                ? AppColors.gradientScale[500]
+                : AppColors.neutralScale[300],
           ),
         ),
       ),
@@ -749,7 +784,10 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
                   height: 22,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(color: AppColors.primaryScale[300]!, width: 2),
+                    border: Border.all(
+                      color: AppColors.primaryScale[300]!,
+                      width: 2,
+                    ),
                     color: Colors.white,
                   ),
                 ),
@@ -810,7 +848,9 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
                       Text(
                         stop.address,
                         style: TextStyle(
-                            fontSize: 12, color: AppColors.neutralScale[300]),
+                          fontSize: 12,
+                          color: AppColors.neutralScale[300],
+                        ),
                       ),
                     ],
                   ),
@@ -842,7 +882,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: const Alignment(-0.54, -0.84),
-              end:   const Alignment( 0.54,  0.84),
+              end: const Alignment(0.54, 0.84),
               colors: [
                 Colors.white.withValues(alpha: 0.26),
                 Colors.white.withValues(alpha: 0.06),
@@ -871,7 +911,11 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
                   color: theme.iconBg,
                 ),
                 child: Center(
-                  child: AppIcon(theme.svgPath, size: 18, color: theme.iconColor),
+                  child: AppIcon(
+                    theme.svgPath,
+                    size: 18,
+                    color: theme.iconColor,
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -922,13 +966,13 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
             borderRadius: BorderRadius.circular(16),
           ),
           child: ElevatedButton(
-            onPressed: () =>
-                context.push('/navigation', extra: _startTarget),
+            onPressed: () => context.push('/navigation', extra: _startTarget),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.transparent,
               shadowColor: Colors.transparent,
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16)),
+                borderRadius: BorderRadius.circular(16),
+              ),
             ),
             child: const Text(
               '일정 시작하기',
@@ -1007,10 +1051,12 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
                 ),
               ),
               const SizedBox(height: 28),
-              KakaoLoginButton(onPressed: () {
-                Navigator.of(ctx).pop();
-                // TODO: 카카오 로그인 연동
-              }),
+              KakaoLoginButton(
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  // TODO: 카카오 로그인 연동
+                },
+              ),
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
@@ -1068,7 +1114,10 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
         child: DecoratedBox(
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: [AppColors.tripAccentPurple, AppColors.tripAccentPurpleEnd],
+              colors: [
+                AppColors.tripAccentPurple,
+                AppColors.tripAccentPurpleEnd,
+              ],
             ),
             borderRadius: BorderRadius.circular(40),
             boxShadow: [
@@ -1084,7 +1133,9 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.transparent,
               shadowColor: Colors.transparent,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(40)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(40),
+              ),
             ),
             child: const Text(
               '일정 시작하기',
@@ -1143,10 +1194,12 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
                 height: 52,
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(colors: [
-                      AppColors.gradientScale[200]!,
-                      AppColors.gradientScale[600]!,
-                    ]),
+                    gradient: LinearGradient(
+                      colors: [
+                        AppColors.gradientScale[200]!,
+                        AppColors.gradientScale[600]!,
+                      ],
+                    ),
                     borderRadius: BorderRadius.circular(50),
                   ),
                   child: ElevatedButton(
@@ -1226,7 +1279,11 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
   /// 손에 있고 상세 조회는 도로 경로를 다시 받아 오느라 왕복이 길기 때문이다.
   /// 서버에서 다시 열면 그때 상세 조회가 돈다.
   SavedTrip? _asSavedTrip(
-      int scheduleId, String name, DateTime start, DateTime end) {
+    int scheduleId,
+    String name,
+    DateTime start,
+    DateTime end,
+  ) {
     final response = widget.response;
     if (response == null) return null;
     return SavedTrip(
@@ -1242,7 +1299,10 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
   }
 
   Future<int?> _persistToServer(
-      String name, DateTime start, DateTime end) async {
+    String name,
+    DateTime start,
+    DateTime end,
+  ) async {
     final response = widget.response;
     final plan = TripRepository.instance.lastPlan;
     if (response == null || plan == null) return null;
@@ -1268,8 +1328,9 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
 
   void _toast(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   // ── 저장 바텀시트 ─────────────────────────────────────────────
@@ -1348,7 +1409,9 @@ class _SaveBottomSheetState extends State<_SaveBottomSheet> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       padding: EdgeInsets.fromLTRB(
-        24, 14, 24,
+        24,
+        14,
+        24,
         keyboardHeight > 0 ? keyboardHeight + 16 : bottomPadding + 32,
       ),
       child: Column(
@@ -1358,7 +1421,8 @@ class _SaveBottomSheetState extends State<_SaveBottomSheet> {
           // 드래그 핸들
           Center(
             child: Container(
-              width: 44, height: 5,
+              width: 44,
+              height: 5,
               decoration: BoxDecoration(
                 color: AppColors.neutralScale[200],
                 borderRadius: BorderRadius.circular(3),
@@ -1418,7 +1482,10 @@ class _SaveBottomSheetState extends State<_SaveBottomSheet> {
             ),
             Text(
               '${_controller.text.length} / 20',
-              style: TextStyle(fontSize: 12, color: AppColors.neutralScale[300]),
+              style: TextStyle(
+                fontSize: 12,
+                color: AppColors.neutralScale[300],
+              ),
             ),
           ],
         ),
@@ -1435,7 +1502,10 @@ class _SaveBottomSheetState extends State<_SaveBottomSheet> {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: canSave
-                ? [AppColors.secondaryScale[900]!, AppColors.secondaryScale[500]!]
+                ? [
+                    AppColors.secondaryScale[900]!,
+                    AppColors.secondaryScale[500]!,
+                  ]
                 : [AppColors.neutralScale[100]!, AppColors.neutralScale[100]!],
             begin: Alignment.centerLeft,
             end: Alignment.centerRight,
@@ -1454,7 +1524,9 @@ class _SaveBottomSheetState extends State<_SaveBottomSheet> {
             shadowColor: Colors.transparent,
             disabledBackgroundColor: Colors.transparent,
             overlayColor: Colors.white.withValues(alpha: 0.15),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(30),
+            ),
           ),
           child: Text(
             '일정 저장하기',

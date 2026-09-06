@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../common/theme/app_colors.dart';
-import '../../../common/utils/support_mail.dart';
+import '../../../core/api/moderation_api_service.dart';
+import '../../moderation/report_dialog.dart';
+import '../../moderation/moderation_center_screen.dart';
 import '../../../common/widgets/app_confirm_dialog.dart';
 import '../../../core/state/auth_store.dart';
 import '../../../core/state/trip_repository.dart';
@@ -42,6 +44,7 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
 
   /// 방을 받아 오지 못한 상태. 없는 방이거나 내가 못 들어가는 방이다.
   bool _missing = false;
+  final Set<int> _blocking = {};
 
   ChatRoom? get _current => _room ?? widget.room;
 
@@ -72,6 +75,18 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
       setState(() => _room = room);
     }
 
+    try {
+      await provider.refreshBlocks(reloadHistory: false);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('차단 목록을 확인하지 못했어요. 잠시 후 신고·차단 관리에서 다시 확인해주세요.'),
+          ),
+        );
+      }
+    }
+    if (!mounted) return;
     await provider.open(readOnly: room.readOnly);
     if (mounted) _scrollToBottom();
   }
@@ -154,7 +169,11 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
         },
         onReport: () {
           Navigator.of(sheetContext).pop();
-          _reportRoom();
+          openModerationCenter(
+            context,
+            onBlocksChanged: () =>
+                context.read<ChatRoomDetailProvider>().refreshBlocks(),
+          );
         },
         onKick: isOwner
             ? () {
@@ -206,23 +225,82 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
     if (mounted) context.go('/chat');
   }
 
-  /// 신고는 메일 양식으로 받는다. 빈칸은 사용자가 채워 보낸다.
-  Future<void> _reportRoom() async {
-    final opened = await launchSupportMail(
-      subject: '[MAP 신고] 채팅방 ${widget.roomId}',
-      body:
-          '방 제목: ${_current?.title ?? ''}\n'
-          '신고 대상: \n'
-          '신고 사유: \n'
-          '발생 시각: \n',
+  Future<void> _blockSender(ChatMessage message) async {
+    final id = message.senderId;
+    if (id == null || id <= 0 || message.isMe || _blocking.contains(id)) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('상대를 차단할까요?'),
+        content: const Text('이 사용자의 채팅 메시지가 숨겨집니다. 신고·차단 관리에서 해제할 수 있어요.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('차단'),
+          ),
+        ],
+      ),
     );
-    if (!opened && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('메일 앱을 열 수 없어요. $supportEmail 로 신고해 주세요.'),
-        ),
-      );
+    if (confirmed != true || !mounted || _blocking.contains(id)) return;
+    setState(() => _blocking.add(id));
+    try {
+      await context.read<ChatRoomDetailProvider>().blockUser(id);
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('차단했어요.')));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('차단하지 못했어요. 다시 시도해주세요.')));
+      }
+    } finally {
+      if (mounted) setState(() => _blocking.remove(id));
     }
+  }
+
+  Widget _messageBubble(ChatMessage message, Color color) {
+    final bubble = ChatBubble(message: message, senderColor: color);
+    if (message.isMe ||
+        message.pending ||
+        message.seq <= 0 ||
+        message.type != ChatMessageType.text) {
+      return bubble;
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: bubble),
+        PopupMenuButton<String>(
+          tooltip: '메시지 신고·차단',
+          enabled: !_blocking.contains(message.senderId),
+          onSelected: (action) {
+            if (action == 'report') {
+              showContentReport(
+                context,
+                ReportTarget.chat(
+                  roomId: widget.roomId,
+                  messageSeq: message.seq,
+                ),
+              );
+            } else if (action == 'block') {
+              _blockSender(message);
+            }
+          },
+          itemBuilder: (_) => [
+            const PopupMenuItem(value: 'report', child: Text('이 메시지 신고')),
+            if ((message.senderId ?? 0) > 0)
+              const PopupMenuItem(value: 'block', child: Text('상대 차단')),
+          ],
+        ),
+      ],
+    );
   }
 
   /// 내보낼 수 있는 사람: 아직 방에 있고 내가 아닌 참가자.
@@ -390,10 +468,7 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
                                   itemBuilder: (context, index) {
                                     final msg = provider.messages[index];
                                     final color = _resolveColor(msg);
-                                    return ChatBubble(
-                                      message: msg,
-                                      senderColor: color,
-                                    );
+                                    return _messageBubble(msg, color);
                                   },
                                 );
                               },

@@ -21,7 +21,10 @@ class TestSink implements WebSocketSink {
 
 class TestChannel implements WebSocketChannel {
   final incoming = StreamController<dynamic>();
-  final connected = Completer<void>()..complete();
+  TestChannel({bool ready = true}) {
+    if (ready) connected.complete();
+  }
+  final connected = Completer<void>();
   @override
   final TestSink sink = TestSink();
   @override
@@ -143,4 +146,44 @@ void main() {
     expect(channels, isEmpty);
     expect(errors, isNotEmpty);
   });
+
+  test(
+    'refused external AI permission sends no frame and opens no socket',
+    () async {
+      await service.sendFrame(request, canSend: () => false);
+      expect(channels, isEmpty);
+    },
+  );
+
+  test('consent withdrawn while connection waits sends no frame', () async {
+    service.dispose();
+    var allowed = true;
+    final channel = TestChannel(ready: false);
+    channels.add(channel);
+    service = VisionWsService(channelFactory: (_, _) => channel);
+    final pending = service.sendFrame(request, canSend: () => allowed);
+    await Future<void>.delayed(Duration.zero);
+    allowed = false;
+    channel.connected.complete();
+    await pending;
+    expect(channel.sink.sent, isEmpty);
+  });
+
+  test(
+    'account change during connection cannot send the previous account request',
+    () async {
+      service.dispose();
+      final channel = TestChannel(ready: false);
+      channels.add(channel);
+      service = VisionWsService(channelFactory: (_, _) => channel);
+      final pending = service.sendFrame(request);
+      await Future<void>.delayed(Duration.zero);
+      await auth.save(
+        const AuthTokens(accessToken: 'token-b', refreshToken: 'rb', userId: 2),
+      );
+      channel.connected.complete();
+      await pending;
+      expect(channel.sink.sent, isEmpty);
+    },
+  );
 }

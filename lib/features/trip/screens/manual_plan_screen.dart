@@ -5,6 +5,8 @@ import '../../../common/widgets/next_button.dart';
 import '../../../common/widgets/prev_button.dart';
 import '../../../core/api/places_api_service.dart';
 import '../../../core/api/trip_api_service.dart';
+import '../../../core/state/auth_store.dart';
+import '../../../common/widgets/external_ai_consent.dart';
 import '../utils/manual_route_request.dart';
 import '../utils/plan_edit_draft.dart';
 import '../widgets/transport_theme.dart';
@@ -23,6 +25,7 @@ class ManualPlanScreen extends StatefulWidget {
     required this.initialStops,
     this.draft,
     this.route,
+    this.consentGate,
     required this.startDate,
     required this.endDate,
     required this.activeStartHour,
@@ -37,6 +40,7 @@ class ManualPlanScreen extends StatefulWidget {
   final List<TripStop> initialStops;
   final PlanEditDraft? draft;
   final Future<TripGenerateResponse> Function(TripRouteRequest)? route;
+  final ExternalAiConsentGate? consentGate;
   final DateTime startDate;
   final DateTime endDate;
   final int activeStartHour;
@@ -64,6 +68,13 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
 
   Future<void>? _routeFuture;
   TripGenerateResponse? _result;
+  bool _askingConsent = false;
+  ExternalAiPermission? _permission;
+  final _screenSession = AuthStore.instance.sessionVersion;
+  bool get _canSend =>
+      mounted &&
+      _screenSession == AuthStore.instance.sessionVersion &&
+      _permission?.isCurrentSession == true;
 
   @override
   void initState() {
@@ -167,7 +178,12 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
     });
   }
 
-  void _makeRoute() {
+  Future<void> _makeRoute() async {
+    if (_routeFuture != null ||
+        _askingConsent ||
+        _screenSession != AuthStore.instance.sessionVersion) {
+      return;
+    }
     final draft = buildManualRouteDraft(
       stops: _stops,
       startDate: widget.startDate,
@@ -180,10 +196,34 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
     );
     final request = draft.request;
     if (request == null) return;
+    setState(() => _askingConsent = true);
+    final permission =
+        await (widget.consentGate ?? ExternalAiConsentGate.instance).ensure(
+          context,
+          ExternalAiScope.trip,
+        );
+    if (!mounted) return;
+    setState(() => _askingConsent = false);
+    _permission = permission;
+    if (permission == null || !_canSend) return;
     setState(() {
-      _routeFuture = (widget.route ?? TripApiService.instance.routeTrip)(
-        request,
-      ).then((response) => _result = response);
+      _routeFuture =
+          (widget.route != null
+                  ? widget.route!(request)
+                  : TripApiService.instance.routeTrip(
+                      request,
+                      canSend: () => _canSend,
+                    ))
+              .then((response) {
+                if (!_canSend) {
+                  throw const TripApiException(
+                    error: 'SESSION_CHANGED',
+                    message: '로그인 상태가 바뀌었어요.',
+                    statusCode: 409,
+                  );
+                }
+                _result = response;
+              });
       // Attach immediately, before the next frame installs the loading widget.
       // That widget still receives the same failure and restores the draft.
       _routeFuture!.ignore();
@@ -191,6 +231,16 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
   }
 
   void _onRouteComplete() {
+    if (!_canSend) {
+      _onRouteError(
+        const TripApiException(
+          error: 'SESSION_CHANGED',
+          message: '로그인 상태가 바뀌었어요.',
+          statusCode: 409,
+        ),
+      );
+      return;
+    }
     final result = _result;
     if (result == null || result.stops.isEmpty) {
       _onRouteError(const _EmptyManualRouteError());
@@ -295,7 +345,9 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
             child: Column(
               children: [
                 NextButton(
-                  onPressed: blocked == null ? _makeRoute : null,
+                  onPressed: blocked == null && !_askingConsent
+                      ? _makeRoute
+                      : null,
                   label: '동선 만들기  →',
                   info: switch (blocked) {
                     ManualRouteBlock.tooFew => '장소를 2곳 이상 넣어 주세요',

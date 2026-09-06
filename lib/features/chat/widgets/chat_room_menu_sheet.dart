@@ -43,7 +43,7 @@ class ChatRoomMenuSheet extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           _MenuItem(label: '채팅방 나가기', onTap: onLeave),
-          _MenuItem(label: '신고하기', onTap: onReport),
+          _MenuItem(label: '신고·차단 관리', onTap: onReport),
           if (onKick != null) _MenuItem(label: '내보내기', onTap: onKick!),
         ],
       ),

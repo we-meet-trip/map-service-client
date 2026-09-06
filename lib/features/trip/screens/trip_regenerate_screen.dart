@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../common/widgets/app_loading_screen.dart';
 import '../../../core/api/trip_api_service.dart';
+import '../../../core/state/auth_store.dart';
+import '../../../common/widgets/external_ai_consent.dart';
 import '../../../core/state/trip_repository.dart';
 import '../widgets/transport_theme.dart';
 import 'trip_start_screen.dart';
@@ -21,61 +23,12 @@ final tripScreenResetNotifier = ValueNotifier<int>(0);
 final tripRetrialNotifier = ValueNotifier<int>(0);
 
 class TripRegenerateScreen extends StatefulWidget {
-  const TripRegenerateScreen({super.key});
+  const TripRegenerateScreen({super.key, this.api, this.consentGate});
+  final TripApiService? api;
+  final ExternalAiConsentGate? consentGate;
 
   @override
   State<TripRegenerateScreen> createState() => _TripRegenerateScreenState();
-}
-
-// 서버 없이 화면만 확인할 때 true 로 되돌린다. 평소에는 실제 일정 생성을
-// 호출하므로 false 다.
-const bool _useMock = false;
-
-Future<TripGenerateResponse> _mockGenerateTrip() async {
-  await Future.delayed(const Duration(seconds: 2));
-  return const TripGenerateResponse(
-    tripId: 'mock-trip-001',
-    totalDurationMinutes: 180,
-    stops: [
-      TripStop(
-        order: 1,
-        name: '속초 버스 터미널',
-        address: '강원특별자치도 속초시 중앙로 96',
-        time: '09:00',
-        latitude: 38.2052,
-        longitude: 128.5917,
-        transportToNext: TripTransportToNext(
-          type: 'kick_board',
-          label: '이동: 전동 킥보드',
-          durationMinutes: 12,
-          distanceKm: 1.8,
-        ),
-      ),
-      TripStop(
-        order: 2,
-        name: '속초해변',
-        address: '강원특별자치도 속초시 청호동',
-        time: '09:12',
-        latitude: 38.2014,
-        longitude: 128.6008,
-        transportToNext: TripTransportToNext(
-          type: 'bicycle',
-          label: '이동: 자전거',
-          durationMinutes: 13,
-          distanceKm: 3.8,
-        ),
-      ),
-      TripStop(
-        order: 3,
-        name: '속초 중앙시장',
-        address: '강원특별자치도 속초시 중앙로 147',
-        time: '09:25',
-        latitude: 38.2089,
-        longitude: 128.5875,
-      ),
-    ],
-    weatherForecast: [],
-  );
 }
 
 class _TripRegenerateScreenState extends State<TripRegenerateScreen> {
@@ -151,10 +104,18 @@ class _TripRegenerateScreenState extends State<TripRegenerateScreen> {
   String _selectedCity = '선택';
 
   bool _isLoading = false;
+  bool _askingConsent = false;
+  ExternalAiPermission? _permission;
+  final _screenSession = AuthStore.instance.sessionVersion;
+  bool get _canSend =>
+      mounted &&
+      _screenSession == AuthStore.instance.sessionVersion &&
+      _permission?.isCurrentSession == true;
   Future<void>? _generateFuture;
   TripGenerateResponse? _tripResponse;
 
-  void _next() {
+  Future<void> _next() async {
+    if (_isLoading || _askingConsent) return;
     if (_currentStep == 5) {
       // step 5 → 로딩 + API 호출
       final request = TripGenerateRequest(
@@ -164,37 +125,59 @@ class _TripRegenerateScreenState extends State<TripRegenerateScreen> {
         activeEndHour: _endHour.toInt(),
         minBudget: _minBudget.toInt(),
         maxBudget: _maxBudget.toInt(),
-        themes: _selectedThemes.isEmpty ? [_kDefaultThemeId] : _selectedThemes.toList(),
+        themes: _selectedThemes.isEmpty
+            ? [_kDefaultThemeId]
+            : _selectedThemes.toList(),
         transport: _selectedTransport ?? TransportTheme.scooter.id,
         province: _selectedProvince,
         city: _selectedCity,
       );
+      if (_screenSession != AuthStore.instance.sessionVersion) return;
+      setState(() => _askingConsent = true);
+      final permission =
+          await (widget.consentGate ?? ExternalAiConsentGate.instance).ensure(
+            context,
+            ExternalAiScope.trip,
+          );
+      if (!mounted) return;
+      setState(() => _askingConsent = false);
+      _permission = permission;
+      if (permission == null || !_canSend) return;
       setState(() {
         _isLoading = true;
-        _generateFuture = (_useMock
-                ? _mockGenerateTrip()
-                : TripApiService.instance.generateTrip(request))
+        _generateFuture = (widget.api ?? TripApiService.instance)
+            .generateTrip(request, canSend: () => _canSend)
             .then((res) {
-          _tripResponse = res;
-          // 장소를 골라 동선만 다시 만들 때 이 조건을 그대로 다시 보낸다.
-          // 결과 화면에는 장소만 있고 기간·이동수단·지역이 없어 여기서 남긴다.
-          TripRepository.instance.setLastPlan(TripPlanContext(
-            startDate: request.startDate,
-            endDate: request.endDate,
-            activeStartHour: request.activeStartHour,
-            activeEndHour: request.activeEndHour,
-            transport: request.transport,
-            province: request.province,
-            city: request.city,
-            stops: res.stops,
-            // 재탐색은 같은 조건으로 다시 묻는 흐름이라 예산·테마와 이 일정의
-            // 식별자까지 남겨 둔다. 없으면 마법사를 처음부터 다시 태워야 한다.
-            tripId: res.tripId,
-            minBudget: request.minBudget,
-            maxBudget: request.maxBudget,
-            themes: request.themes,
-          ));
-        });
+              if (!_canSend) {
+                throw const TripApiException(
+                  error: 'SESSION_CHANGED',
+                  message: '로그인 상태가 바뀌었어요.',
+                  statusCode: 409,
+                );
+              }
+              _tripResponse = res;
+              // 장소를 골라 동선만 다시 만들 때 이 조건을 그대로 다시 보낸다.
+              // 결과 화면에는 장소만 있고 기간·이동수단·지역이 없어 여기서 남긴다.
+              TripRepository.instance.setLastPlan(
+                TripPlanContext(
+                  startDate: request.startDate,
+                  endDate: request.endDate,
+                  activeStartHour: request.activeStartHour,
+                  activeEndHour: request.activeEndHour,
+                  transport: request.transport,
+                  province: request.province,
+                  city: request.city,
+                  stops: res.stops,
+                  // 재탐색은 같은 조건으로 다시 묻는 흐름이라 예산·테마와 이 일정의
+                  // 식별자까지 남겨 둔다. 없으면 마법사를 처음부터 다시 태워야 한다.
+                  tripId: res.tripId,
+                  minBudget: request.minBudget,
+                  maxBudget: request.maxBudget,
+                  themes: request.themes,
+                ),
+              );
+            });
+        _generateFuture!.ignore();
       });
     } else if (_currentStep < _totalSteps) {
       setState(() => _currentStep++);
@@ -206,6 +189,16 @@ class _TripRegenerateScreenState extends State<TripRegenerateScreen> {
   }
 
   void _onLoadComplete() {
+    if (!_canSend) {
+      _onLoadError(
+        const TripApiException(
+          error: 'SESSION_CHANGED',
+          message: '로그인 상태가 바뀌었어요.',
+          statusCode: 409,
+        ),
+      );
+      return;
+    }
     setState(() {
       _isLoading = false;
       _generateFuture = null;
@@ -214,6 +207,7 @@ class _TripRegenerateScreenState extends State<TripRegenerateScreen> {
   }
 
   void _onLoadError(Object error) {
+    if (!mounted) return;
     final msg = error is TripApiException
         ? error.message
         : '일정 생성에 실패했습니다. 다시 시도해 주세요.';
@@ -224,9 +218,9 @@ class _TripRegenerateScreenState extends State<TripRegenerateScreen> {
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(msg)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(msg)));
       }
     });
   }

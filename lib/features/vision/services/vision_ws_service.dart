@@ -124,13 +124,23 @@ class VisionWsService {
     }
   }
 
-  Future<void> sendFrame(VisionRequest request) async {
+  Future<void> sendFrame(
+    VisionRequest request, {
+    bool Function()? canSend,
+  }) async {
     if (_disposed) return;
+    final requestSession = AuthStore.instance.sessionVersion;
+    if (canSend != null && !canSend()) {
+      _error('외부 AI 전송 동의를 다시 확인해주세요.');
+      return;
+    }
     if (_sessionVersion != AuthStore.instance.sessionVersion) disconnect();
     if (_connecting != null) await _connecting;
     if (_channel == null) await connect(request.sessionId);
     if (_channel == null ||
-        _sessionVersion != AuthStore.instance.sessionVersion) {
+        _sessionVersion != AuthStore.instance.sessionVersion ||
+        requestSession != AuthStore.instance.sessionVersion ||
+        (canSend != null && !canSend())) {
       _error('로그인과 연결 상태를 확인한 뒤 다시 시도해주세요.');
       return;
     }

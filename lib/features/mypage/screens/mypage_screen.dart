@@ -8,6 +8,7 @@ import '../../../common/theme/app_colors.dart';
 import '../../../common/theme/app_icons.dart';
 import '../../../core/state/user_repository.dart';
 import '../widgets/profile_avatar.dart';
+import '../../moderation/moderation_center_screen.dart';
 
 class MypageScreen extends StatelessWidget {
   const MypageScreen({super.key});
@@ -107,6 +108,7 @@ class MypageScreen extends StatelessWidget {
         _MenuItem(label: '관심사 설정', onTap: () => context.push('/mypage/interests')),
         Container(height: 9, width: double.infinity, color: AppColors.mypageDivider),
         _MenuItem(label: '고객센터', onTap: () => _openSupportMail(context)),
+        _MenuItem(label: '신고 내역 및 차단 관리', onTap: () => openModerationCenter(context)),
         _MenuItem(label: '약관 및 정책', onTap: () => _showPolicies(context)),
         const Spacer(),
         Padding(

@@ -1,4 +1,5 @@
 import 'api_client.dart';
+import '../state/auth_store.dart';
 
 // ─── Request ──────────────────────────────────────────────────
 
@@ -455,8 +456,9 @@ class TripApiException implements Exception {
 // ─── Service ─────────────────────────────────────────────────
 
 class TripApiService {
-  TripApiService._();
-  static final TripApiService instance = TripApiService._();
+  TripApiService({ApiClient? api}) : _api = api ?? ApiClient.instance;
+  final ApiClient _api;
+  static final TripApiService instance = TripApiService();
 
   // 여행 생성은 LLM 여러 번 호출로 수 초~2분 소요된다. 무한 대기를 막되,
   // 서버가 먼저 끊고 사유를 담은 응답을 줄 수 있도록 서버 대기 상한보다
@@ -464,36 +466,62 @@ class TripApiService {
   // 요청을 클라이언트가 먼저 버려, 곧 도착할 결과를 못 받고 실패로 표시한다.
   static const _requestTimeout = Duration(seconds: 180);
 
-  Future<TripGenerateResponse> generateTrip(TripGenerateRequest request) =>
-      _postTrip('/api/v1/trip/generate', request.toJson());
+  Future<TripGenerateResponse> generateTrip(
+    TripGenerateRequest request, {
+    bool Function()? canSend,
+  }) => _postTrip('/api/v1/trip/generate', request.toJson(), canSend);
 
   /// 고른 장소로 동선만 다시 만든다.
   ///
   /// 응답 형태가 일정 생성과 같아서 결과 화면을 그대로 재사용한다.
-  Future<TripGenerateResponse> routeTrip(TripRouteRequest request) =>
-      _postTrip('/api/v1/trip/route', request.toJson());
+  Future<TripGenerateResponse> routeTrip(
+    TripRouteRequest request, {
+    bool Function()? canSend,
+  }) => _postTrip('/api/v1/trip/route', request.toJson(), canSend);
 
   /// 같은 조건으로 다른 장소를 다시 추천받는다.
   ///
   /// 하루 횟수 한도가 있어 넘기면 409 가 온다 — 화면은 그 사유를 그대로
   /// 보여 주고 되돌아간다.
-  Future<TripGenerateResponse> researchTrip(TripResearchRequest request) =>
-      _postTrip('/api/v1/trip/research', request.toJson());
+  Future<TripGenerateResponse> researchTrip(
+    TripResearchRequest request, {
+    bool Function()? canSend,
+  }) => _postTrip('/api/v1/trip/research', request.toJson(), canSend);
 
-  /// 일정 응답을 돌려주는 두 경로가 공유하는 전송부.
+  /// 생성·재탐색·동선 모두 서버에서 외부 AI 설명을 생성한다.
+  /// 전송 직전의 동의/계정 확인이 없으면 보내지 않고, 늦은 응답도 버린다.
   ///
   /// 오류 본문 형태가 서버 계층마다 달라, 알아볼 수 있는 키를 순서대로
   /// 찾아본다. 어느 것도 없으면 상태 코드만 남긴다.
   Future<TripGenerateResponse> _postTrip(
     String path,
     Map<String, dynamic> body,
+    bool Function()? canSend,
   ) async {
+    final sessionVersion = AuthStore.instance.sessionVersion;
+    if (canSend == null || !canSend()) {
+      throw const TripApiException(
+        error: 'AI_CONSENT_REQUIRED',
+        message: '외부 AI 전송 동의를 확인해주세요.',
+        statusCode: 403,
+      );
+    }
     // 공통 통로로 보낸다. 직접 보내면 토큰이 실리지 않고 만료 갱신도 없어,
     // 서버에서 인증을 켜는 순간 일정 생성과 동선 재생성이 함께 막힌다.
     // 앱에서 가장 오래 걸리는 요청이라 기다리는 시간은 여기서 따로 준다.
     try {
-      final parsed = await ApiClient.instance
-          .post(path, body: body, timeout: _requestTimeout);
+      final parsed = await _api.post(
+        path,
+        body: body,
+        timeout: _requestTimeout,
+      );
+      if (sessionVersion != AuthStore.instance.sessionVersion || !canSend()) {
+        throw const TripApiException(
+          error: 'SESSION_CHANGED',
+          message: '로그인 상태가 바뀌었어요. 다시 시도해주세요.',
+          statusCode: 409,
+        );
+      }
       return TripGenerateResponse.fromJson(parsed);
     } on ApiException catch (e) {
       // 공통 통로가 이미 오류 본문의 키를 순서대로 훑어 접어 준다. 여기서는

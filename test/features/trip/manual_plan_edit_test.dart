@@ -82,6 +82,7 @@ void main() {
     await tester.pump();
     await tester.tap(find.text('동선 만들기  →'));
     await tester.pump();
+    await _acceptAiConsent(tester);
     await tester.pump(const Duration(seconds: 3));
     await tester.pump();
     expect(captured!.transport, 'bicycle');
@@ -182,6 +183,7 @@ void main() {
       for (var attempt = 0; attempt < 2; attempt++) {
         await tester.tap(find.text('동선 만들기  →'));
         await tester.pump();
+        await _acceptAiConsent(tester);
         await tester.pump(const Duration(seconds: 3));
         await tester.pump();
         await tester.pump(const Duration(seconds: 3));
@@ -214,6 +216,13 @@ void main() {
     expect(find.byType(ManualPlanScreen), findsNothing);
     expect(tester.takeException(), isNull);
   });
+}
+
+Future<void> _acceptAiConsent(WidgetTester tester) async {
+  if (find.text('전송에 동의').evaluate().isEmpty) return;
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('전송에 동의'));
+  await tester.pump();
 }
 
 ManualPlanScreen _editor(
