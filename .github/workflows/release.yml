@@ -305,17 +305,20 @@ jobs:
           [[ "$(uname -m)" == arm64 ]] || { echo 'arm64 runner required for the target Simulator'; exit 1; }
           flutter build ios --simulator --debug --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" \
             --dart-define-from-file "$RUNNER_TEMP/mobile-ios.json"
-          lipo -verify_arch arm64 build/ios/iphonesimulator/Runner.app/Runner
+          lipo build/ios/iphonesimulator/Runner.app/Runner -verify_arch arm64
           ditto -c -k --sequesterRsrc --keepParent build/ios/iphonesimulator/Runner.app build/ios/ios-simulator.zip
           python3 scripts/mobile-artifact-manifest.py --config "$RUNNER_TEMP/mobile-ios.json" \
             --kind ios-simulator --artifact build/ios/ios-simulator.zip \
             --app-directory build/ios/iphonesimulator/Runner.app --output build/native-evidence/ios-simulator.json
       - name: Preserve resolved iOS SDK and privacy inventory
+        if: always()
         run: |
           mkdir -p build/native-evidence
-          cp ios/Podfile.lock build/native-evidence/Podfile.lock
-          cp pubspec.lock build/native-evidence/pubspec.lock
+          for file in ios/Podfile.lock pubspec.lock; do
+            if [[ -f "$file" ]]; then cp "$file" build/native-evidence/; fi
+          done
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: ios-${{ env.APP_ENV }}-${{ github.sha }}
           path: |
