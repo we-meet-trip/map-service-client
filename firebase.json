@@ -7,6 +7,7 @@
     ],
     "predeploy": [
       "bash tool/check_app_config.sh",
+      "bash tool/check_link_associations.sh",
       "bash tool/check_web_secrets.sh"
     ],
     "headers": [
