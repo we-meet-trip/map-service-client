@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../common/utils/support_mail.dart';
 import '../../../core/api/auth_api_service.dart';
+import '../../../core/config/app_environment.dart';
 import '../../../core/state/auth_store.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../common/theme/app_icons.dart';
@@ -203,7 +204,7 @@ class MypageScreen extends StatelessWidget {
               onPressed: () {
                 Navigator.pop(dialogContext);
                 launchUrl(
-                  Uri.parse('https://mapcenter-b59ca.web.app/legal/${e.value}'),
+                  AppEnvironment.policyUrl(e.value),
                   mode: LaunchMode.externalApplication,
                 );
               },

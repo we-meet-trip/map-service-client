@@ -19,9 +19,15 @@ void main() {
       await harness.launched.future;
       for (final link in [
         'other://kakao?state=state&code=wrong',
-        'mapauth://other?state=state&code=wrong',
-        'mapauth://kakao/other?state=state&code=wrong',
-        'mapauth://kakao?state=other&code=wrong',
+        'mapauth://kakao?state=state&code=wrong',
+        'mapauth-test://user@kakao?state=state&code=wrong',
+        'mapauth-test://kakao:443?state=state&code=wrong',
+        'mapauth-test://kakao?state=state&code=wrong#fragment',
+        'mapauth-test://kakao?state=state&state=other&code=wrong',
+        'mapauth-test://kakao?state=state&code=wrong&code=duplicate',
+        'mapauth-test://other?state=state&code=wrong',
+        'mapauth-test://kakao/other?state=state&code=wrong',
+        'mapauth-test://kakao?state=other&code=wrong',
       ]) {
         harness.links.add(Uri.parse(link));
       }
@@ -55,7 +61,7 @@ void main() {
       timeout: const Duration(milliseconds: 10),
       launch: (_) async {
         harness.links.add(
-          Uri.parse('mapauth://kakao?state=state&error=denied'),
+          Uri.parse('mapauth-test://kakao?state=state&error=denied'),
         );
         return false;
       },
@@ -136,7 +142,7 @@ void main() {
       );
       await harness.launched.future;
       harness.links.add(
-        Uri.parse('mapauth://kakao?state=state&error=access_denied'),
+        Uri.parse('mapauth-test://kakao?state=state&error=access_denied'),
       );
       await checked;
       expect(harness.codes, isEmpty);
@@ -258,7 +264,7 @@ class _Harness {
   String scope = 'test';
 
   void complete(String code) {
-    links.add(Uri.parse('mapauth://kakao?state=state&code=$code'));
+    links.add(Uri.parse('mapauth-test://kakao?state=state&code=$code'));
   }
 
   Future<void> dispose() {

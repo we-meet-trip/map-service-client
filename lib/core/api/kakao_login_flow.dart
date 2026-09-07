@@ -4,6 +4,7 @@ import 'package:app_links/app_links.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../config/app_config.dart';
+import '../config/app_environment.dart';
 import '../state/auth_store.dart';
 import 'api_client.dart';
 import 'auth_api_service.dart';
@@ -93,9 +94,15 @@ class KakaoLoginFlow {
 
       subscription = _callbacks().listen(
         (uri) {
-          if (uri.scheme != 'mapauth' ||
+          if (uri.scheme != AppEnvironment.kakaoScheme ||
               uri.host != 'kakao' ||
+              uri.userInfo.isNotEmpty ||
+              uri.hasPort ||
+              uri.hasFragment ||
               (uri.path.isNotEmpty && uri.path != '/') ||
+              uri.queryParametersAll['state']?.length != 1 ||
+              (uri.queryParametersAll['code']?.length ?? 0) > 1 ||
+              (uri.queryParametersAll['error']?.length ?? 0) > 1 ||
               uri.queryParameters['state'] != state) {
             return;
           }

@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/auth_api_service.dart';
 import '../../../core/api/service_consent_api_service.dart';
+import '../../../core/config/app_environment.dart';
 import '../../../core/state/auth_store.dart';
 import '../../../core/state/service_consent_store.dart';
 import '../../../core/maps/map_bootstrap.dart';
@@ -105,7 +106,7 @@ class _ServiceConsentScreenState extends State<ServiceConsentScreen> {
   Future<void> _openPolicy(String name) async {
     try {
       final opened = await launchUrl(
-        Uri.parse('https://mapcenter-b59ca.web.app/legal/$name.html'),
+        AppEnvironment.policyUrl('$name.html'),
         mode: LaunchMode.externalApplication,
       );
       if (!opened) throw StateError('Unavailable');

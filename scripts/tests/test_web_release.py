@@ -74,7 +74,7 @@ class WebReleaseTest(unittest.TestCase):
             (root / 'pubspec.yaml').write_text('version: 1.2.3+1\n')
             private = root / '.env'
             private.write_text('SERVER_TOKEN=synthetic-private-preserved\n')
-            preserved = ['app_config.json', 'legal/privacy.html', 'invite/index.html',
+            preserved = ['app_config.json', 'invite-environment.json', 'legal/privacy.html', 'invite/index.html',
                          '.well-known/assetlinks.json']
             for name in preserved:
                 (root / 'hosting' / name).write_text('preserved')
@@ -85,7 +85,7 @@ import json,pathlib,sys
 args=sys.argv
 output=pathlib.Path(args[args.index('--output')+1])
 defines=json.loads(pathlib.Path(args[args.index('--dart-define-from-file')+1]).read_text())
-assert set(defines)=={'APP_ENV','API_ALLOWED_ORIGINS','APP_CONFIG_URL','INVITE_LINK_ORIGIN','GOOGLE_MAPS_WEB_API_KEY'}
+assert set(defines)=={'APP_ENV','API_ALLOWED_ORIGINS','APP_CONFIG_URL','INVITE_LINK_ORIGIN','PUBLIC_SITE_ORIGIN','NATIVE_APPLICATION_ID','INVITE_URL_SCHEME','KAKAO_CALLBACK_SCHEME','GOOGLE_MAPS_WEB_API_KEY'}
 output.mkdir(parents=True)
 (output/'index.html').write_text('new build')
 ''')

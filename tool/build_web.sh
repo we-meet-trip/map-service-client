@@ -27,7 +27,7 @@ python3 scripts/web-secrets.py --directory "$work/web" --defines "$defines"
 [[ -f "$work/web/index.html" ]]
 mkdir -p "$HOSTING_DIR"
 # Keep environment configuration, policy pages, invitations and downloads.
-rsync -a --delete --exclude 'app_config*.json' --exclude '.well-known/' \
+rsync -a --delete --exclude 'app_config*.json' --exclude 'invite-environment.json' --exclude '.well-known/' \
   --exclude 'legal/' --exclude 'dl/' --exclude 'invite/' \
   "$work/web/" "$HOSTING_DIR/"
 python3 scripts/web-secrets.py --directory "$HOSTING_DIR" --defines "$defines"

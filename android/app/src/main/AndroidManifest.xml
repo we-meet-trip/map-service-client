@@ -7,7 +7,7 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
     <application
-        android:label="MAP"
+        android:label="${appLabel}"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
@@ -43,7 +43,7 @@
                 <data
                     android:scheme="https"
                     android:host="${deepLinkHost}"
-                    android:pathPrefix="/invite" />
+                    android:pathPrefix="/invite/" />
             </intent-filter>
             <!-- 앱 전용 주소 (mapservice://invite/TOKEN). 도메인 검증이 필요 없어
                  개발 중 확인에 쓰고, iOS 에서는 유일하게 동작하는 길이다. -->
@@ -52,7 +52,7 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
-                    android:scheme="mapservice"
+                    android:scheme="${inviteScheme}"
                     android:host="invite" />
             </intent-filter>
             <!-- 카카오 로그인 복귀 주소 -->
@@ -60,7 +60,7 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="mapauth" android:host="kakao" />
+                <data android:scheme="${kakaoScheme}" android:host="kakao" />
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
