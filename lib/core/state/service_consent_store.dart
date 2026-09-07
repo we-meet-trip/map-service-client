@@ -24,7 +24,7 @@ class ServiceConsentStatus {
       privacyVersion == servicePolicyVersion &&
       minimumAge == serviceMinimumAge;
   bool get permitsService =>
-      supported && accepted && ageEligible != false && acceptedAt != null;
+      supported && accepted && ageEligible == true && acceptedAt != null;
   factory ServiceConsentStatus.fromJson(Map<String, dynamic> json) {
     final terms = json['terms_version'];
     final privacy = json['privacy_version'];
@@ -145,7 +145,7 @@ class ServiceConsentStore extends ChangeNotifier {
         !privacy ||
         current == null ||
         !current.supported ||
-        current.ageEligible == false) {
+        current.ageEligible != true) {
       return Future.error(
         StateError('Explicit eligible policy acceptance required'),
       );
@@ -199,7 +199,11 @@ class ServiceConsentStore extends ChangeNotifier {
 
   static bool isPolicyDenial(int status, String code) =>
       (status == 403 &&
-          const ['AGE_RESTRICTED', 'SERVICE_POLICY_REQUIRED'].contains(code)) ||
+          const [
+            'AGE_RESTRICTED',
+            'AGE_INFORMATION_REQUIRED',
+            'SERVICE_POLICY_REQUIRED',
+          ].contains(code)) ||
       (status == 409 && code == 'POLICY_VERSION_MISMATCH');
 
   @override

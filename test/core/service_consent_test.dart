@@ -66,7 +66,7 @@ void main() {
   });
 
   test(
-    'missing receipt fields cannot implicitly authorize; self-attested no-birth receipt can',
+    'missing receipt fields and missing birth date cannot authorize service',
     () {
       expect(() => ServiceConsentStatus.fromJson({}), throwsFormatException);
       expect(
@@ -86,7 +86,7 @@ void main() {
         ServiceConsentStatus.fromJson(
           receipt(accepted: true, age: null),
         ).permitsService,
-        isTrue,
+        isFalse,
       );
       expect(
         ServiceConsentStatus.fromJson(
@@ -185,7 +185,7 @@ void main() {
             });
           }
           return http.Response(
-            jsonEncode(receipt(accepted: request.method == 'POST', age: null)),
+            jsonEncode(receipt(accepted: request.method == 'POST')),
             200,
           );
         }),
@@ -353,7 +353,7 @@ void main() {
   testWidgets(
     'existing adult must tick each box; double tap submits once and no acceptance is fabricated',
     (tester) async {
-      final store = fakeStore(age: null);
+      final store = fakeStore();
       final pending = Completer<ServiceConsentStatus>();
       var posts = 0;
       var entered = 0;
@@ -367,7 +367,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.textContaining('본인의 진술'), findsOneWidget);
+      expect(find.textContaining('본인인증을 뜻하지 않습니다'), findsOneWidget);
       final submit = find.widgetWithText(FilledButton, '동의하고 계속');
       expect(tester.widget<FilledButton>(submit).onPressed, isNull);
       await check(tester, 'policy-adult');
@@ -381,12 +381,99 @@ void main() {
       expect(posts, 1);
       expect(entered, 0);
       expect(store.canAccess, isFalse);
-      pending.complete(status(accepted: true, age: null));
+      pending.complete(status(accepted: true));
       await tester.pumpAndSettle();
       expect(entered, 1);
       expect(store.canAccess, isTrue);
       await tester.pumpWidget(const SizedBox());
       store.dispose();
+    },
+  );
+
+  test(
+    'missing birthday cannot be replaced by three acceptance checks',
+    () async {
+      final store = fakeStore(age: null, accepted: true);
+      var posts = 0;
+      store.submitAcceptance = (_) async {
+        posts++;
+        return status(accepted: true);
+      };
+      await store.refresh();
+      expect(store.canAccess, isFalse);
+      await expectLater(
+        store.accept(adult: true, terms: true, privacy: true),
+        throwsStateError,
+      );
+      expect(posts, 0);
+      store.dispose();
+    },
+  );
+
+  testWidgets(
+    'first birthday input waits for a server result before showing consent',
+    (tester) async {
+      bool? eligible;
+      final store = fakeStore(age: null, accepted: true);
+      store.loadStatus = () async => status(age: eligible);
+      final saving = Completer<void>();
+      var saved = 0;
+      var entered = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ServiceConsentScreen(
+            store: store,
+            onContinue: () => entered++,
+            saveBirthDate: (date) async {
+              expect(date, DateTime(2000, 1, 1));
+              saved++;
+              await saving.future;
+              eligible = true;
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(store.canAccess, isFalse);
+      expect(find.byKey(const Key('policy-adult')), findsNothing);
+      await check(tester, 'policy-birth');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.edit_outlined));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), '01/01/2000');
+      await tester.tap(find.text('OK'));
+      await tester.pump();
+      expect(saved, 1);
+      expect(entered, 0);
+      expect(store.canAccess, isFalse);
+      expect(find.byKey(const Key('policy-adult')), findsNothing);
+      saving.complete();
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('policy-adult')), findsOneWidget);
+      expect(store.canAccess, isFalse);
+      expect(entered, 0);
+      expect(
+        tester
+            .widget<CheckboxListTile>(find.byKey(const Key('policy-adult')))
+            .value,
+        isFalse,
+      );
+      await tester.pumpWidget(const SizedBox());
+      store.dispose();
+    },
+  );
+
+  test(
+    'missing-age server response invalidates an accepted session for all transports',
+    () {
+      expect(
+        ServiceConsentStore.isPolicyDenial(403, 'AGE_INFORMATION_REQUIRED'),
+        isTrue,
+      );
+      expect(
+        ChatEvent.policyErrorCode('{"code":"AGE_INFORMATION_REQUIRED"}'),
+        'AGE_INFORMATION_REQUIRED',
+      );
     },
   );
 

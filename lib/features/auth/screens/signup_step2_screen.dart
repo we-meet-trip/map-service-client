@@ -18,13 +18,13 @@ class _SignupStep2ScreenState extends State<SignupStep2Screen> {
   DateTime? _birthdate;
   String? _gender;
 
-  bool get _canProceed => _birthdate == null || isAtLeast18(_birthdate!);
+  bool get _canProceed => _birthdate != null && isAtLeast18(_birthdate!);
 
   @override
   Widget build(BuildContext context) {
     return SignupStepScaffold(
       title: '생년월일과 성별을 알려주세요',
-      subtitle: 'MAP은 만 18세 이상만 이용할 수 있어요. 생년월일과 성별은 선택 항목입니다.',
+      subtitle: '만 18세 이상 여부를 확인하기 위해 생년월일을 입력해주세요. 성별은 선택 항목입니다.',
       currentStep: 2,
       onBack: () => context.pop(),
       onNext: _canProceed
@@ -43,7 +43,7 @@ class _SignupStep2ScreenState extends State<SignupStep2Screen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            '생년월일 (선택)',
+            '생년월일 (필수)',
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w500,

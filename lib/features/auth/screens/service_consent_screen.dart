@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/auth_api_service.dart';
 import '../../../core/api/service_consent_api_service.dart';
+import '../../../core/api/user_api_service.dart';
 import '../../../core/config/app_environment.dart';
 import '../../../core/state/auth_store.dart';
 import '../../../core/state/service_consent_store.dart';
@@ -11,9 +12,15 @@ import '../../../core/maps/map_bootstrap.dart';
 import '../../moderation/moderation_center_screen.dart';
 
 class ServiceConsentScreen extends StatefulWidget {
-  const ServiceConsentScreen({super.key, this.store, this.onContinue});
+  const ServiceConsentScreen({
+    super.key,
+    this.store,
+    this.onContinue,
+    this.saveBirthDate,
+  });
   final ServiceConsentStore? store;
   final VoidCallback? onContinue;
+  final Future<void> Function(DateTime)? saveBirthDate;
   @override
   State<ServiceConsentScreen> createState() => _ServiceConsentScreenState();
 }
@@ -85,6 +92,7 @@ class _ServiceConsentScreenState extends State<ServiceConsentScreen> {
       if (!_current) return;
       setState(() {
         _error = switch (e.code) {
+          'AGE_INFORMATION_REQUIRED' => '생년월일을 먼저 입력하고 이용 조건을 다시 확인해주세요.',
           'AGE_RESTRICTED' =>
             'MAP은 만 18세 이상만 이용할 수 있어요. 생년월일 정정 또는 탈퇴를 선택할 수 있습니다.',
           'POLICY_VERSION_MISMATCH' => '정책이 변경됐어요. 최신 내용을 다시 확인해주세요.',
@@ -98,6 +106,44 @@ class _ServiceConsentScreenState extends State<ServiceConsentScreen> {
       });
     } catch (_) {
       if (_current) setState(() => _error = '동의를 저장하지 못했어요. 다시 시도해주세요.');
+    } finally {
+      if (_current) setState(() => _acting = false);
+    }
+  }
+
+  Future<void> _enterBirthDate() async {
+    if (_acting || !_current) return;
+    final now = DateTime.now();
+    final date = await showDatePicker(
+      context: context,
+      initialDate: now,
+      firstDate: DateTime(1900),
+      lastDate: now,
+      initialDatePickerMode: DatePickerMode.year,
+      helpText: '본인의 정확한 생년월일을 입력해주세요',
+    );
+    if (date == null || !_current) return;
+    setState(() {
+      _acting = true;
+      _error = null;
+      _adult = _terms = _privacy = false;
+    });
+    try {
+      if (widget.saveBirthDate case final save?) {
+        await save(date);
+      } else {
+        await UserApiService.instance.update(birthDate: date);
+      }
+      if (!_current) return;
+      store.invalidate();
+      await store.refresh(force: true);
+      if (_current && store.status?.ageEligible == null) {
+        setState(() => _error = '저장 결과를 확인하지 못했어요. 다시 확인해주세요.');
+      }
+    } catch (_) {
+      if (_current) {
+        setState(() => _error = '생년월일 저장 결과를 확인하지 못했어요. 다시 확인해주세요.');
+      }
     } finally {
       if (_current) setState(() => _acting = false);
     }
@@ -187,11 +233,24 @@ class _ServiceConsentScreenState extends State<ServiceConsentScreen> {
                     '저장된 생년월일 기준 만 18세 미만으로 확인되어 이용할 수 없습니다. 생년월일이 잘못되었다면 정정하거나, 계정을 탈퇴할 수 있어요.',
                   ),
                 ),
-              if (status != null && supported && !blocked) ...[
-                Text(
-                  status.ageEligible == null
-                      ? '생년월일을 저장하지 않은 계정입니다. 아래 만 18세 이상 확인은 본인의 진술이며 성인 인증을 뜻하지 않습니다.'
-                      : '저장된 생년월일을 기준으로 나이를 계산했습니다. 별도의 성인 인증을 뜻하지 않습니다.',
+              if (status != null &&
+                  supported &&
+                  status.ageEligible == null) ...[
+                const Text(
+                  '먼저 생년월일을 입력해주세요. 만 18세 이상 여부를 서버에서 확인한 뒤 이용할 수 있습니다.',
+                ),
+                const Text('입력한 생년월일에 따른 연령 확인이며 본인인증을 뜻하지 않습니다.'),
+                FilledButton(
+                  key: const Key('policy-birth'),
+                  onPressed: _acting ? null : _enterBirthDate,
+                  child: const Text('생년월일 입력'),
+                ),
+              ],
+              if (status != null &&
+                  supported &&
+                  status.ageEligible == true) ...[
+                const Text(
+                  '입력한 생년월일을 기준으로 서버에서 나이를 계산했습니다. 본인인증을 뜻하지 않습니다. AI 추천은 외부 AI 전송에 별도로 동의한 뒤 이용할 수 있습니다.',
                 ),
                 CheckboxListTile(
                   key: const Key('policy-adult'),
