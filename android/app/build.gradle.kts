@@ -1,5 +1,6 @@
 import java.util.Properties
 import java.util.Base64
+import java.net.URI
 
 plugins {
     id("com.android.application")
@@ -41,7 +42,7 @@ val keystoreFile = keystoreProperties.getProperty("storeFile")?.let { file(it) }
 val hasReleaseSigning = keystoreFile != null && keystoreFile.exists()
 
 val inviteOrigin = dartDefines["INVITE_LINK_ORIGIN"] ?: "https://mapcenter-b59ca.web.app"
-val inviteUri = requireNotNull(runCatching { java.net.URI(inviteOrigin) }.getOrNull()) {
+val inviteUri = requireNotNull(runCatching { URI(inviteOrigin) }.getOrNull()) {
     "Invalid INVITE_LINK_ORIGIN"
 }
 require(inviteUri.scheme == "https" && !inviteUri.host.isNullOrEmpty()
