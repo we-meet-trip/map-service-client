@@ -156,7 +156,7 @@ void main() {
     );
     ServiceConsentStore.instance.loadStatus = () async => ServiceConsentStatus(
       termsVersion: servicePolicyVersion,
-      privacyVersion: servicePolicyVersion,
+      privacyVersion: servicePrivacyVersion,
       minimumAge: serviceMinimumAge,
       accepted: true,
       ageEligible: true,

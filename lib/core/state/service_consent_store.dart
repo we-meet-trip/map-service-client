@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'auth_store.dart';
 
 const servicePolicyVersion = '2026-09-07';
+const servicePrivacyVersion = '2026-09-07.1';
 const serviceMinimumAge = 18;
 
 class ServiceConsentStatus {
@@ -21,7 +22,7 @@ class ServiceConsentStatus {
   final DateTime? acceptedAt;
   bool get supported =>
       termsVersion == servicePolicyVersion &&
-      privacyVersion == servicePolicyVersion &&
+      privacyVersion == servicePrivacyVersion &&
       minimumAge == serviceMinimumAge;
   bool get permitsService =>
       supported && accepted && ageEligible == true && acceptedAt != null;

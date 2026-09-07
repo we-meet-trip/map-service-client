@@ -25,7 +25,7 @@ Map<String, dynamic> receipt({
   String version = servicePolicyVersion,
 }) => {
   'terms_version': version,
-  'privacy_version': version,
+  'privacy_version': servicePrivacyVersion,
   'minimum_age': 18,
   'accepted': accepted,
   'age_eligible': age,
@@ -97,6 +97,12 @@ void main() {
       expect(
         ServiceConsentStatus.fromJson(
           receipt(accepted: true, version: 'future'),
+        ).permitsService,
+        isFalse,
+      );
+      expect(
+        ServiceConsentStatus.fromJson(
+          receipt(accepted: true)..['privacy_version'] = '2026-09-07',
         ).permitsService,
         isFalse,
       );
@@ -178,7 +184,7 @@ void main() {
           if (request.method == 'POST') {
             expect(jsonDecode(request.body), {
               'terms_version': servicePolicyVersion,
-              'privacy_version': servicePolicyVersion,
+              'privacy_version': servicePrivacyVersion,
               'is_18_or_older': true,
               'terms_accepted': true,
               'privacy_accepted': true,

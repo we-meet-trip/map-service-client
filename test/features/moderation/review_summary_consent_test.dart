@@ -43,7 +43,7 @@ void main() {
     ServiceConsentStore.instance.loadStatus = () async =>
         ServiceConsentStatus.fromJson({
           'terms_version': servicePolicyVersion,
-          'privacy_version': servicePolicyVersion,
+          'privacy_version': servicePrivacyVersion,
           'minimum_age': 18,
           'accepted': true,
           'age_eligible': true,
