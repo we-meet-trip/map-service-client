@@ -85,7 +85,7 @@ import json,pathlib,sys
 args=sys.argv
 output=pathlib.Path(args[args.index('--output')+1])
 defines=json.loads(pathlib.Path(args[args.index('--dart-define-from-file')+1]).read_text())
-assert set(defines)=={'APP_ENV','API_ALLOWED_ORIGINS','APP_CONFIG_URL','GOOGLE_MAPS_WEB_API_KEY'}
+assert set(defines)=={'APP_ENV','API_ALLOWED_ORIGINS','APP_CONFIG_URL','INVITE_LINK_ORIGIN','GOOGLE_MAPS_WEB_API_KEY'}
 output.mkdir(parents=True)
 (output/'index.html').write_text('new build')
 ''')

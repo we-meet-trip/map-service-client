@@ -6,6 +6,11 @@ class DeepLinkService {
   DeepLinkService._();
 
   static final _appLinks = AppLinks();
+  static const inviteOrigin = String.fromEnvironment(
+    'INVITE_LINK_ORIGIN',
+    defaultValue: 'https://mapcenter-b59ca.web.app',
+  );
+  static final _token = RegExp(r'^[A-Za-z0-9_-]{1,256}$');
 
   static Future<void> init(GoRouter router) async {
     // 앱을 연 주소를 묻는 일은 기기에서만 성립한다. 브라우저에는 그것을
@@ -33,22 +38,25 @@ class DeepLinkService {
   /// 오고, 앱 전용 주소는 검증이 필요 없어 iOS 와 개발 중 확인에 쓴다. 둘의
   /// 이름이 어긋나면 한쪽 기기에서만 링크가 조용히 무시된다.
   static String? routeOf(Uri uri) {
+    if (uri.userInfo.isNotEmpty || uri.hasQuery || uri.hasFragment) return null;
     String? token;
 
     // 웹 주소: https://도메인/invite/TOKEN
-    if ((uri.scheme == 'https' || uri.scheme == 'http') &&
-        uri.pathSegments.length >= 2 &&
+    if (uri.scheme == 'https' &&
+        uri.origin == inviteOrigin &&
+        uri.pathSegments.length == 2 &&
         uri.pathSegments[0] == 'invite') {
       token = uri.pathSegments[1];
     }
     // 앱 전용 주소: mapservice://invite/TOKEN
     else if (uri.scheme == 'mapservice' &&
         uri.host == 'invite' &&
-        uri.pathSegments.isNotEmpty) {
+        !uri.hasPort &&
+        uri.pathSegments.length == 1) {
       token = uri.pathSegments[0];
     }
 
-    if (token == null || token.isEmpty) return null;
+    if (token == null || !_token.hasMatch(token)) return null;
     return '/invite/$token';
   }
 }

@@ -40,6 +40,15 @@ if (keystorePropertiesFile.exists()) {
 val keystoreFile = keystoreProperties.getProperty("storeFile")?.let { file(it) }
 val hasReleaseSigning = keystoreFile != null && keystoreFile.exists()
 
+val inviteOrigin = dartDefines["INVITE_LINK_ORIGIN"] ?: "https://mapcenter-b59ca.web.app"
+val inviteUri = requireNotNull(runCatching { java.net.URI(inviteOrigin) }.getOrNull()) {
+    "Invalid INVITE_LINK_ORIGIN"
+}
+require(inviteUri.scheme == "https" && !inviteUri.host.isNullOrEmpty()
+        && inviteUri.rawUserInfo == null && inviteUri.rawQuery == null && inviteUri.rawFragment == null
+        && (inviteUri.rawPath.isNullOrEmpty() || inviteUri.rawPath == "/")
+        && (inviteUri.port == -1 || inviteUri.port == 443)) { "Invalid INVITE_LINK_ORIGIN" }
+
 val googleMapsApiKey = dartDefines["GOOGLE_MAPS_ANDROID_API_KEY"]?.trim() ?: ""
 
 android {
@@ -69,7 +78,7 @@ android {
         // 초대 링크를 받는 도메인. 이 도메인의 /.well-known/assetlinks.json 에
         // 아래 applicationId 와 릴리스 서명 지문이 올라가 있어야 링크가 앱으로
         // 열린다(그렇지 않으면 브라우저로만 열린다).
-        manifestPlaceholders["deepLinkHost"] = "mapcenter-b59ca.web.app"
+        manifestPlaceholders["deepLinkHost"] = inviteUri.host
     }
 
     signingConfigs {

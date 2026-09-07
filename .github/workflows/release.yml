@@ -69,6 +69,7 @@ jobs:
         env:
           API_ALLOWED_ORIGINS: ${{ vars.API_ALLOWED_ORIGINS }}
           APP_CONFIG_URL: ${{ vars.APP_CONFIG_URL }}
+          INVITE_LINK_ORIGIN: ${{ vars.INVITE_LINK_ORIGIN }}
           GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.GOOGLE_MAPS_ANDROID_API_KEY }}
         run: |
           set -euo pipefail
@@ -213,6 +214,7 @@ jobs:
         env:
           API_ALLOWED_ORIGINS: ${{ vars.API_ALLOWED_ORIGINS }}
           APP_CONFIG_URL: ${{ vars.APP_CONFIG_URL }}
+          INVITE_LINK_ORIGIN: ${{ vars.INVITE_LINK_ORIGIN }}
           GOOGLE_MAPS_IOS_API_KEY: ${{ secrets.GOOGLE_MAPS_IOS_API_KEY }}
         run: |
           python3 scripts/mobile-release-config.py --environment "$APP_ENV" --platform ios \

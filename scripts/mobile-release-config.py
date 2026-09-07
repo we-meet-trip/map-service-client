@@ -11,6 +11,8 @@ from urllib.parse import urlsplit
 
 TEST_API_ORIGIN = "https://mapapptest.duckdns.org"
 TEST_CONFIG_URL = "https://mapcenter-b59ca.web.app/app_config.json"
+TEST_INVITE_ORIGIN = "https://mapcenter-b59ca.web.app"
+TEST_HOSTS = {"mapapptest.duckdns.org", "mapcenter-b59ca.web.app", "mapcenter-b59ca.firebaseapp.com"}
 PLATFORM_KEYS = {
     "android": "GOOGLE_MAPS_ANDROID_API_KEY",
     "ios": "GOOGLE_MAPS_IOS_API_KEY",
@@ -50,19 +52,25 @@ def make_config(environment, platform, signed, environ):
         raise ConfigError("unsupported environment or platform")
     raw_origins = environ.get("API_ALLOWED_ORIGINS", "").strip()
     config_url = environ.get("APP_CONFIG_URL", "").strip()
+    invite_origin = environ.get("INVITE_LINK_ORIGIN", "").strip()
     if environment == "test":
+        invite_origin = invite_origin or TEST_INVITE_ORIGIN
         raw_origins = raw_origins or TEST_API_ORIGIN
         config_url = config_url or TEST_CONFIG_URL
-    elif not raw_origins or not config_url:
-        raise ConfigError("prod requires explicit API_ALLOWED_ORIGINS and APP_CONFIG_URL")
+    elif not raw_origins or not config_url or not invite_origin:
+        raise ConfigError("prod requires explicit API_ALLOWED_ORIGINS, APP_CONFIG_URL and INVITE_LINK_ORIGIN")
     origins = list(dict.fromkeys(
         https_url(value.strip(), "API_ALLOWED_ORIGINS", origin_only=True)
         for value in raw_origins.split(",")
     ))
     config_url = https_url(config_url, "APP_CONFIG_URL")
+    invite_origin = https_url(invite_origin, "INVITE_LINK_ORIGIN", origin_only=True)
+    if urlsplit(invite_origin).port not in (None, 443):
+        raise ConfigError("INVITE_LINK_ORIGIN: native links require the default HTTPS port")
     if environment == "prod" and (
-        any(urlsplit(origin).hostname == urlsplit(TEST_API_ORIGIN).hostname for origin in origins)
-        or config_url == TEST_CONFIG_URL
+        any(urlsplit(origin).hostname in TEST_HOSTS for origin in origins)
+        or urlsplit(config_url).hostname in TEST_HOSTS
+        or urlsplit(invite_origin).hostname in TEST_HOSTS
     ):
         raise ConfigError("prod configuration must not use the GCP test endpoints")
     key_name = PLATFORM_KEYS[platform]
@@ -76,6 +84,7 @@ def make_config(environment, platform, signed, environ):
         "APP_ENV": environment,
         "API_ALLOWED_ORIGINS": ",".join(origins),
         "APP_CONFIG_URL": config_url,
+        "INVITE_LINK_ORIGIN": invite_origin,
     }
     if key:
         config[key_name] = key
