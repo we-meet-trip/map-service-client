@@ -92,3 +92,9 @@ This inventory does not itself certify SDK policy compliance, Android 16KB page 
 Local verification: 28 Python/Node fixture tests passed; plist/pbxproj syntax and workflow YAML/embedded-shell syntax passed; Dart formatter parsed changed Dart files. No local Flutter test/analyze/build, Gradle, Docker, Xcode build, simulator or emulator was started. Dart regression tests and production environment tests are prepared for root-managed remote CI. Source graph update is AST-only, with no semantic paid extraction.
 
 Remaining external gates include candidate remote CI/build results, real `.test` native key registrations, User callback integration, Apple membership/signing/profile inputs, actual app records/store declarations, actual association hosting verification, and the root's all-service acceptance gate. These are not converted into PASS by source fixtures. Root's native-store handoff is the authoritative place for executed CI/artifact/device/console/GCP evidence and current blockers.
+
+## 2026-09-07 SDK 및 artifact 보존 보강
+
+Apple의 2026-04-28 이후 업로드 최소 조건은 Xcode 26 및 iOS 26 SDK다. [공식 요구사항](https://developer.apple.com/news/upcoming-requirements/). 첫 CI의 Xcode 16.4 컴파일 성공은 이 조건을 충족하지 않는다. iOS job은 macOS 26 runner의 Xcode 26.6을 명시하고 실제 Xcode/iOS SDK major를 검사한다. 배포 대상 최소 iOS 버전과 빌드 SDK 버전은 별개다. 실제 bundle의 DTSDKName/DTXcode는 artifact manifest에서도 대조한다.
+
+첫 simulator 빌드는 성공했으나 lipo 인자 순서 때문에 검증 단계가 실패했다. 입력 파일을 먼저 전달하도록 수정했다. 후속 단계 실패에도 완료된 산출물과 SDK 잠금 파일은 업로드하며, 미완 산출물이 전체 job 성공이나 서명 IPA로 집계되지 않도록 결과를 구분한다.

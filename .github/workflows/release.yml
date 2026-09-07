@@ -222,12 +222,13 @@ jobs:
   ios:
     needs: [android]
     if: ${{ !cancelled() && (needs.android.result == 'success' || needs.android.result == 'skipped') && (startsWith(github.ref, 'refs/tags/iosbuild-') || (github.event_name == 'workflow_dispatch' && (inputs.build_ios || inputs.signed_ios || inputs.build_ios_simulator))) }}
-    runs-on: macos-15
+    runs-on: macos-26
     environment: ${{ inputs.app_environment || 'test' }}
     env:
       APP_ENV: ${{ inputs.app_environment || 'test' }}
       SIGNED_IOS: ${{ inputs.signed_ios || false }}
       BUILD_SIMULATOR: ${{ inputs.build_ios_simulator || false }}
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
     steps:
       - uses: actions/checkout@v4
         with:
@@ -240,6 +241,16 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
+      - name: Verify App Store SDK minimum
+        run: |
+          python3 - <<'PYSDK'
+          import re, subprocess
+          xcode = subprocess.check_output(['xcodebuild', '-version'], text=True)
+          sdk = subprocess.check_output(['xcrun', '--sdk', 'iphoneos', '--show-sdk-version'], text=True).strip()
+          assert int(re.search(r'Xcode (\d+)', xcode).group(1)) >= 26, 'Xcode 26 or later required'
+          assert int(sdk.split('.')[0]) >= 26, 'iOS 26 SDK or later required'
+          print('App Store SDK minimum verified:', xcode.strip(), 'iOS SDK', sdk)
+          PYSDK
       - name: Validate platform configuration
         id: config
         env:
