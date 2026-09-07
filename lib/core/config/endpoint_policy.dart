@@ -80,8 +80,9 @@ class EndpointPolicy {
   }
 
   static String? normalize(String? raw, {bool requireHttps = false}) {
-    if (raw == null || raw.isEmpty || raw.contains(RegExp(r'[\s\\]')))
+    if (raw == null || raw.isEmpty || raw.contains(RegExp(r'[\s\\]'))) {
       return null;
+    }
     try {
       final uri = Uri.parse(raw);
       if (uri.scheme != 'http' && uri.scheme != 'https') return null;
@@ -92,8 +93,9 @@ class EndpointPolicy {
           uri.hasFragment ||
           uri.port < 1 ||
           uri.port > 65535 ||
-          (uri.path.isNotEmpty && uri.path != '/'))
+          (uri.path.isNotEmpty && uri.path != '/')) {
         return null;
+      }
       return uri.origin;
     } on FormatException {
       return null;
