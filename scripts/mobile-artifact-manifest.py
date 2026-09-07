@@ -9,6 +9,7 @@ import platform
 import plistlib
 import shutil
 import subprocess
+from ios_vendor_privacy import inspect_vendor_privacy
 
 
 def digest(path):
@@ -28,6 +29,8 @@ def main():
     parser.add_argument('--app-directory')
     parser.add_argument('--output', required=True)
     args = parser.parse_args()
+    if args.kind.startswith('ios-') and not args.app_directory:
+        raise SystemExit('iOS artifact inventory requires the built app for the vendor privacy gate')
     source = json.loads(Path(args.config).read_text())
     fields = ['APP_ENV', 'NATIVE_APPLICATION_ID', 'INVITE_URL_SCHEME', 'KAKAO_CALLBACK_SCHEME',
               'INVITE_LINK_ORIGIN', 'APP_CONFIG_URL', 'API_ALLOWED_ORIGINS', 'PUBLIC_SITE_ORIGIN']
@@ -59,6 +62,7 @@ def main():
             result['privacy_manifests'].append({'path': str(path.relative_to(app)),
                                                'sha256': digest(path),
                                                'declarations': plistlib.loads(path.read_bytes())})
+        result['ios_vendor_privacy'] = inspect_vendor_privacy('ios/Podfile.lock', 'ios/Pods', app)
     for name in ['pubspec.lock', 'ios/Podfile.lock']:
         path = Path(name)
         if path.exists():

@@ -1,0 +1,61 @@
+name: ios-native-lock
+
+on:
+  workflow_dispatch:
+  # Register the workflow on the isolated work branches without running a resolver.
+  push:
+    branches: [fix/native-store-readiness-20260907-01, fix/ios-vendor-privacy-20260907-01]
+    paths: [.github/workflows/ios-native-lock.yml]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-native-lock-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: macos-26
+    timeout-minutes: 30
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+      COCOAPODS_DISABLE_STATS: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.9'
+          channel: stable
+          cache: true
+      - name: Resolve only the reviewed Maps SDK pair without compiling
+        run: |
+          set -euo pipefail
+          mkdir -p build/native-lock
+          cp ios/Podfile.lock build/native-lock/Podfile.before.lock
+          flutter pub get
+          git diff --exit-code -- pubspec.lock
+          (cd ios && pod update GoogleMaps Google-Maps-iOS-Utils)
+          python3 scripts/ios_vendor_privacy.py \
+            --baseline-pod-lock build/native-lock/Podfile.before.lock \
+            --output build/native-lock/vendor-privacy.json
+      - name: Preserve resolver outputs for root review and a subsequent source commit
+        if: always()
+        run: |
+          mkdir -p build/native-lock
+          cp ios/Podfile.lock build/native-lock/Podfile.lock
+          cp ios/Podfile build/native-lock/Podfile
+          pod --version > build/native-lock/cocoapods-version.txt
+          flutter --version --machine > build/native-lock/flutter-version.json
+          git diff -- ios/Podfile.lock > build/native-lock/resolution.diff
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-native-lock-${{ github.sha }}
+          path: build/native-lock/
+          retention-days: 14
+          if-no-files-found: error
