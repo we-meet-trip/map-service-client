@@ -61,7 +61,8 @@ class ApiClient {
     String path, {
     Object? body,
     Duration? timeout,
-  }) => _send('POST', path, body: body, timeout: timeout);
+    bool Function()? canSend,
+  }) => _send('POST', path, body: body, timeout: timeout, canSend: canSend);
 
   Future<Map<String, dynamic>> put(
     String path, {
@@ -88,7 +89,9 @@ class ApiClient {
     Object? body,
     Duration? timeout,
     bool retried = false,
+    bool Function()? canSend,
   }) async {
+    _checkRequestPermission(canSend);
     if (!AppConfig.instance.requestsAllowed) {
       throw const ApiException(
         statusCode: 503,
@@ -141,6 +144,7 @@ class ApiClient {
         message: '로그인 상태가 변경됐어요. 다시 시도해주세요.',
       );
     }
+    _checkRequestPermission(canSend);
 
     if (response.statusCode == 401 && !retried && !_isAuthPath(path)) {
       final refreshed = await AuthStore.instance.refresh();
@@ -159,6 +163,7 @@ class ApiClient {
           body: body,
           timeout: timeout,
           retried: true,
+          canSend: canSend,
         );
       }
     }
@@ -186,6 +191,16 @@ class ApiClient {
       ServiceConsentStore.instance.invalidate(reason: error.code);
     }
     throw error;
+  }
+
+  static void _checkRequestPermission(bool Function()? canSend) {
+    if (canSend != null && !canSend()) {
+      throw const ApiException(
+        statusCode: 403,
+        code: 'REQUEST_PERMISSION_REVOKED',
+        message: '요청 허용 상태가 바뀌어 전송과 응답 반영을 중단했어요.',
+      );
+    }
   }
 
   /// 목록을 돌려주는 경로용. 서버가 배열을 최상위로 주는 경우가 있다.

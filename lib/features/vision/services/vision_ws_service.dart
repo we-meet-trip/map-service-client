@@ -7,6 +7,12 @@ import '../../../core/state/auth_store.dart';
 import '../../../core/state/service_consent_store.dart';
 import '../models/vision_models.dart';
 
+class _PermittedVisionResponse {
+  _PermittedVisionResponse(this.response, this.canDeliver);
+  final VisionResponse response;
+  final bool Function() canDeliver;
+}
+
 class VisionWsService {
   VisionWsService({
     this.responseTimeout = const Duration(seconds: 60),
@@ -32,12 +38,18 @@ class VisionWsService {
   Future<void>? _policyRecheck;
   Timer? _timeout;
   String? _pendingId;
+  bool Function()? _pendingCanSend;
   int? _sessionVersion;
   bool _disposed = false;
   int _connectionVersion = 0;
-  final _responseController = StreamController<VisionResponse>.broadcast();
+  final _responseController =
+      StreamController<_PermittedVisionResponse>.broadcast();
   final _errorController = StreamController<String>.broadcast();
-  Stream<VisionResponse> get responses => _responseController.stream;
+  // Broadcast delivery is asynchronous. Keep the original permission until the
+  // subscriber receives the event, including revoke-then-regrant races.
+  Stream<VisionResponse> get responses => _responseController.stream
+      .where((event) => event.canDeliver())
+      .map((event) => event.response);
   Stream<String> get errors => _errorController.stream;
 
   static Uri _endpoint() {
@@ -119,9 +131,27 @@ class VisionWsService {
                     response.sessionId != 'unknown')) {
               return;
             }
+            if (_pendingCanSend != null && !_pendingCanSend!()) {
+              _error('외부 AI 전송 동의가 철회되어 응답을 표시하지 않았어요.');
+              disconnect();
+              return;
+            }
             _timeout?.cancel();
+            final permission = _pendingCanSend;
+            final session = _sessionVersion;
             _pendingId = null;
-            _responseController.add(response);
+            _pendingCanSend = null;
+            _responseController.add(
+              _PermittedVisionResponse(
+                response,
+                () =>
+                    !_disposed &&
+                    version == _connectionVersion &&
+                    session == AuthStore.instance.sessionVersion &&
+                    _consent.canAccess &&
+                    (permission == null || permission()),
+              ),
+            );
           } catch (_) {
             _error('응답을 읽지 못했어요. 다시 시도해주세요.');
           }
@@ -214,6 +244,7 @@ class VisionWsService {
       return;
     }
     _pendingId = request.sessionId;
+    _pendingCanSend = canSend;
     _timeout = Timer(responseTimeout, () {
       _error('응답 시간이 초과됐어요. 다시 시도해주세요.');
       disconnect();
@@ -229,6 +260,7 @@ class VisionWsService {
   void _error(String message) {
     _timeout?.cancel();
     _pendingId = null;
+    _pendingCanSend = null;
     if (!_disposed) _errorController.add(message);
   }
 
@@ -237,6 +269,7 @@ class VisionWsService {
     _connecting = null;
     _timeout?.cancel();
     _pendingId = null;
+    _pendingCanSend = null;
     _sub?.cancel();
     _sub = null;
     final old = _channel;

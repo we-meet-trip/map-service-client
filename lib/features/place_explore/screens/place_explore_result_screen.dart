@@ -5,6 +5,7 @@ import '../../../common/widgets/app_loading_screen.dart';
 import '../../../common/widgets/prev_button.dart';
 import '../../../core/api/trip_api_service.dart';
 import '../../../core/state/auth_store.dart';
+import '../../../core/state/service_consent_store.dart';
 import '../../../common/widgets/external_ai_consent.dart';
 import '../../../core/state/trip_repository.dart';
 import '../../trip/screens/trip_created_screen.dart';
@@ -47,10 +48,12 @@ class _PlaceExploreResultScreenState extends State<PlaceExploreResultScreen> {
   bool _askingConsent = false;
   ExternalAiPermission? _permission;
   final _screenSession = AuthStore.instance.sessionVersion;
-  bool get _canSend =>
+  bool get _canServe =>
       mounted &&
       _screenSession == AuthStore.instance.sessionVersion &&
-      _permission?.isCurrentSession == true;
+      ServiceConsentStore.instance.canAccess;
+  bool get _canSend =>
+      _canServe && (!_isResearch || _permission?.isCurrentSession == true);
   Future<TripGenerateResponse> Function()? _request;
 
   @override
@@ -106,19 +109,22 @@ class _PlaceExploreResultScreenState extends State<PlaceExploreResultScreen> {
     if (_request == null ||
         _askingConsent ||
         _routeFuture != null ||
-        _screenSession != AuthStore.instance.sessionVersion) {
+        !_canServe) {
       return;
     }
-    setState(() => _askingConsent = true);
-    final permission =
-        await (widget.consentGate ?? ExternalAiConsentGate.instance).ensure(
-          context,
-          ExternalAiScope.trip,
-        );
-    if (!mounted) return;
-    setState(() => _askingConsent = false);
-    _permission = permission;
-    if (permission == null || !_canSend) return;
+    if (_isResearch) {
+      setState(() => _askingConsent = true);
+      final permission =
+          await (widget.consentGate ?? ExternalAiConsentGate.instance).ensure(
+            context,
+            ExternalAiScope.trip,
+          );
+      if (!mounted) return;
+      setState(() => _askingConsent = false);
+      _permission = permission;
+      if (permission == null) return;
+    }
+    if (!_canSend) return;
     setState(() {
       _routeFuture = _request!().then((response) {
         if (!_canSend) {
@@ -205,10 +211,14 @@ class _PlaceExploreResultScreenState extends State<PlaceExploreResultScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('외부 AI 전송에 동의하면 일정을 만들어요.\n선택한 장소는 그대로 유지돼요.'),
+            Text(
+              _isResearch
+                  ? '외부 AI 전송에 동의하면 일정을 만들어요.\n선택한 장소는 그대로 유지돼요.'
+                  : '선택한 장소로 동선을 만들어요.',
+            ),
             TextButton(
-              onPressed: _askingConsent ? null : _startRequest,
-              child: const Text('동의 확인하고 일정 만들기'),
+              onPressed: _askingConsent || !_canServe ? null : _startRequest,
+              child: Text(_isResearch ? '동의 확인하고 일정 만들기' : '동선 다시 만들기'),
             ),
             TextButton(
               onPressed: () => context.canPop()

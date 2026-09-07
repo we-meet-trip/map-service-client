@@ -25,6 +25,7 @@ class FakeApi implements ApiClient {
     String path, {
     Object? body,
     Duration? timeout,
+    bool Function()? canSend,
   }) async {
     bodies.add(Map<String, Object>.from(body! as Map));
     if (failure != null) throw failure!;

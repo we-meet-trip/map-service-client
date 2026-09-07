@@ -21,8 +21,9 @@ class TestSink implements WebSocketSink {
 }
 
 class TestChannel implements WebSocketChannel {
-  final incoming = StreamController<dynamic>();
-  TestChannel({bool ready = true, this.closedCode}) {
+  final StreamController<dynamic> incoming;
+  TestChannel({bool ready = true, this.closedCode, bool sync = false})
+    : incoming = StreamController<dynamic>(sync: sync) {
     if (ready) connected.complete();
   }
   final connected = Completer<void>();
@@ -304,6 +305,48 @@ void main() {
     await pending;
     expect(channel.sink.sent, isEmpty);
   });
+
+  test(
+    'withdrawn permission discards an already-sent response and closes socket',
+    () async {
+      var allowed = true;
+      await service.sendFrame(request, canSend: () => allowed);
+      expect(channels.single.sink.sent, hasLength(1));
+      allowed = false;
+      channels.single.incoming.add(
+        '{"session_id":"request-1","status":"done"}',
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(responses, isEmpty);
+      expect(channels.single.sink.closed, isTrue);
+      expect(errors.single, contains('동의가 철회'));
+      await service.sendFrame(request, canSend: () => allowed);
+      expect(channels, hasLength(1));
+    },
+  );
+
+  test(
+    'revocation after parsing but before subscriber delivery discards queued result',
+    () async {
+      service.dispose();
+      final channel = TestChannel(sync: true);
+      channels.add(channel);
+      service = VisionWsService(channelFactory: (_, _) => channel);
+      service.responses.listen(responses.add);
+      var generation = 0;
+      await service.sendFrame(request, canSend: () => generation == 0);
+      // Synchronous input parses and queues an asynchronous broadcast event.
+      channel.incoming.add('{"session_id":"request-1","status":"done"}');
+      generation++;
+      await Future<void>.delayed(Duration.zero);
+      expect(responses, isEmpty);
+      // A new grant can authorize a new request without reviving the old one.
+      await service.sendFrame(request, canSend: () => generation == 1);
+      channel.incoming.add('{"session_id":"request-1","status":"done"}');
+      await Future<void>.delayed(Duration.zero);
+      expect(responses, hasLength(1));
+    },
+  );
 
   test(
     'account change during connection cannot send the previous account request',

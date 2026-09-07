@@ -61,11 +61,13 @@ class _VisionScreenState extends State<VisionScreen>
 
   final List<_ChatMessage> _messages = [];
   int _contentSessionVersion = AuthStore.instance.sessionVersion;
+  ExternalAiPermission? _activePermission;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    ExternalAiConsentGate.instance.addListener(_onAiConsentChanged);
     _initCamera();
     _initStt();
     _responseSub = _wsService.responses.listen(_onResponse);
@@ -205,7 +207,7 @@ class _VisionScreenState extends State<VisionScreen>
   }
 
   void _onResponse(VisionResponse response) {
-    if (!mounted) return;
+    if (!mounted || _activePermission?.isCurrentSession != true) return;
     final identify = response.identifyResult;
     final text = identify != null
         ? '${identify.name}\n${identify.description}'
@@ -221,9 +223,28 @@ class _VisionScreenState extends State<VisionScreen>
 
   void _onError(String msg) {
     if (!mounted) return;
+    _activePermission = null;
     setState(() {
       _isProcessing = false;
       _messages.add(_ChatMessage(isUser: false, text: '오류: $msg'));
+    });
+  }
+
+  void _onAiConsentChanged() {
+    final permission = _activePermission;
+    if (!mounted || permission == null || permission.isCurrentSession) return;
+    _activePermission = null;
+    _wsService.disconnect();
+    unawaited(_stopStt());
+    _partialTextNotifier.value = '';
+    _latestWords = '';
+    setState(() {
+      _isProcessing = false;
+      _isListening = false;
+      _messages.clear();
+      _lastResult = null;
+      _frozenFrameB64 = null;
+      _currentPosition = null;
     });
   }
 
@@ -315,6 +336,7 @@ class _VisionScreenState extends State<VisionScreen>
       setState(() => _isProcessing = false);
       return null;
     }
+    _activePermission = permission;
     return permission;
   }
 
@@ -415,6 +437,7 @@ class _VisionScreenState extends State<VisionScreen>
   }
 
   void _reset() {
+    _activePermission = null;
     _wsService.disconnect();
     setState(() {
       _frozenFrameB64 = null;
@@ -430,6 +453,7 @@ class _VisionScreenState extends State<VisionScreen>
       unawaited(_initCamera());
     } else if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused) {
+      _activePermission = null;
       _cameraVersion++;
       final camera = _cameraController;
       _cameraController = null;
@@ -447,6 +471,7 @@ class _VisionScreenState extends State<VisionScreen>
 
   @override
   void dispose() {
+    ExternalAiConsentGate.instance.removeListener(_onAiConsentChanged);
     WidgetsBinding.instance.removeObserver(this);
     _cameraVersion++;
     _responseSub?.cancel();

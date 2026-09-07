@@ -1,8 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:map_service_client/core/api/api_client.dart';
 import 'package:map_service_client/core/api/trip_api_service.dart';
 import 'package:map_service_client/core/state/trip_repository.dart';
+import 'package:map_service_client/core/state/auth_store.dart';
+import 'package:map_service_client/core/state/service_consent_store.dart';
+import 'package:map_service_client/common/widgets/external_ai_consent.dart';
+import 'package:map_service_client/common/widgets/next_button.dart';
 import 'package:map_service_client/features/trip/screens/manual_plan_screen.dart';
 import 'package:map_service_client/features/trip/screens/saved_plan_edit_screen.dart';
 import 'package:map_service_client/features/trip/utils/plan_edit_draft.dart';
@@ -19,6 +26,30 @@ TripStop stop(String name, {int day = 1}) => TripStop(
 );
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUp(() async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('plugins.it_nomads.com/flutter_secure_storage'),
+          (_) async => null,
+        );
+    await AuthStore.instance.save(
+      const AuthTokens(
+        accessToken: 'test-a',
+        refreshToken: 'test-ra',
+        userId: 1,
+      ),
+    );
+    ServiceConsentStore.instance.loadStatus = () async => ServiceConsentStatus(
+      termsVersion: servicePolicyVersion,
+      privacyVersion: servicePolicyVersion,
+      minimumAge: serviceMinimumAge,
+      accepted: true,
+      ageEligible: true,
+      acceptedAt: DateTime.utc(2026, 9, 7),
+    );
+    await ServiceConsentStore.instance.refresh(force: true);
+  });
   test(
     'draft reorder and day move retain other stop order; cancel restores source',
     () {
@@ -82,7 +113,7 @@ void main() {
     await tester.pump();
     await tester.tap(find.text('동선 만들기  →'));
     await tester.pump();
-    await _acceptAiConsent(tester);
+    expect(find.byType(ExternalAiConsentDialog), findsNothing);
     await tester.pump(const Duration(seconds: 3));
     await tester.pump();
     expect(captured!.transport, 'bicycle');
@@ -92,6 +123,91 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     await tester.pumpAndSettle();
   });
+
+  testWidgets(
+    'explicit optimization sends once and keeps the draft unchanged until success',
+    (tester) async {
+      final source = [
+        stop('A'),
+        stop('C'),
+        stop('B'),
+        stop('D', day: 2),
+        stop('F', day: 2),
+        stop('E', day: 2),
+      ];
+      final draft = PlanEditDraft(stops: source, transport: 'walk');
+      final pending = Completer<TripGenerateResponse>();
+      final requests = <TripRouteRequest>[];
+      TripGenerateResponse? accepted;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ManualPlanScreen(
+              initialStops: source,
+              draft: draft,
+              route: (request) {
+                requests.add(request);
+                return pending.future;
+              },
+              startDate: DateTime.utc(2026, 9, 6),
+              endDate: DateTime.utc(2026, 9, 7),
+              activeStartHour: 9,
+              activeEndHour: 20,
+              transport: 'walk',
+              province: '서울특별시',
+              city: '종로구',
+              onRouted: (response) => accepted = response,
+              onCancel: () {},
+            ),
+          ),
+        ),
+      );
+      expect(find.textContaining('각 일차의 첫 장소는 유지'), findsOneWidget);
+      final optimize = tester
+          .widget<OutlinedButton>(find.widgetWithText(OutlinedButton, '동선 최적화'))
+          .onPressed!;
+      final manual = tester
+          .widget<NextButton>(find.byType(NextButton))
+          .onPressed!;
+      optimize();
+      optimize();
+      manual();
+      await tester.pump();
+      expect(requests, hasLength(1));
+      expect(requests.single.optimize, isTrue);
+      expect(requests.single.places.map((p) => p.name), [
+        'A',
+        'C',
+        'B',
+        'D',
+        'F',
+        'E',
+      ]);
+      expect(requests.single.places.map((p) => p.day), [1, 1, 1, 2, 2, 2]);
+      expect(draft.stops.map((p) => p.name), ['A', 'C', 'B', 'D', 'F', 'E']);
+      expect(accepted, isNull);
+      expect(find.byType(ExternalAiConsentDialog), findsNothing);
+      final response = TripGenerateResponse(
+        tripId: 'optimized',
+        totalDurationMinutes: 80,
+        stops: [
+          source[0],
+          source[2],
+          source[1],
+          source[3],
+          source[5],
+          source[4],
+        ],
+        weatherForecast: const [],
+      );
+      pending.complete(response);
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pumpAndSettle();
+      expect(accepted, same(response));
+      expect(source.map((p) => p.name), ['A', 'C', 'B', 'D', 'F', 'E']);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets(
     'cancel confirmation can keep editing or discard the isolated draft',
@@ -183,7 +299,7 @@ void main() {
       for (var attempt = 0; attempt < 2; attempt++) {
         await tester.tap(find.text('동선 만들기  →'));
         await tester.pump();
-        await _acceptAiConsent(tester);
+        expect(find.byType(ExternalAiConsentDialog), findsNothing);
         await tester.pump(const Duration(seconds: 3));
         await tester.pump();
         await tester.pump(const Duration(seconds: 3));
@@ -216,13 +332,6 @@ void main() {
     expect(find.byType(ManualPlanScreen), findsNothing);
     expect(tester.takeException(), isNull);
   });
-}
-
-Future<void> _acceptAiConsent(WidgetTester tester) async {
-  if (find.text('전송에 동의').evaluate().isEmpty) return;
-  await tester.pumpAndSettle();
-  await tester.tap(find.text('전송에 동의'));
-  await tester.pump();
 }
 
 ManualPlanScreen _editor(

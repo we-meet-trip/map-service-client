@@ -477,7 +477,12 @@ class TripApiService {
   Future<TripGenerateResponse> routeTrip(
     TripRouteRequest request, {
     bool Function()? canSend,
-  }) => _postTrip('/api/v1/trip/route', request.toJson(), canSend);
+  }) => _postTrip(
+    '/api/v1/trip/route',
+    request.toJson(),
+    canSend,
+    requiresAiConsent: false,
+  );
 
   /// 같은 조건으로 다른 장소를 다시 추천받는다.
   ///
@@ -488,21 +493,27 @@ class TripApiService {
     bool Function()? canSend,
   }) => _postTrip('/api/v1/trip/research', request.toJson(), canSend);
 
-  /// 생성·재탐색·동선 모두 서버에서 외부 AI 설명을 생성한다.
-  /// 전송 직전의 동의/계정 확인이 없으면 보내지 않고, 늦은 응답도 버린다.
+  /// 생성·재탐색은 외부 AI 동의를, 동선 계산은 서비스 이용 조건을 확인한다.
+  /// 동선 계산·명시적 최적화는 외부 AI를 사용하지 않는다.
+  /// 모든 요청은 전송 직전의 확인이 없으면 보내지 않고 늦은 응답도 버린다.
   ///
   /// 오류 본문 형태가 서버 계층마다 달라, 알아볼 수 있는 키를 순서대로
   /// 찾아본다. 어느 것도 없으면 상태 코드만 남긴다.
   Future<TripGenerateResponse> _postTrip(
     String path,
     Map<String, dynamic> body,
-    bool Function()? canSend,
-  ) async {
+    bool Function()? canSend, {
+    bool requiresAiConsent = true,
+  }) async {
     final sessionVersion = AuthStore.instance.sessionVersion;
     if (canSend == null || !canSend()) {
-      throw const TripApiException(
-        error: 'AI_CONSENT_REQUIRED',
-        message: '외부 AI 전송 동의를 확인해주세요.',
+      throw TripApiException(
+        error: requiresAiConsent
+            ? 'AI_CONSENT_REQUIRED'
+            : 'ROUTE_REQUEST_NOT_ALLOWED',
+        message: requiresAiConsent
+            ? '외부 AI 전송 동의를 확인해주세요.'
+            : '로그인 상태와 서비스 이용 조건을 확인해주세요.',
         statusCode: 403,
       );
     }
@@ -514,16 +525,45 @@ class TripApiService {
         path,
         body: body,
         timeout: _requestTimeout,
+        canSend: canSend,
       );
-      if (sessionVersion != AuthStore.instance.sessionVersion || !canSend()) {
+      if (sessionVersion != AuthStore.instance.sessionVersion) {
         throw const TripApiException(
           error: 'SESSION_CHANGED',
           message: '로그인 상태가 바뀌었어요. 다시 시도해주세요.',
           statusCode: 409,
         );
       }
+      if (!canSend()) {
+        throw TripApiException(
+          error: requiresAiConsent
+              ? 'AI_CONSENT_CHANGED'
+              : 'ROUTE_REQUEST_NOT_ALLOWED',
+          message: requiresAiConsent
+              ? '외부 AI 전송 동의가 바뀌었어요. 다시 확인해주세요.'
+              : '서비스 이용 조건을 다시 확인해주세요.',
+          statusCode: 403,
+        );
+      }
       return TripGenerateResponse.fromJson(parsed);
     } on ApiException catch (e) {
+      if (e.code == 'REQUEST_PERMISSION_REVOKED') {
+        final changedAccount =
+            sessionVersion != AuthStore.instance.sessionVersion;
+        throw TripApiException(
+          error: changedAccount
+              ? 'SESSION_CHANGED'
+              : requiresAiConsent
+              ? 'AI_CONSENT_CHANGED'
+              : 'ROUTE_REQUEST_NOT_ALLOWED',
+          message: changedAccount
+              ? '로그인 상태가 바뀌었어요. 다시 시도해주세요.'
+              : requiresAiConsent
+              ? '외부 AI 전송 동의가 바뀌었어요. 다시 확인해주세요.'
+              : '서비스 이용 조건을 다시 확인해주세요.',
+          statusCode: changedAccount ? 409 : 403,
+        );
+      }
       // 공통 통로가 이미 오류 본문의 키를 순서대로 훑어 접어 준다. 여기서는
       // 화면이 기다리는 예외 형태로만 바꾼다.
       throw TripApiException(

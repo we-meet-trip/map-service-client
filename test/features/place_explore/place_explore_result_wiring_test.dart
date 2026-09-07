@@ -3,12 +3,15 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:map_service_client/common/widgets/app_loading_screen.dart';
 import 'package:map_service_client/common/widgets/external_ai_consent.dart';
 import 'package:map_service_client/core/api/api_client.dart';
 import 'package:map_service_client/core/api/trip_api_service.dart';
 import 'package:map_service_client/core/state/trip_repository.dart';
+import 'package:map_service_client/core/state/auth_store.dart';
+import 'package:map_service_client/core/state/service_consent_store.dart';
 import 'package:map_service_client/features/place_explore/screens/place_explore_result_screen.dart';
 import 'package:map_service_client/features/place_explore/utils/plan_place_id.dart';
 
@@ -16,6 +19,7 @@ import 'package:map_service_client/features/place_explore/utils/plan_place_id.da
 ///
 /// 응답 본문은 로컬 스택의 `/api/v1/trip/route` 가 실제로 돌려준 모양이다.
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   final requested = <Uri>[];
   final sentBodies = <String>[];
 
@@ -86,7 +90,24 @@ void main() {
         'weather_forecast': <dynamic>[],
       });
 
-  setUp(() {
+  setUp(() async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('plugins.it_nomads.com/flutter_secure_storage'),
+          (_) async => null,
+        );
+    await AuthStore.instance.save(const AuthTokens(
+      accessToken: 'test-a', refreshToken: 'test-ra', userId: 1,
+    ));
+    ServiceConsentStore.instance.loadStatus = () async => ServiceConsentStatus(
+      termsVersion: servicePolicyVersion,
+      privacyVersion: servicePolicyVersion,
+      minimumAge: serviceMinimumAge,
+      accepted: true,
+      ageEligible: true,
+      acceptedAt: DateTime.utc(2026, 9, 7),
+    );
+    await ServiceConsentStore.instance.refresh(force: true);
     requested.clear();
     sentBodies.clear();
     TripRepository.instance.lastPlan = null;
@@ -140,7 +161,7 @@ void main() {
         ]);
 
         await pump(tester, {planPlaceId(0), planPlaceId(1), planPlaceId(2)});
-        await acceptConsent(tester);
+        expect(find.byType(ExternalAiConsentDialog), findsNothing);
         expect(find.byType(AppLoadingScreen), findsOneWidget);
         await tester.pump(const Duration(milliseconds: 100));
 
@@ -204,21 +225,21 @@ void main() {
     );
   });
 
-  testWidgets('전송 동의를 거절하면 HTTP 0건이며 선택과 일정이 유지된다', (tester) async {
+  testWidgets('서비스 약관 동의가 없으면 HTTP 0건이며 선택과 일정이 유지된다', (tester) async {
     await HttpOverrides.runZoned(() async {
       givenPlan([stop(order: 1, name: '가'), stop(order: 2, name: '나'), stop(order: 3, name: '다')]);
       final original = TripRepository.instance.lastPlan;
       final selected = {planPlaceId(0), planPlaceId(1), planPlaceId(2)};
+      ServiceConsentStore.instance.invalidate();
       await pump(tester, selected);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('동의하지 않음'));
-      await tester.pumpAndSettle();
+      expect(find.byType(ExternalAiConsentDialog), findsNothing);
       expect(requested, isEmpty);
       expect(sentBodies, isEmpty);
       expect(selected, {planPlaceId(0), planPlaceId(1), planPlaceId(2)});
       expect(TripRepository.instance.lastPlan, same(original));
       expect(find.byType(AppLoadingScreen), findsNothing);
-      expect(find.text('동의 확인하고 일정 만들기'), findsOneWidget);
+      expect(find.text('동선 다시 만들기'), findsOneWidget);
     }, createHttpClient: (_) => _FakeHttpClient(routeBody(), 200, requested, sentBodies));
   });
 
@@ -363,7 +384,7 @@ void main() {
         ));
 
         await pump(tester, {planPlaceId(0), planPlaceId(1), planPlaceId(2)});
-        await acceptConsent(tester);
+        expect(find.byType(ExternalAiConsentDialog), findsNothing);
         await tester.pump(const Duration(milliseconds: 100));
 
         expect(requested.map((u) => u.path), contains(endsWith('/trip/route')));

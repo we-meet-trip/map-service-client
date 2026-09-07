@@ -28,6 +28,11 @@ void main() {
 
     expect(find.text('약관 및 정책'), findsOneWidget);
     expect(find.text('고객센터'), findsOneWidget);
+    expect(find.text('외부 AI 전송 동의 설정'), findsOneWidget);
+    await tester.tap(find.text('외부 AI 전송 동의 설정'));
+    await tester.pumpAndSettle();
+    expect(find.text('Vision 질문'), findsOneWidget);
+    expect(find.text('여행 추천·재탐색'), findsOneWidget);
     expect(find.text('알림 설정'), findsNothing);
     expect(find.text('공지/이벤트'), findsNothing);
   });

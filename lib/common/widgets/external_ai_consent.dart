@@ -8,23 +8,47 @@ class ExternalAiPermission {
     this.includeLocation,
     this._sessionVersion,
     this._currentSession,
+    this._generation,
+    this._currentGeneration,
   );
   final bool includeLocation;
   final int _sessionVersion;
   final int Function() _currentSession;
-  bool get isCurrentSession => _sessionVersion == _currentSession();
+  final int _generation;
+  final int Function() _currentGeneration;
+
+  /// Existing callers use this guard before sending and applying a response.
+  /// Revocation permanently invalidates this permission even after a new grant.
+  bool get isCurrentSession =>
+      _sessionVersion == _currentSession() &&
+      _generation == _currentGeneration();
 }
 
 /// Consent is separate for each use and never crosses an account session.
 /// No consent is persisted, inferred from OS permission, or treated as learning consent.
-class ExternalAiConsentGate {
+class ExternalAiConsentGate extends ChangeNotifier {
   ExternalAiConsentGate({int Function()? sessionVersion})
     : _sessionVersion =
           sessionVersion ?? (() => AuthStore.instance.sessionVersion);
   final int Function() _sessionVersion;
   final Map<ExternalAiScope, ExternalAiPermission> _accepted = {};
   final Map<ExternalAiScope, Future<ExternalAiPermission?>> _pending = {};
+  final Map<ExternalAiScope, int> _generations = {};
   static final instance = ExternalAiConsentGate();
+
+  bool hasConsent(ExternalAiScope scope) =>
+      _accepted[scope]?.isCurrentSession == true;
+
+  bool includesLocation(ExternalAiScope scope) =>
+      hasConsent(scope) && _accepted[scope]!.includeLocation;
+
+  void revoke(ExternalAiScope scope) {
+    _generations[scope] = (_generations[scope] ?? 0) + 1;
+    _accepted.remove(scope);
+    // A dialog opened before revocation cannot restore its old permission.
+    // Its pending result is rejected below; the next request asks again.
+    notifyListeners();
+  }
 
   Future<ExternalAiPermission?> ensure(
     BuildContext context,
@@ -47,18 +71,26 @@ class ExternalAiConsentGate {
     ExternalAiScope scope,
   ) async {
     final version = _sessionVersion();
+    final generation = _generations[scope] ?? 0;
     final selection = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (_) => ExternalAiConsentDialog(scope: scope),
     );
-    if (selection == null || version != _sessionVersion()) return null;
+    if (selection == null ||
+        version != _sessionVersion() ||
+        generation != (_generations[scope] ?? 0)) {
+      return null;
+    }
     final permission = ExternalAiPermission._(
       selection,
       version,
       _sessionVersion,
+      generation,
+      () => _generations[scope] ?? 0,
     );
     _accepted[scope] = permission;
+    notifyListeners();
     return permission;
   }
 }
@@ -116,6 +148,8 @@ class _ExternalAiConsentDialogState extends State<ExternalAiConsentDialog> {
               ),
             const SizedBox(height: 12),
             const Text('이 동의는 카메라·마이크·위치의 기기 권한 및 학습 데이터 제공 동의와 별개입니다.'),
+            const SizedBox(height: 12),
+            const Text('마이페이지 → 외부 AI 전송 동의 설정에서 언제든 철회할 수 있어요.'),
           ],
         ),
       ),

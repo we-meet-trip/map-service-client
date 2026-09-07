@@ -9,6 +9,7 @@ import 'package:map_service_client/common/widgets/next_button.dart';
 import 'package:map_service_client/core/api/api_client.dart';
 import 'package:map_service_client/core/api/trip_api_service.dart';
 import 'package:map_service_client/core/state/auth_store.dart';
+import 'package:map_service_client/core/state/service_consent_store.dart';
 import 'package:map_service_client/core/state/trip_repository.dart';
 import 'package:map_service_client/features/place_explore/screens/place_explore_result_screen.dart';
 import 'package:map_service_client/features/trip/screens/manual_plan_screen.dart';
@@ -31,6 +32,7 @@ class _Api implements ApiClient {
     String path, {
     Object? body,
     Duration? timeout,
+    bool Function()? canSend,
   }) {
     paths.add(path);
     bodies.add(body);
@@ -84,7 +86,7 @@ TripGenerateRequest _generate() => TripGenerateRequest(
   province: '서울특별시',
   city: '종로구',
 );
-TripRouteRequest _route() => TripRouteRequest(
+TripRouteRequest _route({bool optimize = false}) => TripRouteRequest(
   startDate: _date,
   endDate: _date,
   activeStartHour: 9,
@@ -93,6 +95,7 @@ TripRouteRequest _route() => TripRouteRequest(
   province: '서울특별시',
   city: '종로구',
   places: const [],
+  optimize: optimize,
 );
 TripResearchRequest _research() => TripResearchRequest(
   startDate: _date,
@@ -125,7 +128,6 @@ ManualPlanScreen _editor(
   initialStops: draft.stops,
   draft: draft,
   route: route,
-  consentGate: ExternalAiConsentGate(),
   startDate: _date,
   endDate: _date,
   activeStartHour: 9,
@@ -152,28 +154,91 @@ void main() {
         userId: 1,
       ),
     );
+    ServiceConsentStore.instance.loadStatus = () async => ServiceConsentStatus(
+      termsVersion: servicePolicyVersion,
+      privacyVersion: servicePolicyVersion,
+      minimumAge: serviceMinimumAge,
+      accepted: true,
+      ageEligible: true,
+      acceptedAt: _date,
+    );
+    await ServiceConsentStore.instance.refresh(force: true);
     TripRepository.instance.lastPlan = null;
     TripRepository.instance.pendingTrip = null;
   });
 
-  test('all AI APIs deny omitted or revoked consent before any HTTP', () async {
-    final http = _Api();
-    final api = TripApiService(api: http);
-    await expectLater(
-      api.generateTrip(_generate()),
-      _error('AI_CONSENT_REQUIRED'),
+  test(
+    'AI and route APIs require their caller guard before any HTTP',
+    () async {
+      final http = _Api();
+      final api = TripApiService(api: http);
+      await expectLater(
+        api.generateTrip(_generate()),
+        _error('AI_CONSENT_REQUIRED'),
+      );
+      await expectLater(
+        api.routeTrip(_route()),
+        _error('ROUTE_REQUEST_NOT_ALLOWED'),
+      );
+      await expectLater(
+        api.researchTrip(_research()),
+        _error('AI_CONSENT_REQUIRED'),
+      );
+      await expectLater(
+        api.routeTrip(_route(), canSend: () => false),
+        _error('ROUTE_REQUEST_NOT_ALLOWED'),
+      );
+      expect(http.paths, isEmpty);
+    },
+  );
+
+  for (final optimize in [false, true]) {
+    test(
+      'route optimize=$optimize sends with service consent and no AI permission',
+      () async {
+        final http = _Api();
+        final future = TripApiService(api: http).routeTrip(
+          _route(optimize: optimize),
+          canSend: () => ServiceConsentStore.instance.canAccess,
+        );
+        expect(http.paths, ['/api/v1/trip/route']);
+        expect(http.bodies.single, containsPair('optimize', optimize));
+        http.pending.complete(_response());
+        expect((await future).tripId, _response()['trip_id']);
+      },
     );
-    await expectLater(api.routeTrip(_route()), _error('AI_CONSENT_REQUIRED'));
-    await expectLater(
-      api.researchTrip(_research()),
-      _error('AI_CONSENT_REQUIRED'),
+  }
+
+  for (final type in ['generate', 'route', 'research']) {
+    test(
+      '$type maps a transport retry permission denial to the correct request scope',
+      () async {
+        final http = _Api();
+        final api = TripApiService(api: http);
+        final future = switch (type) {
+          'generate' => api.generateTrip(_generate(), canSend: () => true),
+          'route' => api.routeTrip(_route(), canSend: () => true),
+          _ => api.researchTrip(_research(), canSend: () => true),
+        };
+        final rejected = expectLater(
+          future,
+          _error(
+            type == 'route'
+                ? 'ROUTE_REQUEST_NOT_ALLOWED'
+                : 'AI_CONSENT_CHANGED',
+          ),
+        );
+        http.pending.completeError(
+          const ApiException(
+            statusCode: 403,
+            code: 'REQUEST_PERMISSION_REVOKED',
+            message: 'permission changed',
+          ),
+        );
+        await rejected;
+      },
     );
-    await expectLater(
-      api.routeTrip(_route(), canSend: () => false),
-      _error('AI_CONSENT_REQUIRED'),
-    );
-    expect(http.paths, isEmpty);
-  });
+  }
 
   for (final type in ['generate', 'route', 'research']) {
     test(
@@ -207,43 +272,63 @@ void main() {
     final result = TripApiService(
       api: http,
     ).routeTrip(_route(), canSend: () => allowed);
-    final rejected = expectLater(result, _error('SESSION_CHANGED'));
+    final rejected = expectLater(result, _error('ROUTE_REQUEST_NOT_ALLOWED'));
     allowed = false;
     http.pending.complete(_response());
     await rejected;
   });
 
-  testWidgets('manual refusal keeps edited order/transport and sends nothing', (
-    tester,
-  ) async {
-    final draft = PlanEditDraft(
-      stops: [_stop('A'), _stop('B')],
-      transport: 'walk',
+  for (final type in ['generate', 'research']) {
+    test(
+      '$type pending response reports changed AI permission without claiming an account switch',
+      () async {
+        final http = _Api();
+        var allowed = true;
+        final api = TripApiService(api: http);
+        final result = type == 'generate'
+            ? api.generateTrip(_generate(), canSend: () => allowed)
+            : api.researchTrip(_research(), canSend: () => allowed);
+        final rejected = expectLater(result, _error('AI_CONSENT_CHANGED'));
+        allowed = false;
+        http.pending.complete(_response());
+        await rejected;
+      },
     );
-    var calls = 0;
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: _editor(draft, (_) async {
-            calls++;
-            throw StateError('must not send');
-          }, (_) {}),
+  }
+
+  testWidgets(
+    'manual revoked service consent preserves edits and sends nothing',
+    (tester) async {
+      final draft = PlanEditDraft(
+        stops: [_stop('A'), _stop('B')],
+        transport: 'walk',
+      );
+      var calls = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: _editor(draft, (_) async {
+              calls++;
+              throw StateError('must not send');
+            }, (_) {}),
+          ),
         ),
-      ),
-    );
-    await tester.tap(find.widgetWithText(ChoiceChip, '자전거'));
-    tester
-        .widget<ReorderableListView>(find.byType(ReorderableListView))
-        .onReorder(0, 2);
-    await tester.pump();
-    await tester.tap(find.text('동선 만들기  →'));
-    await _decision(tester, false);
-    await tester.pumpAndSettle();
-    expect(calls, 0);
-    expect(draft.transport, 'bicycle');
-    expect(draft.stops.map((s) => s.name), ['B', 'A']);
-    expect(find.byType(AppLoadingScreen), findsNothing);
-  });
+      );
+      await tester.tap(find.widgetWithText(ChoiceChip, '자전거'));
+      tester
+          .widget<ReorderableListView>(find.byType(ReorderableListView))
+          .onReorder(0, 2);
+      await tester.pump();
+      ServiceConsentStore.instance.invalidate();
+      await tester.tap(find.text('동선 만들기  →'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ExternalAiConsentDialog), findsNothing);
+      expect(calls, 0);
+      expect(draft.transport, 'bicycle');
+      expect(draft.stops.map((s) => s.name), ['B', 'A']);
+      expect(find.byType(AppLoadingScreen), findsNothing);
+    },
+  );
 
   testWidgets(
     'duplicate taps send once; account switch prevents route result from being saved',
@@ -272,7 +357,8 @@ void main() {
           .onPressed!;
       next();
       next();
-      await _decision(tester, true);
+      await tester.pump();
+      expect(find.byType(ExternalAiConsentDialog), findsNothing);
       next();
       await tester.pump();
       expect(calls, 1);
@@ -303,6 +389,59 @@ void main() {
     },
   );
 
+  testWidgets('manual result is ignored after service consent is invalidated', (
+    tester,
+  ) async {
+    final draft = PlanEditDraft(
+      stops: [_stop('A'), _stop('B')],
+      transport: 'walk',
+    );
+    final pending = Completer<TripGenerateResponse>();
+    var routed = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: _editor(draft, (_) => pending.future, (_) => routed++),
+        ),
+      ),
+    );
+    await tester.tap(find.text('동선 만들기  →'));
+    await tester.pump();
+    expect(find.byType(ExternalAiConsentDialog), findsNothing);
+    ServiceConsentStore.instance.invalidate();
+    pending.complete(TripGenerateResponse.fromJson(_response()));
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle();
+    expect(routed, 0);
+    expect(draft.stops.map((s) => s.name), ['A', 'B']);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('explore route requires the service policy receipt before HTTP', (
+    tester,
+  ) async {
+    final plan = _plan();
+    TripRepository.instance.setLastPlan(plan);
+    ServiceConsentStore.instance.invalidate();
+    final http = _Api();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: PlaceExploreResultScreen(
+            selectedIds: {'stop_0', 'stop_1', 'stop_2'},
+            api: TripApiService(api: http),
+            consentGate: ExternalAiConsentGate(),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(http.paths, isEmpty);
+    expect(find.byType(ExternalAiConsentDialog), findsNothing);
+    expect(TripRepository.instance.lastPlan, same(plan));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'automatic research waits for first-frame consent; cancel preserves plan',
     (tester) async {
@@ -331,7 +470,7 @@ void main() {
 
   for (final all in [true, false]) {
     testWidgets(
-      'explore ${all ? 'route' : 'research'} decline preserves selection; retry sends exact API once',
+      'explore ${all ? 'route skips AI consent' : 'research requires AI consent'} and disposal discards response',
       (tester) async {
         final plan = _plan();
         TripRepository.instance.setLastPlan(plan);
@@ -349,15 +488,21 @@ void main() {
             ),
           ),
         );
-        await _decision(tester, false);
-        await tester.pumpAndSettle();
-        expect(http.paths, isEmpty);
+        if (all) {
+          await tester.pump();
+          expect(find.byType(ExternalAiConsentDialog), findsNothing);
+          expect(find.textContaining('외부 AI 전송에 동의하면'), findsNothing);
+        } else {
+          await _decision(tester, false);
+          await tester.pumpAndSettle();
+          expect(http.paths, isEmpty);
+          expect(find.byType(AppLoadingScreen), findsNothing);
+          await tester.tap(find.text('동의 확인하고 일정 만들기'));
+          await _decision(tester, true);
+          await tester.pump();
+        }
         expect(selected, before);
         expect(TripRepository.instance.lastPlan, same(plan));
-        expect(find.byType(AppLoadingScreen), findsNothing);
-        await tester.tap(find.text('동의 확인하고 일정 만들기'));
-        await _decision(tester, true);
-        await tester.pump();
         expect(http.paths, [
           all ? '/api/v1/trip/route' : '/api/v1/trip/research',
         ]);

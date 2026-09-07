@@ -6,7 +6,7 @@ import '../../../common/widgets/prev_button.dart';
 import '../../../core/api/places_api_service.dart';
 import '../../../core/api/trip_api_service.dart';
 import '../../../core/state/auth_store.dart';
-import '../../../common/widgets/external_ai_consent.dart';
+import '../../../core/state/service_consent_store.dart';
 import '../utils/manual_route_request.dart';
 import '../utils/plan_edit_draft.dart';
 import '../widgets/transport_theme.dart';
@@ -25,7 +25,6 @@ class ManualPlanScreen extends StatefulWidget {
     required this.initialStops,
     this.draft,
     this.route,
-    this.consentGate,
     required this.startDate,
     required this.endDate,
     required this.activeStartHour,
@@ -40,7 +39,6 @@ class ManualPlanScreen extends StatefulWidget {
   final List<TripStop> initialStops;
   final PlanEditDraft? draft;
   final Future<TripGenerateResponse> Function(TripRouteRequest)? route;
-  final ExternalAiConsentGate? consentGate;
   final DateTime startDate;
   final DateTime endDate;
   final int activeStartHour;
@@ -68,13 +66,11 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
 
   Future<void>? _routeFuture;
   TripGenerateResponse? _result;
-  bool _askingConsent = false;
-  ExternalAiPermission? _permission;
   final _screenSession = AuthStore.instance.sessionVersion;
   bool get _canSend =>
       mounted &&
       _screenSession == AuthStore.instance.sessionVersion &&
-      _permission?.isCurrentSession == true;
+      ServiceConsentStore.instance.canAccess;
 
   @override
   void initState() {
@@ -178,14 +174,13 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
     });
   }
 
-  Future<void> _makeRoute() async {
-    if (_routeFuture != null ||
-        _askingConsent ||
-        _screenSession != AuthStore.instance.sessionVersion) {
+  Future<void> _makeRoute({bool optimize = false}) async {
+    if (_routeFuture != null || !_canSend) {
       return;
     }
     final draft = buildManualRouteDraft(
       stops: _stops,
+      optimize: optimize,
       startDate: widget.startDate,
       endDate: widget.endDate,
       activeStartHour: widget.activeStartHour,
@@ -196,16 +191,6 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
     );
     final request = draft.request;
     if (request == null) return;
-    setState(() => _askingConsent = true);
-    final permission =
-        await (widget.consentGate ?? ExternalAiConsentGate.instance).ensure(
-          context,
-          ExternalAiScope.trip,
-        );
-    if (!mounted) return;
-    setState(() => _askingConsent = false);
-    _permission = permission;
-    if (permission == null || !_canSend) return;
     setState(() {
       _routeFuture =
           (widget.route != null
@@ -345,15 +330,26 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
             child: Column(
               children: [
                 NextButton(
-                  onPressed: blocked == null && !_askingConsent
-                      ? _makeRoute
-                      : null,
+                  onPressed: blocked == null && _canSend ? _makeRoute : null,
                   label: '동선 만들기  →',
                   info: switch (blocked) {
                     ManualRouteBlock.tooFew => '장소를 2곳 이상 넣어 주세요',
                     ManualRouteBlock.tooMany => '한 번에 10곳까지 넣을 수 있어요',
                     null => '${_stops.length}곳으로 동선을 만들어요',
                   },
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: blocked == null && _canSend
+                      ? () => _makeRoute(optimize: true)
+                      : null,
+                  icon: const Icon(Icons.alt_route),
+                  label: const Text('동선 최적화'),
+                ),
+                const Text(
+                  '각 일차의 첫 장소는 유지하고 나머지 방문 순서를 다시 계산해요.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 12),
                 ),
                 const SizedBox(height: 12),
                 PrevButton(onPressed: _cancel, label: '수정 취소'),
