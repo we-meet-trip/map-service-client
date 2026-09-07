@@ -67,7 +67,17 @@ Google Play의 공유 여부는 외부 전송 여부와 별도다. 개발자의 
 
 ## 5. SDK privacy manifest와 네이티브 제출 gate
 
-현재 source `ios/Podfile.lock`은 GoogleMaps **8.4.0**, Google-Maps-iOS-Utils **5.0.0**을 기록한다. 최신 Google 설명은 최신 SDK 기준이므로 이 버전이 같은 manifest·수집을 갖는다고 단정하지 않는다. 버전 숫자만으로 manifest가 없다고 단정할 수도 없다. 최종 `pubspec.lock`, resolved Android dependencies, `Podfile.lock` 및 실제 IPA/xcarchive 내부를 함께 보존한다. [Maps Android 수집 안내](https://developers.google.com/maps/documentation/android-sdk/play-data-disclosure), [Maps iOS 개인정보 안내](https://developers.google.com/maps/documentation/ios-sdk/apple-privacy-policy)
+기준 d04b79d 실제 iOS artifact의 GoogleMaps **8.4.0**에는 Google 자체 privacy manifest가 없었다. 후속 source는 GoogleMaps **9.4.0** / Google-Maps-iOS-Utils **6.1.0** 및 최소 iOS15로 고정했다. 원격 resolver34090060334가 두 pod만 변경하고 설치된 Google 원본 manifest SHA·선언을 검증했다. 잠금 파일 SHA256은 `f886c7470cce7882e1d9cead0e7050b54773351044b946947a0a6c5e4707bdbb`다. 새로 빌드한 앱 내부 vendor manifest 검사는 별도 필수 gate이며 plugin manifest로 대신하지 않는다. [정확 공급자·버전 계약](IOS_VENDOR_PRIVACY_2026-09-06.md). 최종 `pubspec.lock`, resolved Android dependencies, `Podfile.lock` 및 실제 IPA/xcarchive 내부를 함께 보존한다. [Maps Android 수집 안내](https://developers.google.com/maps/documentation/android-sdk/play-data-disclosure), [Maps iOS 개인정보 안내](https://developers.google.com/maps/documentation/ios-sdk/apple-privacy-policy)
+
+원격 설치 원본 Maps9.4.0 manifest에서 확인한 App Privacy 보조 입력은 다음과 같다. 이 표는 공급자 선언이며 MAP 자체 계정·채팅·위치 수집을 제외하는 근거가 아니다. 전체 앱의 추적·공유·보관 답변은 위 표의 미완 조건을 유지한다.
+
+| Google iOS SDK 선언 유형 | 사용자 연결 | 목적 | 해당 유형 tracking 선언 |
+| --- | --- | --- | --- |
+| Device ID | 예 | Analytics, App Functionality | 아니오 |
+| Other Data Types | 예 | Analytics | 아니오 |
+| Crash Data / Performance Data / Product Interaction | 아니오 | Analytics | 아니오 |
+
+Required Reason API는 vendor 원본의 DiskSpace(85F4.1/E174.1), FileTimestamp(C617.1), SystemBootTime(35F9.1), UserDefaults(1C8F.1/CA92.1)를 그대로 검증한다. 이 vendor 이유 코드를 MAP의 별도 사용 이유로 복사하지 않는다.
 
 Apple의 지정 SDK 목록에는 Flutter, geolocator_apple, image_picker_ios 등이 포함된다. 최종 배포물의 해당 SDK 및 재포장·전이 의존성에 대한 privacy manifest, 필요한 서명, Required Reason API 사용 이유를 확인한다. 빈 `PrivacyInfo.xcprivacy`나 타 SDK의 이유 코드를 복사해 검사를 통과시켜서는 안 된다. 선언은 실제 호출·사용 목적과 일치해야 한다. [Apple SDK 요구사항](https://developer.apple.com/support/third-party-SDK-requirements/)
 
