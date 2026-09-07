@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../common/widgets/review_summary_section.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../common/constants/category_tags.dart';
@@ -10,7 +11,7 @@ import '../../../core/api/review_api_service.dart';
 /// 장소 상세를 아래에서 올라오는 시트로 보여 준다.
 ///
 /// [name] 은 장소명, [address] 는 주소, [category] 는 분류 칩에 쓴다.
-/// 두 줄 요약은 이 시트를 열 때 서버에 물어 만든다. 일정 목록에는 요약을 싣지
+/// 두 줄 요약은 저장된 캐시만 조회하고 새 생성은 별도 동의 후 요청한다. 일정 목록에는 요약을 싣지
 /// 않는다 — 요약은 장소를 눌러 자세히 볼 때 필요한 정보다. 서버가 장소별로
 /// 하루 동안 결과를 들고 있어 두 번째 클릭부터는 즉시 나온다.
 ///
@@ -76,9 +77,6 @@ class _PlaceDetailSheetState extends State<_PlaceDetailSheet> {
   final _api = ReviewApiService.instance;
   final _photoApi = PlacePhotoApiService.instance;
 
-  List<String> _bullets = const [];
-  bool _summaryLoading = false;
-
   List<PlacePhoto> _photos = const [];
 
   final List<BlogReview> _reviews = [];
@@ -89,7 +87,6 @@ class _PlaceDetailSheetState extends State<_PlaceDetailSheet> {
   @override
   void initState() {
     super.initState();
-    _loadSummary();
     _loadPhotos();
     _loadFirstPage();
   }
@@ -107,16 +104,6 @@ class _PlaceDetailSheetState extends State<_PlaceDetailSheet> {
     );
     if (!mounted || photos.isEmpty) return;
     setState(() => _photos = photos);
-  }
-
-  Future<void> _loadSummary() async {
-    setState(() => _summaryLoading = true);
-    final bullets = await _api.fetchSummary(widget.name);
-    if (!mounted) return;
-    setState(() {
-      _bullets = bullets;
-      _summaryLoading = false;
-    });
   }
 
   Future<void> _loadFirstPage() async {
@@ -245,22 +232,10 @@ class _PlaceDetailSheetState extends State<_PlaceDetailSheet> {
         tileWidth: _photoTileWidth,
       );
 
-  /// 요약 영역. 근거를 못 구했으면 영역째 접는다.
-  Widget _buildSummary() {
-    if (_summaryLoading) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 12),
-        child: Center(
-          child: SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-        ),
-      );
-    }
-    if (_bullets.isEmpty) return const SizedBox.shrink();
-    return Column(
+  /// 저장된 요약을 표시하고, 없으면 명시적 생성 버튼을 제공한다.
+  Widget _buildSummary() => ReviewSummarySection(
+    query: widget.name,
+    resultBuilder: (bullets) => Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
@@ -285,7 +260,7 @@ class _PlaceDetailSheetState extends State<_PlaceDetailSheet> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              for (final line in _bullets)
+              for (final line in bullets)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 4),
                   child: Text(
@@ -300,8 +275,8 @@ class _PlaceDetailSheetState extends State<_PlaceDetailSheet> {
           ),
         ),
       ],
-    );
-  }
+    ),
+  );
 
   /// 블로그 후기 목록과 더보기.
   Widget _buildReviews() {

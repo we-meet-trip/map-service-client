@@ -139,7 +139,7 @@ class _ModerationCenterScreenState extends State<ModerationCenterScreen> {
         const SizedBox(height: 8),
         const Text(
           '채팅 메시지 옆 메뉴에서 해당 메시지를 신고하거나 상대를 차단할 수 있어요. '
-          '생성 일정과 Vision 답변은 결과의 신고 버튼을 이용해주세요.\n\n'
+          '생성 일정, 장소 리뷰 요약과 Vision 답변은 결과의 신고 버튼을 이용해주세요.\n\n'
           '신고는 운영자가 검토하며 처리 상태가 아래에 표시됩니다. 신고는 상대에게 알리지 않아요. '
           '차단하면 상대의 채팅 메시지가 숨겨집니다. 차단과 채팅방 나가기는 별개예요. '
           '긴급한 위험이 있다면 112 또는 119에 연락해주세요.',

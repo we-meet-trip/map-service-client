@@ -125,6 +125,7 @@ class ApiClient {
       if (body != null) {
         request.body = jsonEncode(body);
       }
+      _checkRequestPermission(canSend);
       response = await request
           .send()
           .then(http.Response.fromStream)

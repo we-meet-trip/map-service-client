@@ -85,8 +85,13 @@ void main() {
         MaterialApp(home: ExternalAiSettingsScreen(consentGate: gate)),
       );
       await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(find.textContaining('이미 서버나 외부 AI'), 150);
       expect(find.textContaining('이미 서버나 외부 AI'), findsOneWidget);
       expect(find.textContaining('기기 권한'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('revoke-vision')),
+        -150,
+      );
       await tester.tap(find.byKey(const ValueKey('revoke-vision')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('취소'));

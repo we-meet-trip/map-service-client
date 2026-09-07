@@ -2,18 +2,20 @@ import 'dart:math';
 
 import 'api_client.dart';
 
-enum ReportContentType { chatMessage, trip, vision }
+enum ReportContentType { chatMessage, trip, vision, reviewSummary }
 
 extension ReportContentTypeLabel on ReportContentType {
   String get apiValue => switch (this) {
     ReportContentType.chatMessage => 'CHAT_MESSAGE',
     ReportContentType.trip => 'TRIP',
     ReportContentType.vision => 'VISION',
+    ReportContentType.reviewSummary => 'REVIEW_SUMMARY',
   };
   String get label => switch (this) {
     ReportContentType.chatMessage => '채팅 메시지',
     ReportContentType.trip => '생성 일정',
     ReportContentType.vision => 'Vision 답변',
+    ReportContentType.reviewSummary => '리뷰 요약',
   };
 }
 
@@ -50,6 +52,17 @@ class ReportTarget {
       scheduleId = null,
       recommendJobId = null;
 
+  const ReportTarget.reviewSummary()
+    : type = ReportContentType.reviewSummary,
+      roomId = null,
+      messageSeq = null,
+      scheduleId = null,
+      recommendJobId = null;
+
+  bool get requiresDescription =>
+      type == ReportContentType.vision ||
+      type == ReportContentType.reviewSummary;
+
   final ReportContentType type;
   final int? roomId;
   final int? messageSeq;
@@ -61,7 +74,7 @@ class ReportTarget {
       scheduleId != null
           ? scheduleId! > 0 && recommendJobId == null
           : recommendJobId != null && _uuid.hasMatch(recommendJobId!),
-    ReportContentType.vision => true,
+    ReportContentType.vision || ReportContentType.reviewSummary => true,
   };
 
   Map<String, Object> toJson() {
@@ -80,7 +93,7 @@ final _uuid = RegExp(
   r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
 );
 
-String newReportRequestId() {
+String newClientRequestId() {
   final random = Random.secure();
   final bytes = List<int>.generate(16, (_) => random.nextInt(256));
   bytes[6] = (bytes[6] & 15) | 64;
@@ -104,8 +117,7 @@ class ReportSubmission {
   Map<String, Object> toJson() {
     if (!_uuid.hasMatch(clientRequestId) ||
         (description?.length ?? 0) > 1000 ||
-        (target.type == ReportContentType.vision &&
-            (description?.isEmpty ?? true))) {
+        (target.requiresDescription && (description?.isEmpty ?? true))) {
       throw const FormatException('Invalid report submission');
     }
     return {

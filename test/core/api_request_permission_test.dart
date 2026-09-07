@@ -7,6 +7,15 @@ import 'package:map_service_client/core/api/api_client.dart';
 import 'package:map_service_client/core/state/auth_store.dart';
 import 'package:map_service_client/core/state/service_consent_store.dart';
 
+class _RevokingPayload {
+  _RevokingPayload(this.revoke);
+  final void Function() revoke;
+  Map<String, Object> toJson() {
+    revoke();
+    return {'fixture': true};
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   final auth = AuthStore.instance;
@@ -43,6 +52,31 @@ void main() {
       'code',
       'REQUEST_PERMISSION_REVOKED',
     ),
+  );
+
+  test(
+    'permission is checked after encoding and immediately before sending',
+    () async {
+      var allowed = true;
+      var calls = 0;
+      await http.runWithClient(
+        () async {
+          await expectLater(
+            ApiClient.instance.post(
+              '/api/v1/reviews/summary',
+              body: _RevokingPayload(() => allowed = false),
+              canSend: () => allowed,
+            ),
+            denied,
+          );
+        },
+        () => MockClient((_) async {
+          calls++;
+          return http.Response('{}', 200);
+        }),
+      );
+      expect(calls, 0);
+    },
   );
 
   test('withdrawn request opens no HTTP connection', () async {

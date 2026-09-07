@@ -28,12 +28,11 @@ class ExternalAiSettingsScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        scope == ExternalAiScope.vision
-                            ? 'Vision 질문'
-                            : '여행 추천·재탐색',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
+                      Text(switch (scope) {
+                        ExternalAiScope.vision => 'Vision 질문',
+                        ExternalAiScope.trip => '여행 추천·재탐색',
+                        ExternalAiScope.reviewSummary => '장소 리뷰 요약',
+                      }, style: Theme.of(context).textTheme.titleMedium),
                       const SizedBox(height: 8),
                       Text(gate.hasConsent(scope) ? '동의함 · 이번 로그인' : '동의하지 않음'),
                       if (scope == ExternalAiScope.vision &&

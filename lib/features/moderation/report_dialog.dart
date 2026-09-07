@@ -7,25 +7,42 @@ Future<ModerationReport?> showContentReport(
   BuildContext context,
   ReportTarget target, {
   ModerationApiService? service,
+  String? initialDescription,
 }) {
   if (!target.valid) return Future.value(null);
   return showDialog<ModerationReport>(
     context: context,
     barrierDismissible: false,
-    builder: (_) => ContentReportDialog(target: target, service: service),
+    builder: (_) => ContentReportDialog(
+      target: target,
+      service: service,
+      initialDescription: initialDescription,
+    ),
   );
 }
 
 class ContentReportDialog extends StatefulWidget {
-  const ContentReportDialog({super.key, required this.target, this.service});
+  const ContentReportDialog({
+    super.key,
+    required this.target,
+    this.service,
+    this.initialDescription,
+  });
   final ReportTarget target;
   final ModerationApiService? service;
+  final String? initialDescription;
   @override
   State<ContentReportDialog> createState() => _ContentReportDialogState();
 }
 
 class _ContentReportDialogState extends State<ContentReportDialog> {
-  final _description = TextEditingController();
+  late final TextEditingController _description;
+  @override
+  void initState() {
+    super.initState();
+    _description = TextEditingController(text: widget.initialDescription);
+  }
+
   final _sessionVersion = AuthStore.instance.sessionVersion;
   ReportReason? _reason;
   ReportSubmission? _submission;
@@ -45,7 +62,7 @@ class _ContentReportDialogState extends State<ContentReportDialog> {
       return;
     }
     if (_reason == null ||
-        (widget.target.type == ReportContentType.vision &&
+        (widget.target.requiresDescription &&
             _description.text.trim().isEmpty)) {
       setState(() => _error = '신고 사유와 필요한 설명을 입력해주세요.');
       return;
@@ -53,7 +70,7 @@ class _ContentReportDialogState extends State<ContentReportDialog> {
     _submission ??= ReportSubmission(
       target: widget.target,
       reason: _reason!,
-      clientRequestId: newReportRequestId(),
+      clientRequestId: newClientRequestId(),
       description: _description.text,
     );
     setState(() {
@@ -91,7 +108,11 @@ class _ContentReportDialogState extends State<ContentReportDialog> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('운영자가 내용을 검토합니다. 신고만으로 상대가 차단되지는 않아요.'),
+                    Text(
+                      widget.target.type == ReportContentType.reviewSummary
+                          ? '운영자는 제출한 설명을 검토합니다. 장소명과 요약은 신고자가 제공한 설명이며, 원문과의 일치 여부가 자동 검증되지는 않습니다.'
+                          : '운영자가 내용을 검토합니다. 신고만으로 상대가 차단되지는 않아요.',
+                    ),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<ReportReason>(
                       initialValue: _reason,
@@ -117,9 +138,8 @@ class _ContentReportDialogState extends State<ContentReportDialog> {
                       maxLines: 5,
                       maxLength: 1000,
                       decoration: InputDecoration(
-                        labelText:
-                            widget.target.type == ReportContentType.vision
-                            ? '문제가 된 답변과 신고 이유 (필수)'
+                        labelText: widget.target.requiresDescription
+                            ? '문제가 된 내용과 신고 이유 (필수)'
                             : '추가 설명 (선택)',
                         helperText: '비밀번호·연락처 등 불필요한 개인정보는 적지 마세요.',
                         helperMaxLines: 2,

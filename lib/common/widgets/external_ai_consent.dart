@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/state/auth_store.dart';
 
-enum ExternalAiScope { vision, trip }
+enum ExternalAiScope { vision, trip, reviewSummary }
 
 class ExternalAiPermission {
   ExternalAiPermission._(
@@ -112,11 +112,11 @@ class _ExternalAiConsentDialogState extends State<ExternalAiConsentDialog> {
   bool _includeLocation = false;
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: Text(
-      widget.scope == ExternalAiScope.vision
-          ? 'Vision 외부 AI 전송 동의'
-          : '여행 추천 외부 AI 전송 동의',
-    ),
+    title: Text(switch (widget.scope) {
+      ExternalAiScope.vision => 'Vision 외부 AI 전송 동의',
+      ExternalAiScope.trip => '여행 추천 외부 AI 전송 동의',
+      ExternalAiScope.reviewSummary => '장소 리뷰 요약 외부 AI 전송 동의',
+    }),
     content: SizedBox(
       width: 420,
       child: SingleChildScrollView(
@@ -125,15 +125,18 @@ class _ExternalAiConsentDialogState extends State<ExternalAiConsentDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              widget.scope == ExternalAiScope.vision
+              widget.scope == ExternalAiScope.reviewSummary
+                  ? 'MAP은 선택한 장소명과 공개 블로그 후기 발췌문을 Google Gemini에 전달해 장소 리뷰를 요약합니다.'
+                  : widget.scope == ExternalAiScope.vision
                   ? 'MAP은 답변을 만들기 위해 촬영한 사진, 입력한 질문(음성을 글자로 바꾼 내용 포함), 최근 대화와 이전 인식 결과를 Google Gemini에 전달합니다.'
                   : 'MAP은 여행 추천과 설명을 만들기 위해 여행 지역·날짜·활동 시간, 이동수단, 예산·취향, 선택한 장소와 일정 정보를 Google Gemini에 전달합니다.',
             ),
             const SizedBox(height: 12),
             const Text(
-              '전송에 동의해야 이 AI 기능을 사용할 수 있어요. 동의하지 않아도 다른 기능은 이용할 수 있습니다. '
-              '사진과 질문에 불필요한 개인정보가 포함되지 않았는지 확인해주세요.',
+              '전송에 동의해야 이 AI 기능을 사용할 수 있어요. 동의하지 않아도 다른 기능은 이용할 수 있습니다.',
             ),
+            if (widget.scope == ExternalAiScope.vision)
+              const Text('사진과 질문에 불필요한 개인정보가 포함되지 않았는지 확인해주세요.'),
             if (widget.scope == ExternalAiScope.vision)
               CheckboxListTile(
                 contentPadding: EdgeInsets.zero,
