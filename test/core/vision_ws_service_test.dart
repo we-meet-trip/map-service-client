@@ -22,10 +22,13 @@ class TestSink implements WebSocketSink {
 
 class TestChannel implements WebSocketChannel {
   final incoming = StreamController<dynamic>();
-  TestChannel({bool ready = true}) {
+  TestChannel({bool ready = true, this.closedCode}) {
     if (ready) connected.complete();
   }
   final connected = Completer<void>();
+  final int? closedCode;
+  @override
+  int? get closeCode => closedCode;
   @override
   final TestSink sink = TestSink();
   @override
@@ -160,6 +163,124 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     expect(channels, isEmpty);
     expect(errors, isNotEmpty);
+  });
+
+  test(
+    'structured policy denial invalidates consent before displaying a result',
+    () async {
+      await service.sendFrame(request);
+      channels.single.incoming.add(
+        '{"session_id":"request-1","status":"failed","code":"AGE_RESTRICTED","error":"blocked"}',
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(ServiceConsentStore.instance.canAccess, isFalse);
+      expect(responses, isEmpty);
+      expect(channels.single.sink.closed, isTrue);
+      await service.sendFrame(request);
+      expect(channels.single.sink.sent, hasLength(1));
+    },
+  );
+
+  test(
+    'opaque failed handshake rechecks policy once and queued retry sends no frame',
+    () async {
+      service.dispose();
+      final channel = TestChannel(ready: false);
+      channels.add(channel);
+      var connections = 0;
+      service = VisionWsService(
+        channelFactory: (_, _) {
+          connections++;
+          return channel;
+        },
+      );
+      final checked = Completer<ServiceConsentStatus>();
+      var checks = 0;
+      ServiceConsentStore.instance.loadStatus = () {
+        checks++;
+        return checked.future;
+      };
+      final sending = service.sendFrame(request);
+      await Future<void>.delayed(Duration.zero);
+      channel.connected.completeError(StateError('opaque handshake failure'));
+      await Future<void>.delayed(Duration.zero);
+      final retry = service.sendFrame(request);
+      expect(checks, 1);
+      expect(connections, 1);
+      checked.complete(
+        ServiceConsentStatus.fromJson({
+          'terms_version': servicePolicyVersion,
+          'privacy_version': servicePolicyVersion,
+          'minimum_age': 18,
+          'accepted': false,
+          'age_eligible': false,
+          'accepted_at': null,
+        }),
+      );
+      await Future.wait([sending, retry]);
+      expect(ServiceConsentStore.instance.canAccess, isFalse);
+      expect(channel.sink.sent, isEmpty);
+      expect(connections, 1);
+    },
+  );
+
+  test(
+    'queued retry cannot send an old request after the account changes during policy recheck',
+    () async {
+      service.dispose();
+      final channel = TestChannel(ready: false);
+      channels.add(channel);
+      var connections = 0;
+      service = VisionWsService(
+        channelFactory: (_, _) {
+          connections++;
+          return channel;
+        },
+      );
+      final store = ServiceConsentStore.instance;
+      final receipt = store.status!;
+      final checking = Completer<ServiceConsentStatus>();
+      store.loadStatus = () => checking.future;
+      final sending = service.sendFrame(request);
+      await Future<void>.delayed(Duration.zero);
+      channel.connected.completeError(StateError('opaque handshake failure'));
+      await Future<void>.delayed(Duration.zero);
+      final retry = service.sendFrame(request);
+      await auth.save(
+        const AuthTokens(accessToken: 'token-b', refreshToken: 'rb', userId: 2),
+      );
+      store.loadStatus = () async => receipt;
+      await store.refresh();
+      expect(store.canAccess, isTrue);
+      checking.complete(receipt);
+      await Future.wait([sending, retry]);
+      expect(connections, 1);
+      expect(channel.sink.sent, isEmpty);
+    },
+  );
+
+  test('close 4403 without a JSON frame also rechecks server policy', () async {
+    service.dispose();
+    final channel = TestChannel(closedCode: 4403);
+    channels.add(channel);
+    service = VisionWsService(channelFactory: (_, _) => channel);
+    await service.sendFrame(request);
+    var checks = 0;
+    ServiceConsentStore.instance.loadStatus = () async {
+      checks++;
+      return ServiceConsentStatus.fromJson({
+        'terms_version': servicePolicyVersion,
+        'privacy_version': servicePolicyVersion,
+        'minimum_age': 18,
+        'accepted': false,
+        'age_eligible': null,
+        'accepted_at': null,
+      });
+    };
+    await channel.incoming.close();
+    await Future<void>.delayed(Duration.zero);
+    expect(checks, 1);
+    expect(ServiceConsentStore.instance.canAccess, isFalse);
   });
 
   test(

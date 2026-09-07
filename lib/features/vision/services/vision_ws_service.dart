@@ -29,6 +29,7 @@ class VisionWsService {
   WebSocketChannel? _channel;
   StreamSubscription? _sub;
   Future<void>? _connecting;
+  Future<void>? _policyRecheck;
   Timer? _timeout;
   String? _pendingId;
   int? _sessionVersion;
@@ -57,6 +58,11 @@ class VisionWsService {
 
   Future<void> connect(String sessionId) async {
     if (_disposed) return;
+    final requestSession = AuthStore.instance.sessionVersion;
+    if (_policyRecheck case final pending?) await pending;
+    if (_disposed || requestSession != AuthStore.instance.sessionVersion) {
+      return;
+    }
     if (!_consent.canAccess) {
       _error('이용 조건 확인이 필요해요.');
       return;
@@ -122,11 +128,13 @@ class VisionWsService {
         },
         onError: (Object _) {
           if (version != _connectionVersion) return;
+          _refreshPolicyAfterSocketFailure();
           _error('서버에 연결하지 못했어요. 다시 시도해주세요.');
           disconnect();
         },
         onDone: () {
           if (identical(_channel, channel)) {
+            if (channel.closeCode == 4403) _refreshPolicyAfterSocketFailure();
             _channel = null;
             _error('연결이 종료됐어요. 다시 시도해주세요.');
           }
@@ -144,9 +152,31 @@ class VisionWsService {
       }
     } catch (_) {
       if (version != _connectionVersion) return;
+      _refreshPolicyAfterSocketFailure();
       _error('서버에 연결하지 못했어요. 다시 시도해주세요.');
       disconnect();
     }
+  }
+
+  void _refreshPolicyAfterSocketFailure() {
+    if (_disposed ||
+        _policyRecheck != null ||
+        !_consent.canAccess ||
+        _sessionVersion != AuthStore.instance.sessionVersion) {
+      return;
+    }
+    // Browsers do not expose the JSON/close code of a refused HTTP handshake.
+    // Recheck once through authenticated REST; no inference is retried here.
+    late final Future<void> work;
+    work = _consent
+        .refresh(force: true)
+        .catchError((Object _) {
+          // The store itself removes any accepted receipt on lookup failure.
+        })
+        .whenComplete(() {
+          if (identical(_policyRecheck, work)) _policyRecheck = null;
+        });
+    _policyRecheck = work;
   }
 
   Future<void> sendFrame(
@@ -154,11 +184,15 @@ class VisionWsService {
     bool Function()? canSend,
   }) async {
     if (_disposed) return;
+    final requestSession = AuthStore.instance.sessionVersion;
+    if (_policyRecheck case final pending?) await pending;
+    if (_disposed || requestSession != AuthStore.instance.sessionVersion) {
+      return;
+    }
     if (!_consent.canAccess) {
       _error('이용 조건을 확인한 뒤 다시 시도해주세요.');
       return;
     }
-    final requestSession = AuthStore.instance.sessionVersion;
     if (canSend != null && !canSend()) {
       _error('외부 AI 전송 동의를 다시 확인해주세요.');
       return;

@@ -88,6 +88,7 @@ class _ServiceConsentScreenState extends State<ServiceConsentScreen> {
             'MAP은 만 18세 이상만 이용할 수 있어요. 생년월일 정정 또는 탈퇴를 선택할 수 있습니다.',
           'POLICY_VERSION_MISMATCH' => '정책이 변경됐어요. 최신 내용을 다시 확인해주세요.',
           'COMMON_002' ||
+          'VALIDATION_ERROR' ||
           'VALIDATION_FAILED' ||
           'POLICY_ACCEPTANCE_INVALID' => '만 18세 이상 확인과 두 정책 동의를 각각 선택해주세요.',
           _ => '동의를 저장하지 못했어요. 다시 시도해주세요.',
