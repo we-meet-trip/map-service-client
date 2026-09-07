@@ -69,7 +69,7 @@ void main() {
       'privacy_version': servicePolicyVersion,
       'minimum_age': 18,
       'accepted': true,
-      'age_eligible': null,
+      'age_eligible': true,
       'accepted_at': '2026-09-07T00:00:00Z',
     });
     await consent.refresh();
