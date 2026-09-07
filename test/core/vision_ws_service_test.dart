@@ -166,12 +166,11 @@ void main() {
     expect(errors, isNotEmpty);
   });
 
-  test(
-    'structured policy denial invalidates consent before displaying a result',
-    () async {
+  for (final code in ['AGE_RESTRICTED', 'AGE_INFORMATION_REQUIRED']) {
+    test('$code invalidates consent before displaying a Vision result', () async {
       await service.sendFrame(request);
       channels.single.incoming.add(
-        '{"session_id":"request-1","status":"failed","code":"AGE_RESTRICTED","error":"blocked"}',
+        '{"session_id":"request-1","status":"failed","code":"$code","error":"blocked"}',
       );
       await Future<void>.delayed(Duration.zero);
       expect(ServiceConsentStore.instance.canAccess, isFalse);
@@ -179,8 +178,8 @@ void main() {
       expect(channels.single.sink.closed, isTrue);
       await service.sendFrame(request);
       expect(channels.single.sink.sent, hasLength(1));
-    },
-  );
+    });
+  }
 
   test(
     'opaque failed handshake rechecks policy once and queued retry sends no frame',
