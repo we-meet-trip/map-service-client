@@ -7,6 +7,7 @@
     ],
     "predeploy": [
       "bash tool/check_app_config.sh",
+      "python3 scripts/hosting-content-check.py --directory \"$RESOURCE_DIR\" --firebase firebase.json",
       "bash tool/check_link_associations.sh",
       "bash tool/check_web_secrets.sh"
     ],
@@ -68,9 +69,155 @@
             "value": "application/json"
           }
         ]
+      },
+      {
+        "source": "/legal/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-store"
+          },
+          {
+            "key": "X-Content-Type-Options",
+            "value": "nosniff"
+          },
+          {
+            "key": "Referrer-Policy",
+            "value": "no-referrer"
+          }
+        ]
+      },
+      {
+        "regex": "^/(legal/)?(privacy|terms|location-terms|support|delete|delete-account|account-deletion)(/|\\.html)?$",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-store"
+          },
+          {
+            "key": "X-Content-Type-Options",
+            "value": "nosniff"
+          },
+          {
+            "key": "Referrer-Policy",
+            "value": "no-referrer"
+          }
+        ]
       }
     ],
     "rewrites": [
+      {
+        "source": "/privacy",
+        "destination": "/legal/privacy.html"
+      },
+      {
+        "source": "/privacy/",
+        "destination": "/legal/privacy.html"
+      },
+      {
+        "source": "/legal/privacy",
+        "destination": "/legal/privacy.html"
+      },
+      {
+        "source": "/legal/privacy/",
+        "destination": "/legal/privacy.html"
+      },
+      {
+        "source": "/terms",
+        "destination": "/legal/terms.html"
+      },
+      {
+        "source": "/terms/",
+        "destination": "/legal/terms.html"
+      },
+      {
+        "source": "/legal/terms",
+        "destination": "/legal/terms.html"
+      },
+      {
+        "source": "/legal/terms/",
+        "destination": "/legal/terms.html"
+      },
+      {
+        "source": "/location-terms",
+        "destination": "/legal/location-terms.html"
+      },
+      {
+        "source": "/location-terms/",
+        "destination": "/legal/location-terms.html"
+      },
+      {
+        "source": "/legal/location-terms",
+        "destination": "/legal/location-terms.html"
+      },
+      {
+        "source": "/legal/location-terms/",
+        "destination": "/legal/location-terms.html"
+      },
+      {
+        "source": "/support",
+        "destination": "/legal/support.html"
+      },
+      {
+        "source": "/support/",
+        "destination": "/legal/support.html"
+      },
+      {
+        "source": "/legal/support",
+        "destination": "/legal/support.html"
+      },
+      {
+        "source": "/legal/support/",
+        "destination": "/legal/support.html"
+      },
+      {
+        "source": "/delete",
+        "destination": "/legal/delete-account.html"
+      },
+      {
+        "source": "/delete/",
+        "destination": "/legal/delete-account.html"
+      },
+      {
+        "source": "/legal/delete",
+        "destination": "/legal/delete-account.html"
+      },
+      {
+        "source": "/legal/delete/",
+        "destination": "/legal/delete-account.html"
+      },
+      {
+        "source": "/delete-account",
+        "destination": "/legal/delete-account.html"
+      },
+      {
+        "source": "/delete-account/",
+        "destination": "/legal/delete-account.html"
+      },
+      {
+        "source": "/legal/delete-account",
+        "destination": "/legal/delete-account.html"
+      },
+      {
+        "source": "/legal/delete-account/",
+        "destination": "/legal/delete-account.html"
+      },
+      {
+        "source": "/account-deletion",
+        "destination": "/legal/delete-account.html"
+      },
+      {
+        "source": "/account-deletion/",
+        "destination": "/legal/delete-account.html"
+      },
+      {
+        "source": "/legal/account-deletion",
+        "destination": "/legal/delete-account.html"
+      },
+      {
+        "source": "/legal/account-deletion/",
+        "destination": "/legal/delete-account.html"
+      },
       {
         "source": "/invite/**",
         "destination": "/invite/index.html"
@@ -79,6 +226,7 @@
         "source": "**",
         "destination": "/index.html"
       }
-    ]
+    ],
+    "site": "mapcenter-b59ca"
   }
 }

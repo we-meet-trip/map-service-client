@@ -15,6 +15,7 @@ class InviteEnvironmentTest(unittest.TestCase):
             'schema_version': 1, 'app_environment': 'test',
             'android_package': 'kr.mapservice.client.test', 'invite_scheme': 'mapservice-test',
             'invite_origin': 'https://invite.example.com',
+            'public_site_origin': 'https://config.example.com',
             'api_allowed_origins': ['https://api.example.com'],
             'app_config_url': 'https://config.example.com/test.json',
             **(overrides or {}),
@@ -39,7 +40,7 @@ const context = { URL, navigator: {userAgent: 'Android'},
   fetch: async (url, options) => {
     requests.push({url, options});
     if (url === '/invite-environment.json') return {ok: true, json: async () => input.config};
-    if (url === input.config.app_config_url) return {ok: true, json: async () => ({api_base_url: input.api})};
+    if (url === input.config.app_config_url) return {ok: true, json: async () => ({api_base_url: input.api, environment: input.config.app_environment})};
     if (input.preview_failure) throw new Error('offline');
     return {ok: true, json: async () => ({title: 'Fixture room'})};
   },
@@ -68,7 +69,9 @@ setTimeout(() => process.stdout.write(JSON.stringify({requests, button: elements
         for invalid in [{'app_environment': 'prod'}, {'android_package': 'kr.mapservice.client'},
                         {'invite_scheme': 'mapservice'}, {'schema_version': 2},
                         {'invite_origin': 'https://other.example.com'},
-                        {'app_config_url': 'http://config.example.com/test.json'}]:
+                        {'app_config_url': 'http://config.example.com/test.json'},
+                        {'public_site_origin': 'https://attacker.example.com'},
+                        {'public_site_origin': 'http://config.example.com'}]:
             with self.subTest(invalid=invalid):
                 result = self.render(invalid)
                 self.assertEqual(result['button']['attributes']['aria-disabled'], 'true')
