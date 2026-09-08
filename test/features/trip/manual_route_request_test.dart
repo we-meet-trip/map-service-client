@@ -13,21 +13,22 @@ void main() {
     int day = 1,
     String? category,
     String? contentId,
-  }) =>
-      TripStop(
-        order: order,
-        day: day,
-        name: name,
-        address: '$name 주소',
-        time: '',
-        latitude: 38.19,
-        longitude: 128.60,
-        category: category,
-        contentId: contentId,
-      );
+  }) => TripStop(
+    order: order,
+    day: day,
+    name: name,
+    address: '$name 주소',
+    time: '',
+    latitude: 38.19,
+    longitude: 128.60,
+    category: category,
+    contentId: contentId,
+  );
 
-  ManualRouteDraft draftOf(List<TripStop> stops) => buildManualRouteDraft(
+  ManualRouteDraft draftOf(List<TripStop> stops, {bool optimize = false}) =>
+      buildManualRouteDraft(
         stops: stops,
+        optimize: optimize,
         startDate: DateTime(2026, 5, 1),
         endDate: DateTime(2026, 5, 2),
         activeStartHour: 9,
@@ -45,11 +46,26 @@ void main() {
 
     expect(draft.blockedBy, isNull);
     final body = draft.request!.toJson();
+    expect(body['optimize'], isFalse);
     final places = body['places'] as List;
     expect(places.map((p) => (p as Map)['name']), ['속초해변', '영금정']);
     expect((places.first as Map)['category'], '해변');
     expect((places.first as Map)['content_id'], 'kakao:1');
     expect((places.last as Map)['day'], 2);
+  });
+
+  test('명시 최적화는 같은 장소와 일차를 보내고 재정렬은 서버 응답에 맡긴다', () {
+    final source = [
+      stop(order: 1, name: 'A'),
+      stop(order: 2, name: 'C'),
+      stop(order: 3, name: 'B'),
+      stop(order: 4, name: 'D', day: 2),
+    ];
+    final draft = draftOf(source, optimize: true);
+    expect(draft.request!.optimize, isTrue);
+    expect(draft.request!.places.map((p) => p.name), ['A', 'C', 'B', 'D']);
+    expect(draft.request!.places.map((p) => p.day), [1, 1, 1, 2]);
+    expect(source.map((p) => p.name), ['A', 'C', 'B', 'D']);
   });
 
   test('한 곳뿐이면 이을 구간이 없어 막는다', () {

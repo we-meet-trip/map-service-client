@@ -8,6 +8,10 @@ import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
+import '../../../common/widgets/external_ai_consent.dart';
+import '../../../core/api/moderation_api_service.dart';
+import '../../../core/state/auth_store.dart';
+import '../../moderation/report_dialog.dart';
 
 import '../models/vision_models.dart';
 import '../services/vision_ws_service.dart';
@@ -56,14 +60,16 @@ class _VisionScreenState extends State<VisionScreen>
   String _latestWords = ''; // 중지 시 전송할 최종 텍스트
 
   final List<_ChatMessage> _messages = [];
+  int _contentSessionVersion = AuthStore.instance.sessionVersion;
+  ExternalAiPermission? _activePermission;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    ExternalAiConsentGate.instance.addListener(_onAiConsentChanged);
     _initCamera();
     _initStt();
-    _initLocation();
     _responseSub = _wsService.responses.listen(_onResponse);
     _errorSub = _wsService.errors.listen(_onError);
     unawaited(
@@ -201,7 +207,7 @@ class _VisionScreenState extends State<VisionScreen>
   }
 
   void _onResponse(VisionResponse response) {
-    if (!mounted) return;
+    if (!mounted || _activePermission?.isCurrentSession != true) return;
     final identify = response.identifyResult;
     final text = identify != null
         ? '${identify.name}\n${identify.description}'
@@ -217,9 +223,28 @@ class _VisionScreenState extends State<VisionScreen>
 
   void _onError(String msg) {
     if (!mounted) return;
+    _activePermission = null;
     setState(() {
       _isProcessing = false;
       _messages.add(_ChatMessage(isUser: false, text: '오류: $msg'));
+    });
+  }
+
+  void _onAiConsentChanged() {
+    final permission = _activePermission;
+    if (!mounted || permission == null || permission.isCurrentSession) return;
+    _activePermission = null;
+    _wsService.disconnect();
+    unawaited(_stopStt());
+    _partialTextNotifier.value = '';
+    _latestWords = '';
+    setState(() {
+      _isProcessing = false;
+      _isListening = false;
+      _messages.clear();
+      _lastResult = null;
+      _frozenFrameB64 = null;
+      _currentPosition = null;
     });
   }
 
@@ -284,15 +309,55 @@ class _VisionScreenState extends State<VisionScreen>
   }
 
   // 음성 모드: 스크린샷 + 이미지 분석
+  Future<ExternalAiPermission?> _beginAiSend() async {
+    if (!mounted || _isProcessing) return null;
+    if (_contentSessionVersion != AuthStore.instance.sessionVersion) {
+      _contentSessionVersion = AuthStore.instance.sessionVersion;
+      _messages.clear();
+      _lastResult = null;
+      _frozenFrameB64 = null;
+      _currentPosition = null;
+    }
+    setState(() => _isProcessing = true);
+    final permission = await ensureExternalAiConsent(
+      context,
+      ExternalAiScope.vision,
+    );
+    if (!mounted) return null;
+    if (permission == null || !permission.isCurrentSession) {
+      setState(() => _isProcessing = false);
+      return null;
+    }
+    if (permission.includeLocation && _currentPosition == null) {
+      await _initLocation();
+    }
+    if (!mounted) return null;
+    if (!permission.isCurrentSession) {
+      setState(() => _isProcessing = false);
+      return null;
+    }
+    _activePermission = permission;
+    return permission;
+  }
+
   Future<void> _sendWithImage(String words) async {
     final camera = _cameraController;
     if (!mounted || camera == null || !_cameraReady || _isProcessing) return;
     final version = _cameraVersion;
-    setState(() => _isProcessing = true);
+    final permission = await _beginAiSend();
+    if (permission == null || !mounted || version != _cameraVersion) {
+      if (mounted) setState(() => _isProcessing = false);
+      return;
+    }
     try {
       final file = await camera.takePicture();
       final bytes = await file.readAsBytes();
-      if (!mounted || version != _cameraVersion) return;
+      if (!mounted ||
+          version != _cameraVersion ||
+          !permission.isCurrentSession) {
+        if (mounted) setState(() => _isProcessing = false);
+        return;
+      }
       final b64 = base64Encode(bytes);
 
       _partialTextNotifier.value = '';
@@ -310,13 +375,14 @@ class _VisionScreenState extends State<VisionScreen>
           frameB64: b64,
           voiceTriggered: true,
           voiceText: words,
-          location: _currentPosition != null
+          location: permission.includeLocation && _currentPosition != null
               ? VisionLocation(
                   lat: _currentPosition!.latitude,
                   lng: _currentPosition!.longitude,
                 )
               : null,
         ),
+        canSend: () => permission.isCurrentSession,
       );
     } catch (_) {
       _onError('사진을 촬영하지 못했어요. 다시 시도해주세요.');
@@ -326,6 +392,8 @@ class _VisionScreenState extends State<VisionScreen>
   // 텍스트만 전송 (채팅 모드 또는 첫 인식 이후 후속 대화)
   Future<void> _sendTextOnly(String words) async {
     if (!mounted || _isProcessing) return;
+    final permission = await _beginAiSend();
+    if (permission == null || !mounted || !permission.isCurrentSession) return;
     final priorContext = _lastResult?.identifyResult != null
         ? '${_lastResult!.identifyResult!.name}: ${_lastResult!.identifyResult!.description}'
         : null;
@@ -343,27 +411,33 @@ class _VisionScreenState extends State<VisionScreen>
       _messages.add(_ChatMessage(isUser: true, text: words));
     });
 
-    await _wsService.sendFrame(
-      VisionRequest(
-        sessionId: 'vision_${DateTime.now().millisecondsSinceEpoch}',
-        frameB64: '',
-        voiceTriggered: false,
-        voiceText: words,
-        priorContext: priorContext,
-        conversationHistory: history.length > 8
-            ? history.sublist(history.length - 8)
-            : history,
-        location: _currentPosition != null
-            ? VisionLocation(
-                lat: _currentPosition!.latitude,
-                lng: _currentPosition!.longitude,
-              )
-            : null,
-      ),
-    );
+    try {
+      await _wsService.sendFrame(
+        VisionRequest(
+          sessionId: 'vision_${DateTime.now().millisecondsSinceEpoch}',
+          frameB64: '',
+          voiceTriggered: false,
+          voiceText: words,
+          priorContext: priorContext,
+          conversationHistory: history.length > 8
+              ? history.sublist(history.length - 8)
+              : history,
+          location: permission.includeLocation && _currentPosition != null
+              ? VisionLocation(
+                  lat: _currentPosition!.latitude,
+                  lng: _currentPosition!.longitude,
+                )
+              : null,
+        ),
+        canSend: () => permission.isCurrentSession,
+      );
+    } catch (_) {
+      _onError('질문을 전송하지 못했어요. 연결 상태를 확인하고 다시 시도해주세요.');
+    }
   }
 
   void _reset() {
+    _activePermission = null;
     _wsService.disconnect();
     setState(() {
       _frozenFrameB64 = null;
@@ -379,6 +453,7 @@ class _VisionScreenState extends State<VisionScreen>
       unawaited(_initCamera());
     } else if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused) {
+      _activePermission = null;
       _cameraVersion++;
       final camera = _cameraController;
       _cameraController = null;
@@ -396,6 +471,7 @@ class _VisionScreenState extends State<VisionScreen>
 
   @override
   void dispose() {
+    ExternalAiConsentGate.instance.removeListener(_onAiConsentChanged);
     WidgetsBinding.instance.removeObserver(this);
     _cameraVersion++;
     _responseSub?.cancel();
@@ -662,6 +738,14 @@ class _VisionScreenState extends State<VisionScreen>
                       );
                     },
                   ),
+
+                  if (_lastResult?.identifyResult != null)
+                    const Material(
+                      color: Colors.transparent,
+                      child: ContentReportActions(
+                        target: ReportTarget.vision(),
+                      ),
+                    ),
 
                   // 퀵 리플라이
                   if (_lastResult != null && !_isProcessing)

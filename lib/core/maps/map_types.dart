@@ -45,6 +45,9 @@ class AppMapOptions {
   final bool scrollGesturesEnable;
   final bool zoomGesturesEnable;
   final bool rotationGesturesEnable;
+
+  /// Let a map embedded in a scrollable page receive drags within its bounds.
+  final bool captureScrollGestures;
   final AppMapType mapType;
   final EdgeInsets contentPadding;
   const AppMapOptions({
@@ -52,6 +55,7 @@ class AppMapOptions {
     this.scrollGesturesEnable = true,
     this.zoomGesturesEnable = true,
     this.rotationGesturesEnable = true,
+    this.captureScrollGestures = false,
     this.mapType = const AppMapType._(),
     this.contentPadding = EdgeInsets.zero,
   });
@@ -117,6 +121,9 @@ enum MapCameraUpdateReason { developer, gesture }
 class MapOverlayImage {
   final g.BitmapDescriptor bitmap;
   const MapOverlayImage(this.bitmap);
+
+  factory MapOverlayImage.defaultMarker({double hue = 0}) =>
+      MapOverlayImage(g.BitmapDescriptor.defaultMarkerWithHue(hue));
 
   static Future<MapOverlayImage> fromWidget({
     required Widget widget,
@@ -233,12 +240,7 @@ class MapMarker {
   }
 }
 
-enum MapOverlayType {
-  marker,
-  polygonOverlay,
-  polylineOverlay,
-  pathOverlay,
-}
+enum MapOverlayType { marker, polygonOverlay, polylineOverlay, pathOverlay }
 
 class MapPolylineOverlay {
   final String id;

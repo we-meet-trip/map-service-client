@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
+import 'endpoint_policy.dart';
+
 /// 앱이 어느 서버를 볼지 정하는 곳.
 ///
 /// 서버 주소를 빌드에 굽지 않는다. 설치본은 하나인데 서버 주소는 자주 바뀌기
@@ -46,6 +48,14 @@ class AppConfig {
     defaultValue: 'https://mapcenter-b59ca.web.app/app_config.json',
   );
 
+  static const _policy = EndpointPolicy(
+    environment: environment,
+    allowedOrigins: _allowedOrigins,
+    configUrl: _remoteConfigUrl,
+    explicitOrigins: bool.hasEnvironment('API_ALLOWED_ORIGINS'),
+    explicitConfigUrl: bool.hasEnvironment('APP_CONFIG_URL'),
+  );
+
   static const String _fallbackBaseUrl = 'http://localhost:8080';
 
   /// 첫 화면 직전에 하는 일이라 짧게 끊는다.
@@ -70,16 +80,13 @@ class AppConfig {
   /// 이번 실행에서 쓸 서버 주소. 뒤에 슬래시가 없다(경로를 붙여 쓴다).
   String get apiBaseUrl => _apiBaseUrl;
   String get storageScope => '$environment:${Uri.parse(_apiBaseUrl).origin}';
+  bool _configurationRejected = false;
   bool get requestsAllowed =>
-      !kReleaseMode ||
-      (_source != 'fallback' && Uri.parse(_apiBaseUrl).scheme == 'https');
+      !_configurationRejected &&
+      (!kReleaseMode ||
+          (_source != 'fallback' && Uri.parse(_apiBaseUrl).scheme == 'https'));
 
-  static String? _trustedRemote(String? raw) {
-    final value = _normalize(raw, requireHttps: true);
-    if (value == null) return null;
-    final allowed = _allowedOrigins.split(',').map((s) => s.trim());
-    return allowed.contains(Uri.parse(value).origin) ? value : null;
-  }
+  static String? _trustedRemote(String? raw) => _policy.trusted(raw);
 
   /// 주소를 어디서 얻었는지. 문제 추적용이며 동작에는 쓰지 않는다.
   String get source => _source;
@@ -95,8 +102,17 @@ class AppConfig {
     if (_initialized) return;
     _initialized = true;
 
+    // A malformed production build must never fetch the default test document.
+    if (!_policy.valid) {
+      _configurationRejected = true;
+      debugPrint('AppConfig: 환경별 서버 설정이 올바르지 않다');
+      return;
+    }
+
     if (_hasInjectedBaseUrl) {
-      final injected = _normalize(_injectedBaseUrl, requireHttps: kReleaseMode);
+      final injected = kReleaseMode
+          ? _policy.trusted(_injectedBaseUrl)
+          : _normalize(_injectedBaseUrl);
       if (injected != null) {
         _apiBaseUrl = injected;
         _source = 'dart-define';
@@ -105,7 +121,9 @@ class AppConfig {
       // 주었는데 쓸 수 없는 형태다(스킴 누락, 빈 값 등). 여기서 조용히
       // 원격으로 내려가면, 방금 띄운 로컬 서버를 보고 있다고 믿는 채로
       // 실제로는 게시된 주소를 호출하게 된다.
-      debugPrint('AppConfig: 주입된 서버 주소의 형식이 올바르지 않다');
+      _configurationRejected = true;
+      debugPrint('AppConfig: 주입된 서버 주소가 허용되지 않는다');
+      return;
     }
 
     // 원격을 못 읽었을 때 곧바로 쓸 수 있도록 캐시를 먼저 깔아 둔다.
@@ -159,9 +177,7 @@ class AppConfig {
           .timeout(_remoteTimeout);
       if (response.statusCode != 200) return null;
       final decoded = jsonDecode(utf8.decode(response.bodyBytes));
-      if (decoded is! Map<String, dynamic>) return null;
-      final value = decoded['api_base_url'];
-      return value is String ? value : null;
+      return _policy.remote(decoded);
     } catch (_) {
       return null;
     }
@@ -176,22 +192,8 @@ class AppConfig {
   /// 그 값은 앱 밖에서 정해지므로, 평문을 허용하면 그 주소로 토큰이 그대로
   /// 나간다. 빌드할 때 박아 넣는 값에는 켜지 않는다. 개발 중에는 컴퓨터에
   /// 띄운 평문 서버를 봐야 하고, 그 값은 빌드하는 사람이 정한 것이다.
-  static String? _normalize(String? raw, {bool requireHttps = false}) {
-    if (raw == null) return null;
-    final trimmed = raw.trim();
-    if (trimmed.isEmpty) return null;
-    final uri = Uri.tryParse(trimmed);
-    if (uri == null) return null;
-    if (uri.scheme != 'http' && uri.scheme != 'https') return null;
-    if (requireHttps && uri.scheme != 'https') return null;
-    if (uri.host.isEmpty) return null;
-    if (uri.userInfo.isNotEmpty || uri.hasQuery || uri.hasFragment) return null;
-    var normalized = trimmed;
-    while (normalized.endsWith('/')) {
-      normalized = normalized.substring(0, normalized.length - 1);
-    }
-    return normalized.isEmpty ? null : normalized;
-  }
+  static String? _normalize(String? raw, {bool requireHttps = false}) =>
+      EndpointPolicy.normalize(raw, requireHttps: requireHttps);
 
   /// 주소 판정을 검사에서 그대로 부를 수 있게 열어 둔다. 이 판정이 무너지면
   /// 토큰이 어디로 나가는지가 바뀌는데, 그 사실은 화면만 봐서는 드러나지 않는다.

@@ -4,6 +4,8 @@ import '../../../common/theme/app_colors.dart';
 import '../../../common/widgets/app_loading_screen.dart';
 import '../../../common/widgets/prev_button.dart';
 import '../../../core/api/trip_api_service.dart';
+import '../../../core/state/auth_store.dart';
+import '../../../common/widgets/external_ai_consent.dart';
 import '../../../core/state/trip_repository.dart';
 import 'trip_created_screen.dart';
 
@@ -13,7 +15,9 @@ import 'trip_created_screen.dart';
 /// "이 장소들 말고 다른 곳"이기 때문이다. 방금 본 일정의 조건을 그대로 다시
 /// 싣고, 그 장소들은 제외 목록으로 보낸다.
 class TripResearchResultScreen extends StatefulWidget {
-  const TripResearchResultScreen({super.key});
+  const TripResearchResultScreen({super.key, this.api, this.consentGate});
+  final TripApiService? api;
+  final ExternalAiConsentGate? consentGate;
 
   @override
   State<TripResearchResultScreen> createState() =>
@@ -25,6 +29,13 @@ class _TripResearchResultScreenState extends State<TripResearchResultScreen> {
 
   Future<void>? _researchFuture;
   TripGenerateResponse? _result;
+  bool _askingConsent = false;
+  ExternalAiPermission? _permission;
+  final _screenSession = AuthStore.instance.sessionVersion;
+  bool get _canSend =>
+      mounted &&
+      _screenSession == AuthStore.instance.sessionVersion &&
+      _permission?.isCurrentSession == true;
 
   @override
   void initState() {
@@ -33,28 +44,77 @@ class _TripResearchResultScreenState extends State<TripResearchResultScreen> {
     _plan = plan;
     if (plan == null || !plan.canResearch) return;
 
-    _researchFuture = TripApiService.instance
-        .researchTrip(TripResearchRequest(
-          startDate: plan.startDate,
-          endDate: plan.endDate,
-          activeStartHour: plan.activeStartHour,
-          activeEndHour: plan.activeEndHour,
-          minBudget: plan.minBudget!,
-          maxBudget: plan.maxBudget!,
-          themes: plan.themes,
-          transport: plan.transport,
-          province: plan.province,
-          city: plan.city,
-          prevTripId: plan.tripId!,
-          exclude: [
-            for (final stop in plan.stops)
-              if ((stop.contentId ?? '').isNotEmpty) stop.contentId!,
-          ],
-        ))
-        .then((response) => _result = response);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _startResearch();
+    });
+  }
+
+  Future<void> _startResearch() async {
+    final plan = _plan;
+    if (plan == null ||
+        !plan.canResearch ||
+        _askingConsent ||
+        _researchFuture != null ||
+        _screenSession != AuthStore.instance.sessionVersion) {
+      return;
+    }
+    setState(() => _askingConsent = true);
+    final permission =
+        await (widget.consentGate ?? ExternalAiConsentGate.instance).ensure(
+          context,
+          ExternalAiScope.trip,
+        );
+    if (!mounted) return;
+    setState(() => _askingConsent = false);
+    _permission = permission;
+    if (permission == null || !_canSend) return;
+    setState(() {
+      _researchFuture = (widget.api ?? TripApiService.instance)
+          .researchTrip(
+            TripResearchRequest(
+              startDate: plan.startDate,
+              endDate: plan.endDate,
+              activeStartHour: plan.activeStartHour,
+              activeEndHour: plan.activeEndHour,
+              minBudget: plan.minBudget!,
+              maxBudget: plan.maxBudget!,
+              themes: plan.themes,
+              transport: plan.transport,
+              province: plan.province,
+              city: plan.city,
+              prevTripId: plan.tripId!,
+              exclude: [
+                for (final stop in plan.stops)
+                  if ((stop.contentId ?? '').isNotEmpty) stop.contentId!,
+              ],
+            ),
+            canSend: () => _canSend,
+          )
+          .then((response) {
+            if (!_canSend) {
+              throw const TripApiException(
+                error: 'SESSION_CHANGED',
+                message: '로그인 상태가 바뀌었어요.',
+                statusCode: 409,
+              );
+            }
+            _result = response;
+          });
+      _researchFuture!.ignore();
+    });
   }
 
   void _onLoadComplete() {
+    if (!_canSend) {
+      _onLoadError(
+        const TripApiException(
+          error: 'SESSION_CHANGED',
+          message: '로그인 상태가 바뀌었어요.',
+          statusCode: 409,
+        ),
+      );
+      return;
+    }
     final result = _result;
     final plan = _plan;
     if (result == null || result.stops.isEmpty) {
@@ -63,20 +123,22 @@ class _TripResearchResultScreenState extends State<TripResearchResultScreen> {
     }
     if (plan != null) {
       // 이번 결과가 다음 재탐색의 출발점이 된다. 조건은 그대로 물려준다.
-      TripRepository.instance.setLastPlan(TripPlanContext(
-        startDate: plan.startDate,
-        endDate: plan.endDate,
-        activeStartHour: plan.activeStartHour,
-        activeEndHour: plan.activeEndHour,
-        transport: plan.transport,
-        province: plan.province,
-        city: plan.city,
-        stops: result.stops,
-        tripId: result.tripId,
-        minBudget: plan.minBudget,
-        maxBudget: plan.maxBudget,
-        themes: plan.themes,
-      ));
+      TripRepository.instance.setLastPlan(
+        TripPlanContext(
+          startDate: plan.startDate,
+          endDate: plan.endDate,
+          activeStartHour: plan.activeStartHour,
+          activeEndHour: plan.activeEndHour,
+          transport: plan.transport,
+          province: plan.province,
+          city: plan.city,
+          stops: result.stops,
+          tripId: result.tripId,
+          minBudget: plan.minBudget,
+          maxBudget: plan.maxBudget,
+          themes: plan.themes,
+        ),
+      );
     }
     setState(() => _researchFuture = null);
   }
@@ -89,8 +151,9 @@ class _TripResearchResultScreenState extends State<TripResearchResultScreen> {
         : '새로운 일정을 받아오지 못했어요. 잠시 후 다시 시도해주세요.';
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(message)));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
       context.go('/trip/search');
     });
   }
@@ -102,6 +165,25 @@ class _TripResearchResultScreenState extends State<TripResearchResultScreen> {
       return _buildBlocked();
     }
 
+    if (_result == null && _researchFuture == null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('외부 AI 전송에 동의하면 재탐색을 시작해요.\n기존 일정과 조건은 그대로 유지돼요.'),
+            TextButton(
+              onPressed: _askingConsent ? null : _startResearch,
+              child: const Text('동의 확인하고 재탐색'),
+            ),
+            TextButton(
+              onPressed: () =>
+                  context.canPop() ? context.pop() : context.go('/trip/search'),
+              child: const Text('돌아가기'),
+            ),
+          ],
+        ),
+      );
+    }
     final result = _result;
     if (result == null || _researchFuture != null) {
       return AppLoadingScreen(
@@ -133,13 +215,13 @@ class _TripResearchResultScreenState extends State<TripResearchResultScreen> {
             '다시 추천할 일정을 찾지 못했어요.\n일정을 먼저 만들어 주세요.',
             textAlign: TextAlign.center,
             style: TextStyle(
-                fontSize: 14, color: AppColors.neutralScale[400], height: 1.5),
+              fontSize: 14,
+              color: AppColors.neutralScale[400],
+              height: 1.5,
+            ),
           ),
           const SizedBox(height: 24),
-          PrevButton(
-            onPressed: () => context.go('/trip'),
-            label: '← 여행 계획으로',
-          ),
+          PrevButton(onPressed: () => context.go('/trip'), label: '← 여행 계획으로'),
         ],
       ),
     );

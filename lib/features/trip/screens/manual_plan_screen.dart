@@ -5,6 +5,8 @@ import '../../../common/widgets/next_button.dart';
 import '../../../common/widgets/prev_button.dart';
 import '../../../core/api/places_api_service.dart';
 import '../../../core/api/trip_api_service.dart';
+import '../../../core/state/auth_store.dart';
+import '../../../core/state/service_consent_store.dart';
 import '../utils/manual_route_request.dart';
 import '../utils/plan_edit_draft.dart';
 import '../widgets/transport_theme.dart';
@@ -64,6 +66,11 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
 
   Future<void>? _routeFuture;
   TripGenerateResponse? _result;
+  final _screenSession = AuthStore.instance.sessionVersion;
+  bool get _canSend =>
+      mounted &&
+      _screenSession == AuthStore.instance.sessionVersion &&
+      ServiceConsentStore.instance.canAccess;
 
   @override
   void initState() {
@@ -167,9 +174,13 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
     });
   }
 
-  void _makeRoute() {
+  Future<void> _makeRoute({bool optimize = false}) async {
+    if (_routeFuture != null || !_canSend) {
+      return;
+    }
     final draft = buildManualRouteDraft(
       stops: _stops,
+      optimize: optimize,
       startDate: widget.startDate,
       endDate: widget.endDate,
       activeStartHour: widget.activeStartHour,
@@ -181,9 +192,23 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
     final request = draft.request;
     if (request == null) return;
     setState(() {
-      _routeFuture = (widget.route ?? TripApiService.instance.routeTrip)(
-        request,
-      ).then((response) => _result = response);
+      _routeFuture =
+          (widget.route != null
+                  ? widget.route!(request)
+                  : TripApiService.instance.routeTrip(
+                      request,
+                      canSend: () => _canSend,
+                    ))
+              .then((response) {
+                if (!_canSend) {
+                  throw const TripApiException(
+                    error: 'SESSION_CHANGED',
+                    message: '로그인 상태가 바뀌었어요.',
+                    statusCode: 409,
+                  );
+                }
+                _result = response;
+              });
       // Attach immediately, before the next frame installs the loading widget.
       // That widget still receives the same failure and restores the draft.
       _routeFuture!.ignore();
@@ -191,6 +216,16 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
   }
 
   void _onRouteComplete() {
+    if (!_canSend) {
+      _onRouteError(
+        const TripApiException(
+          error: 'SESSION_CHANGED',
+          message: '로그인 상태가 바뀌었어요.',
+          statusCode: 409,
+        ),
+      );
+      return;
+    }
     final result = _result;
     if (result == null || result.stops.isEmpty) {
       _onRouteError(const _EmptyManualRouteError());
@@ -295,13 +330,26 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
             child: Column(
               children: [
                 NextButton(
-                  onPressed: blocked == null ? _makeRoute : null,
+                  onPressed: blocked == null && _canSend ? _makeRoute : null,
                   label: '동선 만들기  →',
                   info: switch (blocked) {
                     ManualRouteBlock.tooFew => '장소를 2곳 이상 넣어 주세요',
                     ManualRouteBlock.tooMany => '한 번에 10곳까지 넣을 수 있어요',
                     null => '${_stops.length}곳으로 동선을 만들어요',
                   },
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: blocked == null && _canSend
+                      ? () => _makeRoute(optimize: true)
+                      : null,
+                  icon: const Icon(Icons.alt_route),
+                  label: const Text('동선 최적화'),
+                ),
+                const Text(
+                  '각 일차의 첫 장소는 유지하고 나머지 방문 순서를 다시 계산해요.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 12),
                 ),
                 const SizedBox(height: 12),
                 PrevButton(onPressed: _cancel, label: '수정 취소'),

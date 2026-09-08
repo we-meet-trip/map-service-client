@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as g;
 
 import 'map_bootstrap.dart';
@@ -347,6 +349,14 @@ class _AppMapState extends State<AppMap> {
                   initialCameraPosition: _cameraPosition,
                   mapType: g.MapType.normal,
                   padding: _padding,
+                  gestureRecognizers:
+                      widget.options.captureScrollGestures && enabled
+                      ? {
+                          Factory<OneSequenceGestureRecognizer>(
+                            EagerGestureRecognizer.new,
+                          ),
+                        }
+                      : const {},
                   scrollGesturesEnabled:
                       widget.options.scrollGesturesEnable && enabled,
                   zoomGesturesEnabled:

@@ -63,7 +63,7 @@ void main() {
       ),
     );
     await launched.future;
-    links.add(Uri.parse('mapauth://kakao?state=state&code=old-code'));
+    links.add(Uri.parse('mapauth-test://kakao?state=state&code=old-code'));
     await requested.future;
     await auth.save(
       const AuthTokens(

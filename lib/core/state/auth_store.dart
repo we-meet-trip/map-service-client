@@ -28,6 +28,7 @@ class AuthStore {
 
   /// 로그인 여부. 화면이 이 값을 듣고 다시 그린다.
   final ValueNotifier<bool> isLoggedIn = ValueNotifier(false);
+  final ValueNotifier<int> sessionChanges = ValueNotifier(0);
 
   String? _accessToken;
   String? _refreshToken;
@@ -96,6 +97,7 @@ class AuthStore {
     _refreshToken = tokens.refreshToken;
     _userId = tokens.userId;
     _nickname = tokens.nickname;
+    sessionChanges.value = _sessionVersion;
     isLoggedIn.value = true;
     await _persist(() async {
       if (version != _sessionVersion) return;
@@ -129,6 +131,7 @@ class AuthStore {
     _userId = null;
     _nickname = null;
     isLoggedIn.value = false;
+    sessionChanges.value = _sessionVersion;
     await _persist(() async {
       for (final key in [_accessKey, _refreshKey, _userIdKey, _nicknameKey]) {
         await _write('$scope.$key', null);
