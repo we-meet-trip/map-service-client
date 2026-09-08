@@ -493,6 +493,18 @@ class TripApiService {
     bool Function()? canSend,
   }) => _postTrip('/api/v1/trip/research', request.toJson(), canSend);
 
+  /// 저장된 일정을 지금 날씨로 다시 짠다("다시 추천받기").
+  ///
+  /// 조건(지역·기간·이동수단)은 서버가 저장된 일정에서 꺼내 쓰므로 식별자만
+  /// 보낸다. 응답은 generate 와 같은 형태라 결과 화면을 그대로 재사용한다.
+  ///
+  /// 서버가 이 경로도 새 추천을 돌리며 외부 AI 동의를 확인하므로, 생성·재탐색과
+  /// 같은 전송 직전 확인을 거친다.
+  Future<TripGenerateResponse> replanTrip(
+    int scheduleId, {
+    bool Function()? canSend,
+  }) => _postTrip('/api/v1/trip/replan', {'schedule_id': scheduleId}, canSend);
+
   /// 생성·재탐색은 외부 AI 동의를, 동선 계산은 서비스 이용 조건을 확인한다.
   /// 동선 계산·명시적 최적화는 외부 AI를 사용하지 않는다.
   /// 모든 요청은 전송 직전의 확인이 없으면 보내지 않고 늦은 응답도 버린다.

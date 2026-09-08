@@ -9,7 +9,7 @@ import '../../features/home/screens/home_screen.dart';
 import '../../features/trip/screens/trip_regenerate_screen.dart';
 import '../../features/trip/screens/trip_created_screen.dart';
 import '../../features/trip/screens/google_map_screen.dart';
-import '../api/trip_api_service.dart' show TripStop;
+import '../api/trip_api_service.dart' show TripStop, TripGenerateResponse;
 import '../../features/place_explore/screens/place_explore_result_screen.dart';
 import '../../features/place_explore/screens/place_explore_step1_screen.dart';
 import '../../features/place_explore/screens/place_explore_step2_screen.dart';
@@ -303,6 +303,17 @@ final appRouter = GoRouter(
                         trip: state.extra is SavedTrip
                             ? state.extra as SavedTrip
                             : null,
+                      ),
+                    ),
+                    // 날씨 변화로 다시 짠 결과. 아직 저장된 일정이 아니라
+                    // 생성 직후와 같은 화면으로 보여 주고, 사용자가 저장할지
+                    // 정하게 한다. 저장 탭 아래 두어 뒤로가면 원래 일정으로
+                    // 돌아오게 한다.
+                    GoRoute(
+                      path: 'replanned',
+                      builder: (context, state) => TripCreatedScreen(
+                        showBackButton: true,
+                        response: state.extra as TripGenerateResponse?,
                       ),
                     ),
                     GoRoute(

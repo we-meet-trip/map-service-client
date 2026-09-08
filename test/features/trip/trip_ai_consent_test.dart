@@ -188,6 +188,10 @@ void main() {
         api.routeTrip(_route(), canSend: () => false),
         _error('ROUTE_REQUEST_NOT_ALLOWED'),
       );
+      await expectLater(
+        api.replanTrip(7),
+        _error('AI_CONSENT_REQUIRED'),
+      );
       expect(http.paths, isEmpty);
     },
   );
@@ -208,6 +212,15 @@ void main() {
       },
     );
   }
+
+  test('replan sends the schedule identifier once permitted', () async {
+    final http = _Api();
+    final future = TripApiService(api: http).replanTrip(7, canSend: () => true);
+    expect(http.paths, ['/api/v1/trip/replan']);
+    expect(http.bodies.single, containsPair('schedule_id', 7));
+    http.pending.complete(_response());
+    expect((await future).tripId, _response()['trip_id']);
+  });
 
   for (final type in ['generate', 'route', 'research']) {
     test(
