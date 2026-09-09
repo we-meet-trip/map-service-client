@@ -12,6 +12,7 @@ class SignupStepScaffold extends StatelessWidget {
   final VoidCallback? onNext;
   final int currentStep;
   final int totalSteps;
+  final bool expandChild;
 
   const SignupStepScaffold({
     super.key,
@@ -22,6 +23,7 @@ class SignupStepScaffold extends StatelessWidget {
     this.onNext,
     required this.currentStep,
     this.totalSteps = 3,
+    this.expandChild = false,
   });
 
   @override
@@ -31,6 +33,7 @@ class SignupStepScaffold extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
+        scrolledUnderElevation: 0,
         leading: SignupBackButton(onPressed: onBack),
         actions: [
           Padding(
@@ -72,8 +75,8 @@ class SignupStepScaffold extends StatelessWidget {
                 ),
               ],
               const SizedBox(height: 40),
-              child,
-              const Spacer(),
+              if (expandChild) Expanded(child: child) else child,
+              if (!expandChild) const Spacer(),
               NextButton(onPressed: onNext),
               const SizedBox(height: 42),
             ],
