@@ -137,6 +137,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
         ? _TransportInfo(
             label: s.transportToNext!.label,
             duration: '${s.transportToNext!.durationMinutes}분',
+            description: s.transportToNext!.routeDescription,
             distance: '${s.transportToNext!.distanceKm}km',
             path:
                 (s.transportToNext!.hasRoadRoute
@@ -356,9 +357,11 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _replanBusy = false);
-      _toast(e is TripApiException
-          ? '다시 추천하지 못했어요: ${e.message}'
-          : '다시 추천하지 못했어요. 잠시 후 시도해주세요.');
+      _toast(
+        e is TripApiException
+            ? '다시 추천하지 못했어요: ${e.message}'
+            : '다시 추천하지 못했어요. 잠시 후 시도해주세요.',
+      );
     }
   }
 
@@ -954,8 +957,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
         child: Container(
-          height: 60,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
+          padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: const Alignment(-0.54, -0.84),
@@ -997,21 +999,39 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  transport.label,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.neutralScale[600],
-                  ),
-                ),
-              ),
-              Text(
-                '${transport.duration} · ${transport.distance}',
-                textAlign: TextAlign.right,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: AppColors.neutralScale[400],
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Wrap(
+                      spacing: 12,
+                      children: [
+                        Text(
+                          transport.label,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.neutralScale[600],
+                          ),
+                        ),
+                        Text(
+                          '${transport.duration} · ${transport.distance}',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: AppColors.neutralScale[400],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      transport.description,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.neutralScale[500],
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(width: 4),
@@ -1653,6 +1673,7 @@ class _ScheduleStop {
 class _TransportInfo {
   final String label;
   final String duration;
+  final String description;
   final String distance;
 
   /// 이 stop 에서 다음 stop 까지의 확인된 도로 경로. 없으면 선을 그리지 않는다.
@@ -1661,6 +1682,7 @@ class _TransportInfo {
   const _TransportInfo({
     required this.label,
     required this.duration,
+    required this.description,
     required this.distance,
     this.path,
   });

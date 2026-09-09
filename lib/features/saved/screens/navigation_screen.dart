@@ -157,6 +157,7 @@ class _NavigationScreenState extends State<NavigationScreen>
                 ? _Transport(
                     label: s.transportToNext!.label,
                     duration: '${s.transportToNext!.durationMinutes}분',
+                    description: s.transportToNext!.routeDescription,
                     distance: '${s.transportToNext!.distanceKm}km',
                     path:
                         (s.transportToNext!.hasRoadRoute
@@ -1048,82 +1049,64 @@ class _NavigationScreenState extends State<NavigationScreen>
 
   Widget _buildTransitChip(_Transport transport, bool isCurrent) {
     final theme = TransportTheme.byLabel(transport.label);
-
-    if (isCurrent) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              AppColors.gradientScale[200]!,
-              AppColors.gradientScale[600]!,
-            ],
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
-          ),
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.primaryScale[400]!.withAlpha(0x55),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AppIcon(theme.svgPath, size: 15, color: Colors.white),
-            const SizedBox(width: 7),
-            Text(
-              transport.label,
-              style: const TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              '${transport.duration} · ${transport.distance}',
-              style: const TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
+    final color = isCurrent ? Colors.white : AppColors.primaryScale[400]!;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
       decoration: BoxDecoration(
-        color: AppColors.primaryScale[0],
+        color: isCurrent ? null : AppColors.primaryScale[0],
+        gradient: isCurrent
+            ? LinearGradient(
+                colors: [
+                  AppColors.gradientScale[200]!,
+                  AppColors.gradientScale[600]!,
+                ],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+              )
+            : null,
         borderRadius: BorderRadius.circular(14),
+        boxShadow: isCurrent
+            ? [
+                BoxShadow(
+                  color: AppColors.primaryScale[400]!.withAlpha(0x55),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ]
+            : null,
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          AppIcon(theme.svgPath, size: 15, color: AppColors.primaryScale[400]!),
-          const SizedBox(width: 7),
-          Text(
-            transport.label,
-            style: TextStyle(
-              fontSize: 12.5,
-              fontWeight: FontWeight.w600,
-              color: AppColors.primaryScale[400],
-            ),
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              AppIcon(theme.svgPath, size: 15, color: color),
+              Text(
+                transport.label,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: color,
+                ),
+              ),
+              Text(
+                '${transport.duration} · ${transport.distance}',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: isCurrent ? Colors.white : AppColors.neutralScale[500],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
+          const SizedBox(height: 4),
           Text(
-            '${transport.duration} · ${transport.distance}',
-            style: TextStyle(
-              fontSize: 12.5,
-              fontWeight: FontWeight.w700,
-              color: AppColors.neutralScale[500],
-            ),
+            transport.description,
+            style: TextStyle(fontSize: 12, color: color),
           ),
         ],
       ),
@@ -1437,6 +1420,7 @@ class _Stop {
 class _Transport {
   final String label;
   final String duration;
+  final String description;
   final String distance;
 
   /// 서버가 확인한 도로 좌표. 없으면 두 방문지를 연결하지 않는다.
@@ -1445,6 +1429,7 @@ class _Transport {
   const _Transport({
     required this.label,
     required this.duration,
+    required this.description,
     required this.distance,
     this.path,
   });

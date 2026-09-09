@@ -6,22 +6,26 @@ import 'package:map_service_client/core/maps/map_adapter.dart';
 import 'package:map_service_client/core/maps/map_bootstrap.dart';
 import 'package:map_service_client/features/trip/screens/google_map_screen.dart';
 
-TripTransportToNext route({String source = 'OSRM', List<List<double>>? path}) =>
-    TripTransportToNext(
-      type: 'walk',
-      label: '도보',
-      durationMinutes: 12,
-      distanceKm: 0.9,
-      source: source,
-      routeProfile: 'foot',
-      path:
-          path ??
-          [
-            [37, 127],
-            [37.005, 126.9],
-            [37.01, 127.01],
-          ],
-    );
+TripTransportToNext route({
+  String source = 'OSRM',
+  String type = 'walk',
+  String profile = 'foot',
+  List<List<double>>? path,
+}) => TripTransportToNext(
+  type: type,
+  label: '도보',
+  durationMinutes: 12,
+  distanceKm: 0.9,
+  source: source,
+  routeProfile: profile,
+  path:
+      path ??
+      [
+        [37, 127],
+        [37.005, 126.9],
+        [37.01, 127.01],
+      ],
+);
 
 TripStop stop(
   String name, {
@@ -130,6 +134,31 @@ void main() {
       expect(data.markerPositions, hasLength(2));
     }
   });
+
+  for (final transport in [
+    route(source: 'UNKNOWN'),
+    route(),
+    route(type: 'scooter', profile: 'bicycle'),
+  ]) {
+    testWidgets('선택 장소에 ${transport.routeDescription} 안내가 유지된다', (
+      tester,
+    ) async {
+      mapsReady.value = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: GoogleMapScreen(
+            stops: [
+              stop('출발', transport: transport),
+              stop('도착', order: 2),
+            ],
+          ),
+        ),
+      );
+      await tester.tap(find.text('1. 출발'));
+      await tester.pump();
+      expect(find.text(transport.routeDescription), findsOneWidget);
+    });
+  }
 
   testWidgets('empty itinerary displays no invented stops or map', (
     tester,
