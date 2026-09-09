@@ -36,6 +36,12 @@ class ExternalAiConsentGate extends ChangeNotifier {
   final Map<ExternalAiScope, int> _generations = {};
   static final instance = ExternalAiConsentGate();
 
+  /// 동의를 서버에 남기고 지우는 통로. 꽂지 않으면 이 화면 세션 안에서만
+  /// 유효한 동의가 되고, 서버는 저장된 동의가 없다며 요청을 거절한다.
+  Future<void> Function(ExternalAiScope scope, bool includeLocation)?
+  persistGrant;
+  Future<void> Function(ExternalAiScope scope)? persistRevoke;
+
   bool hasConsent(ExternalAiScope scope) =>
       _accepted[scope]?.isCurrentSession == true;
 
@@ -45,6 +51,9 @@ class ExternalAiConsentGate extends ChangeNotifier {
   void revoke(ExternalAiScope scope) {
     _generations[scope] = (_generations[scope] ?? 0) + 1;
     _accepted.remove(scope);
+    // 서버에서도 지운다. 실패해도 이 자리의 차단은 되돌리지 않는다 — 막는
+    // 쪽으로 틀리는 것이 안전하고, 다음 이용 때 다시 물어본다.
+    persistRevoke?.call(scope).catchError((Object _) {});
     // A dialog opened before revocation cannot restore its old permission.
     // Its pending result is rejected below; the next request asks again.
     notifyListeners();
@@ -81,6 +90,20 @@ class ExternalAiConsentGate extends ChangeNotifier {
         version != _sessionVersion() ||
         generation != (_generations[scope] ?? 0)) {
       return null;
+    }
+    if (persistGrant case final persist?) {
+      try {
+        await persist(scope, selection);
+      } catch (_) {
+        // 서버에 남기지 못했으면 동의로 치지 않는다. 여기서 통과시키면
+        // 사용자는 동의하고도 요청마다 거절당한다.
+        return null;
+      }
+      // 서버를 다녀오는 사이에 계정이 바뀌거나 철회가 있었을 수 있다.
+      if (version != _sessionVersion() ||
+          generation != (_generations[scope] ?? 0)) {
+        return null;
+      }
     }
     final permission = ExternalAiPermission._(
       selection,

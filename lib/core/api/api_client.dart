@@ -78,9 +78,10 @@ class ApiClient {
 
   Future<Map<String, dynamic>> delete(
     String path, {
+    Map<String, String>? query,
     Object? body,
     Duration? timeout,
-  }) => _send('DELETE', path, body: body, timeout: timeout);
+  }) => _send('DELETE', path, query: query, body: body, timeout: timeout);
 
   Future<Map<String, dynamic>> _send(
     String method,
