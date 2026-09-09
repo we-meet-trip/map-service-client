@@ -133,6 +133,30 @@ void main() {
     );
   });
 
+  test('다른 API의 동명 오류 코드는 추천 오류로 바꾸지 않는다', () async {
+    await http.runWithClient(
+      () async {
+        await expectLater(
+          ApiClient.instance.post('/api/v1/auth/example'),
+          throwsA(
+            isA<ApiException>().having(
+              (e) => e.message,
+              'domain message',
+              '인증 요청을 확인해주세요.',
+            ),
+          ),
+        );
+      },
+      () => MockClient(
+        (_) async => http.Response(
+          jsonEncode({'code': 'invalid_request', 'message': '인증 요청을 확인해주세요.'}),
+          422,
+          headers: {'content-type': 'application/json'},
+        ),
+      ),
+    );
+  });
+
   test('네트워크 원문은 사용자 오류에 노출되지 않는다', () async {
     await http.runWithClient(
       () async {

@@ -196,7 +196,7 @@ class ApiClient {
       return decoded is Map<String, dynamic> ? decoded : {'data': decoded};
     }
 
-    final error = _toException(response);
+    final error = _toException(response, path);
     if (ServiceConsentStore.isPolicyDenial(error.statusCode, error.code)) {
       ServiceConsentStore.instance.invalidate(reason: error.code);
     }
@@ -223,7 +223,7 @@ class ApiClient {
     return data is List ? data : const [];
   }
 
-  ApiException _toException(http.Response response) {
+  ApiException _toException(http.Response response, String path) {
     String code = 'UNKNOWN_ERROR';
     String message = '알 수 없는 오류가 발생했습니다.';
     bool retryable = false;
@@ -235,27 +235,29 @@ class ApiClient {
           final detail = parsed['message'] ?? parsed['detail'];
           if (errorCode is String) code = errorCode;
           if (detail is String) message = detail;
-          final legacy = parsed['error'];
-          if (legacy == 'trip_generation_failed' &&
-              !_recommendationMessages.containsKey(code)) {
-            code = 'generation_failed';
-          } else if (code == 'trip_generation_timeout' ||
-              (legacy == 'trip_generation_timeout' &&
-                  !_recommendationMessages.containsKey(code))) {
-            code = 'recommendation_pending';
-          }
-          if (_recommendationMessages.containsKey(code)) {
-            // Only known transient terminal failures can recommend a new request.
-            // A facade timeout can leave its worker running and is not retryable.
-            retryable =
-                parsed['retryable'] == true &&
-                const {
-                  'upstream_unavailable',
-                  'generation_timeout',
-                }.contains(code);
-            message = code == 'upstream_unavailable' && retryable
-                ? '추천에 필요한 정보를 가져오지 못했어요. 잠시 후 다시 시도해주세요.'
-                : _recommendationMessages[code]!;
+          if (path.startsWith('/api/v1/trip/')) {
+            final legacy = parsed['error'];
+            if (legacy == 'trip_generation_failed' &&
+                !_recommendationMessages.containsKey(code)) {
+              code = 'generation_failed';
+            } else if (code == 'trip_generation_timeout' ||
+                (legacy == 'trip_generation_timeout' &&
+                    !_recommendationMessages.containsKey(code))) {
+              code = 'recommendation_pending';
+            }
+            if (_recommendationMessages.containsKey(code)) {
+              // Only known transient terminal failures can recommend a new request.
+              // A facade timeout can leave its worker running and is not retryable.
+              retryable =
+                  parsed['retryable'] == true &&
+                  const {
+                    'upstream_unavailable',
+                    'generation_timeout',
+                  }.contains(code);
+              message = code == 'upstream_unavailable' && retryable
+                  ? '추천에 필요한 정보를 가져오지 못했어요. 잠시 후 다시 시도해주세요.'
+                  : _recommendationMessages[code]!;
+            }
           }
         }
       } on FormatException {
