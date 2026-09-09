@@ -151,16 +151,18 @@ class _TripStep5ScreenState extends State<TripStep5Screen> {
   List<MapPolygonOverlay> _buildOverlays(
     String idPrefix,
     List<dynamic> features,
-    String nameKey,
-    String matchName, {
+    String? nameKey,
+    String? matchName, {
     String? provinceCode,
   }) {
     final overlays = <MapPolygonOverlay>[];
     int idx = 0;
     for (final feature in features) {
       final props = feature['properties'] as Map<String, dynamic>;
-      final featureName = (props[nameKey] as String?) ?? '';
-      if (!featureName.startsWith(matchName)) continue;
+      if (matchName != null && nameKey != null) {
+        final featureName = (props[nameKey] as String?) ?? '';
+        if (!featureName.startsWith(matchName)) continue;
+      }
       if (provinceCode != null) {
         final sigCd = props['SIG_CD'] as String? ?? '';
         if (!sigCd.startsWith(provinceCode)) continue;
@@ -199,8 +201,8 @@ class _TripStep5ScreenState extends State<TripStep5Screen> {
   /// 매칭된 feature들의 좌표 전체를 아우르는 MapCoordinateBounds 계산
   MapCoordinateBounds? _computeBounds(
     List<dynamic> features,
-    String nameKey,
-    String matchName, {
+    String? nameKey,
+    String? matchName, {
     String? provinceCode,
   }) {
     double? minLat, maxLat, minLng, maxLng;
@@ -218,8 +220,10 @@ class _TripStep5ScreenState extends State<TripStep5Screen> {
 
     for (final feature in features) {
       final props = feature['properties'] as Map<String, dynamic>;
-      final featureName = (props[nameKey] as String?) ?? '';
-      if (!featureName.startsWith(matchName)) continue;
+      if (matchName != null && nameKey != null) {
+        final featureName = (props[nameKey] as String?) ?? '';
+        if (!featureName.startsWith(matchName)) continue;
+      }
       if (provinceCode != null) {
         final sigCd = props['SIG_CD'] as String? ?? '';
         if (!sigCd.startsWith(provinceCode)) continue;
@@ -278,10 +282,16 @@ class _TripStep5ScreenState extends State<TripStep5Screen> {
 
     if (city == _kPlaceholder || city == _kAllCities) {
       // 시/도 오버레이 + 해당 시도 전체가 보이도록 fitBounds
-      final sidoFeatures = _sidoGeo!['features'] as List<dynamic>;
-      final overlays = _buildOverlays(_kOverlayProvince, sidoFeatures, 'CTP_KOR_NM', province);
+      // CTPRVN GeoJSON은 일부 도의 경계 데이터가 불완전하므로
+      // SIG 데이터를 시/도 코드로 필터해서 정확한 범위를 계산한다.
+      final provinceCode = _getProvinceCode(province);
+      final sggFeatures = _sggGeo!['features'] as List<dynamic>;
+      final overlays = _buildOverlays(
+        _kOverlayProvince, sggFeatures, null, null,
+        provinceCode: provinceCode,
+      );
       await controller.addOverlayAll(overlays.toSet());
-      final bounds = _computeBounds(sidoFeatures, 'CTP_KOR_NM', province);
+      final bounds = _computeBounds(sggFeatures, null, null, provinceCode: provinceCode);
       if (bounds != null) _fitBounds(bounds);
     } else {
       // 시/군/구 오버레이 + 해당 구 전체가 보이도록 fitBounds
