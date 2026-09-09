@@ -17,6 +17,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:map_service_client/core/api/api_client.dart';
+import 'package:map_service_client/common/widgets/external_ai_consent.dart';
+import 'package:map_service_client/core/api/ai_consent_api_service.dart';
 import 'package:map_service_client/core/api/auth_api_service.dart';
 import 'package:map_service_client/core/api/service_consent_api_service.dart';
 import 'package:map_service_client/core/state/service_consent_store.dart';
@@ -74,6 +76,7 @@ void main() {
     await ProfileLocalStore.init();
     await AppConfig.instance.init();
     ServiceConsentApiService.instance.bind(ServiceConsentStore.instance);
+    AiConsentApiService.instance.bind(ExternalAiConsentGate.instance);
     await AuthApiService.instance.bootstrap();
     if (signedIn) {
       await AuthApiService.instance.login(email: email, password: password);
@@ -204,5 +207,61 @@ void main() {
       );
     }, skip: needsAccount);
 
+    // 화면에서 받은 동의가 서버에 남지 않으면, 서버는 추천을 돌릴 때마다
+    // 저장된 동의를 확인하므로 사용자가 동의하고도 요청마다 거절당한다.
+    // 이 검사는 화면과 서버 사이가 실제로 이어져 있는지만 본다.
+    testWidgets('외부 AI 전송 동의가 서버에 남고 철회하면 지워진다', (tester) async {
+      Future<Map<String, dynamic>> tripConsent() async {
+        final rows = await ApiClient.instance.getList('/api/v1/consents/ai');
+        return rows.whereType<Map<String, dynamic>>().firstWhere(
+          (r) => r['scope'] == 'trip',
+        );
+      }
+
+      // 이미 동의가 남아 있으면 화면이 다시 묻지 않는다. 없는 상태에서 시작한다.
+      final before = await tripConsent();
+      if (before['accepted'] == true) {
+        await ApiClient.instance.delete(
+          '/api/v1/consents/ai/trip',
+          query: {'expected_revision': '${before['revision']}'},
+        );
+      }
+      ExternalAiConsentGate.instance.revoke(ExternalAiScope.trip);
+      expect((await tripConsent())['accepted'], isFalse);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                onPressed: () => ExternalAiConsentGate.instance.ensure(
+                  context,
+                  ExternalAiScope.trip,
+                ),
+                child: const Text('동의 받기'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('동의 받기'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('전송에 동의'));
+      await settle(tester, frames: 40);
+
+      expect(
+        (await tripConsent())['accepted'],
+        isTrue,
+        reason: '화면에서 동의했는데 서버에 남지 않았다',
+      );
+
+      ExternalAiConsentGate.instance.revoke(ExternalAiScope.trip);
+      await settle(tester, frames: 40);
+      expect(
+        (await tripConsent())['accepted'],
+        isFalse,
+        reason: '철회했는데 서버에 동의가 남아 있다',
+      );
+    }, skip: needsAccount);
   });
 }
