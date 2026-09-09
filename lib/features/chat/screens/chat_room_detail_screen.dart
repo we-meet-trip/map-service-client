@@ -434,6 +434,19 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
               // 지난 방에서도 나가기·신고는 해야 하므로 조건 없이 연다.
               onMenu: _showMenuSheet,
             ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 10),
+              child: Text(
+                '개인정보나 금전을 요구하는 메시지에 주의하세요. '
+                '불법·유해 콘텐츠는 메뉴에서 신고·차단할 수 있으며, '
+                '약관 위반 시 이용이 제한될 수 있어요.',
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.4,
+                  color: Color(0xFF555566),
+                ),
+              ),
+            ),
             Expanded(
               child: Stack(
                 children: [
