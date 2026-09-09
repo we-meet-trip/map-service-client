@@ -20,10 +20,14 @@ class ServiceConsentStatus {
   final bool accepted;
   final bool? ageEligible;
   final DateTime? acceptedAt;
+  // Current policy versions come from the server. A document revision alone
+  // must not require a new binary; a changed age/consent schema still does.
   bool get supported =>
-      termsVersion == servicePolicyVersion &&
-      privacyVersion == servicePrivacyVersion &&
+      _validVersion(termsVersion) &&
+      _validVersion(privacyVersion) &&
       minimumAge == serviceMinimumAge;
+  static bool _validVersion(String value) =>
+      RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$').hasMatch(value);
   bool get permitsService =>
       supported && accepted && ageEligible == true && acceptedAt != null;
   factory ServiceConsentStatus.fromJson(Map<String, dynamic> json) {

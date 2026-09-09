@@ -33,6 +33,7 @@ class _ServiceConsentScreenState extends State<ServiceConsentScreen> {
   bool _privacy = false;
   bool _acting = false;
   String? _error;
+  (String?, String?, int?, bool?)? _displayedPolicy;
 
   @override
   void initState() {
@@ -49,6 +50,7 @@ class _ServiceConsentScreenState extends State<ServiceConsentScreen> {
     setState(() {
       _acting = true;
       _error = null;
+      _adult = _terms = _privacy = false;
     });
     try {
       await store.refresh(force: store.error != null);
@@ -151,8 +153,14 @@ class _ServiceConsentScreenState extends State<ServiceConsentScreen> {
 
   Future<void> _openPolicy(String name) async {
     try {
+      final status = store.status;
+      final version = name == 'terms'
+          ? status?.termsVersion
+          : status?.privacyVersion;
       final opened = await launchUrl(
-        AppEnvironment.policyUrl('$name.html'),
+        AppEnvironment.policyUrl('$name.html').replace(
+          queryParameters: version == null ? null : {'version': version},
+        ),
         mode: LaunchMode.externalApplication,
       );
       if (!opened) throw StateError('Unavailable');
@@ -177,6 +185,16 @@ class _ServiceConsentScreenState extends State<ServiceConsentScreen> {
     animation: store,
     builder: (context, _) {
       final status = store.status;
+      final currentPolicy = (
+        status?.termsVersion,
+        status?.privacyVersion,
+        status?.minimumAge,
+        status?.ageEligible,
+      );
+      if (_displayedPolicy != currentPolicy) {
+        _displayedPolicy = currentPolicy;
+        _adult = _terms = _privacy = false;
+      }
       final blocked = status?.ageEligible == false;
       final supported = status?.supported == true;
       return Scaffold(
@@ -194,9 +212,14 @@ class _ServiceConsentScreenState extends State<ServiceConsentScreen> {
               ),
               const SizedBox(height: 12),
               const Text(
-                '약관과 개인정보 처리 내용을 확인하고 각각 동의해주세요. 기존 회원도 처음 한 번 확인해야 합니다. 외부 AI 전송 및 학습 데이터 제공 동의와는 별개입니다.',
+                '약관과 개인정보 처리 내용을 확인하고 각각 동의해주세요. 내용이 변경되면 다시 확인해요. 외부 AI 전송 및 학습 데이터 제공 동의와는 별개입니다.',
               ),
               const SizedBox(height: 16),
+              if (status != null && supported)
+                Text(
+                  '이용약관 ${status.termsVersion} · 개인정보처리방침 ${status.privacyVersion}',
+                  style: const TextStyle(fontSize: 12),
+                ),
               Wrap(
                 spacing: 8,
                 children: [
@@ -225,7 +248,9 @@ class _ServiceConsentScreenState extends State<ServiceConsentScreen> {
                 FilledButton(onPressed: _load, child: const Text('다시 확인')),
               ],
               if (status != null && !supported)
-                const Text('정책 버전이 변경됐어요. 최신 앱으로 업데이트한 뒤 내용을 확인해주세요.'),
+                const Text(
+                  '이 앱에서 확인할 수 없는 이용 조건이에요. 최신 앱으로 업데이트한 뒤 다시 확인해주세요.',
+                ),
               if (blocked)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 16),

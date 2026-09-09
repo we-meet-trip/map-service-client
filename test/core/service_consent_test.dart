@@ -96,18 +96,79 @@ void main() {
       );
       expect(
         ServiceConsentStatus.fromJson(
-          receipt(accepted: true, version: 'future'),
+          receipt(accepted: true, version: ''),
         ).permitsService,
         isFalse,
       );
       expect(
         ServiceConsentStatus.fromJson(
-          receipt(accepted: true)..['privacy_version'] = '2026-09-07',
+          receipt(accepted: true)..['minimum_age'] = 19,
         ).permitsService,
         isFalse,
       );
     },
   );
+
+  testWidgets('새 정책 버전은 앱 교체 없이 읽고 각각 재동의할 수 있다', (tester) async {
+    var version = '2026-10-01';
+    var entered = 0;
+    final acceptedVersions = <String>[];
+    final store = fakeStore();
+    store.loadStatus = () async =>
+        ServiceConsentStatus.fromJson(receipt(version: version));
+    store.submitAcceptance = (current) async {
+      acceptedVersions.add(current.termsVersion);
+      return ServiceConsentStatus.fromJson(
+        receipt(version: version, accepted: true),
+      );
+    };
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ServiceConsentScreen(store: store, onContinue: () => entered++),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining('이용약관 2026-10-01'), findsOneWidget);
+    await check(tester, 'policy-adult');
+    await check(tester, 'policy-terms');
+    await check(tester, 'policy-privacy');
+    // An in-flight server refresh can revise the policy while the screen remains open.
+    version = '2026-10-02';
+    await store.refresh(force: true);
+    await tester.pumpAndSettle();
+    expect(store.canAccess, isFalse);
+    final submit = find.widgetWithText(FilledButton, '동의하고 계속');
+    expect(tester.widget<FilledButton>(submit).onPressed, isNull);
+    expect(acceptedVersions, isEmpty);
+    for (final key in ['policy-adult', 'policy-terms', 'policy-privacy']) {
+      await check(tester, key);
+    }
+    await tester.ensureVisible(submit);
+    await tester.tap(submit);
+    await tester.pumpAndSettle();
+    expect(acceptedVersions, ['2026-10-02']);
+    expect(entered, 1);
+    expect(store.canAccess, isTrue);
+    await tester.pumpWidget(const SizedBox());
+    store.dispose();
+  });
+
+  test('정책 개정과 무관하게 잘못된 버전 식별자와 동의 구조는 차단한다', () {
+    for (final version in ['', 'contains space', '../privacy', 'a' * 33]) {
+      expect(
+        ServiceConsentStatus.fromJson(
+          receipt(accepted: true, version: version),
+        ).supported,
+        isFalse,
+      );
+    }
+    expect(
+      ServiceConsentStatus.fromJson(
+        receipt(accepted: true, version: '2026-10-01'),
+      ).permitsService,
+      isTrue,
+    );
+  });
 
   test(
     'one status request is shared and acceptance never comes from an old account',
