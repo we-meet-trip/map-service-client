@@ -76,7 +76,7 @@ void main() {
             jsonEncode({
               'error': 'trip_generation_failed',
               'message': 'secret-marker',
-              if (code != null) 'code': code,
+              'code': ?code,
               'retryable': true,
             }),
             502,
