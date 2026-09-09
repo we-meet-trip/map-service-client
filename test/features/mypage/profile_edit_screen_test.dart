@@ -77,27 +77,31 @@ void main() {
   testWidgets('이전 계정의 늦은 응답은 새 계정 화면에 노출되지 않는다', (tester) async {
     final first = Completer<http.Response>();
     var calls = 0;
-    await http.runWithClient(
-      () async {
-        await tester.pumpWidget(const MaterialApp(home: ProfileEditScreen()));
-        await tester.pump();
-        expect(calls, 1);
-        await tester.runAsync(() => signIn(2));
-        await tester.pumpAndSettle();
-        expect(find.text('new@example.invalid'), findsOneWidget);
-        first.complete(account('old@example.invalid'));
-        await tester.pumpAndSettle();
-        expect(find.text('old@example.invalid'), findsNothing);
-        expect(find.text('new@example.invalid'), findsOneWidget);
-        await tester.pumpWidget(const SizedBox.shrink());
-        expect(tester.takeException(), isNull);
-      },
-      () => MockClient((_) {
-        calls++;
-        return calls == 1
-            ? first.future
-            : Future.value(account('new@example.invalid'));
-      }),
-    );
+    final client = MockClient((_) {
+      calls++;
+      return calls == 1
+          ? first.future
+          : Future.value(account('new@example.invalid'));
+    });
+    await http.runWithClient(() async {
+      await tester.pumpWidget(const MaterialApp(home: ProfileEditScreen()));
+      await tester.pump();
+      expect(calls, 1);
+      // runAsync leaves the widget test zone, so bind the same mock there too.
+      await tester.runAsync(
+        () => http.runWithClient(() async {
+          await signIn(2);
+          await Future<void>.delayed(Duration.zero);
+        }, () => client),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('new@example.invalid'), findsOneWidget);
+      first.complete(account('old@example.invalid'));
+      await tester.pumpAndSettle();
+      expect(find.text('old@example.invalid'), findsNothing);
+      expect(find.text('new@example.invalid'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+      expect(tester.takeException(), isNull);
+    }, () => client);
   });
 }
