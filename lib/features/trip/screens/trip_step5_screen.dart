@@ -356,21 +356,26 @@ class _TripStep5ScreenState extends State<TripStep5Screen> {
                 items: [_kPlaceholder, ..._provinces],
                 onChanged: (v) {
                   if (v == null) return;
-                  widget.onLocationChanged(v, _kPlaceholder);
+                  widget.onLocationChanged(
+                    v,
+                    v == '세종특별자치시' ? _kAllCities : _kPlaceholder,
+                  );
                 },
               ),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildDropdown(
-                label: '시/군/구',
-                value: effectiveCity,
-                items: cities,
-                onChanged: (v) {
-                  if (v != null) widget.onLocationChanged(widget.selectedProvince, v);
-                },
+            if (widget.selectedProvince != '세종특별자치시') ...[
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildDropdown(
+                  label: '시/군/구',
+                  value: effectiveCity,
+                  items: cities,
+                  onChanged: (v) {
+                    if (v != null) widget.onLocationChanged(widget.selectedProvince, v);
+                  },
+                ),
               ),
-            ),
+            ],
           ],
         ),
         const SizedBox(height: 16),
@@ -476,6 +481,7 @@ class _TripStep5ScreenState extends State<TripStep5Screen> {
                 zoomGesturesEnable: true,
                 rotationGesturesEnable: false,
                 mapType: AppMapType.basic,
+                contentPadding: EdgeInsets.only(bottom: 8, left: 8),
               ),
               onMapReady: (controller) {
                 _mapController = controller;

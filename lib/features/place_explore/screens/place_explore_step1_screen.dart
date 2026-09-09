@@ -216,13 +216,13 @@ class _PlaceExploreStep1ScreenState extends State<PlaceExploreStep1Screen> {
             valueListenable: mapGeneration,
             builder: (context, generation, _) => AppMap(
               key: ValueKey('explore-map-$generation'),
-              options: const AppMapOptions(
+              options: AppMapOptions(
                 initialCameraPosition: _kInitialCamera,
                 scrollGesturesEnable: true,
                 zoomGesturesEnable: true,
                 rotationGesturesEnable: false,
                 mapType: AppMapType.basic,
-                contentPadding: EdgeInsets.only(bottom: 160),
+                contentPadding: EdgeInsets.only(bottom: 166 + bottomPad),
               ),
               onMapReady: (controller) {
                 // 새로 만든 지도에는 마커가 없다. 그렸다는 표시를 지워 다시

@@ -80,6 +80,10 @@ class _NavigationScreenState extends State<NavigationScreen>
   int _currentSegmentIndex = 0;   // 현재 위치가 속한 구간 (0 = stop[0]→stop[1])
   double _segmentProgress = 0.0;  // 구간 내 진행도 (0.0 = 출발지, 1.0 = 목적지)
 
+  // ── 하단 시트 ────────────────────────────────────────────────────────────
+  final _sheetController = DraggableScrollableController();
+  double _sheetSize = 0.44;
+
   @override
   void initState() {
     super.initState();
@@ -87,6 +91,12 @@ class _NavigationScreenState extends State<NavigationScreen>
     _markStarted();
     _startLocationTracking();
     _startCompass();
+    _sheetController.addListener(_onSheetSizeChanged);
+  }
+
+  void _onSheetSizeChanged() {
+    if (!mounted) return;
+    setState(() => _sheetSize = _sheetController.size);
   }
 
   /// 이 일정을 따라가기 시작했다고 서버에 알리고, 최신 상세로 갈아 끼운다.
@@ -115,6 +125,7 @@ class _NavigationScreenState extends State<NavigationScreen>
   void dispose() {
     _locationSub?.cancel();
     _compassSub?.cancel();
+    _sheetController.dispose();
     super.dispose();
   }
 
@@ -148,7 +159,7 @@ class _NavigationScreenState extends State<NavigationScreen>
               transport: s.transportToNext != null
                   ? _Transport(
                       label: s.transportToNext!.label,
-                      duration: '${s.transportToNext!.durationMinutes}분 (${s.transportToNext!.routeDescription})',
+                      duration: '${s.transportToNext!.durationMinutes}분',
                       distance: '${s.transportToNext!.distanceKm}km',
                       path: (s.transportToNext!.hasRoadRoute ? s.transportToNext!.path : null)
                           ?.map((p) => MapCoordinate(p[0], p[1]))
@@ -477,7 +488,11 @@ class _NavigationScreenState extends State<NavigationScreen>
           zoomGesturesEnable: true,
           rotationGesturesEnable: true, // 회전 허용 (나침반과 연동)
           mapType: AppMapType.basic,
-          contentPadding: const EdgeInsets.only(bottom: 280),
+          contentPadding: EdgeInsets.only(
+                  bottom: MediaQuery.sizeOf(context).height * _sheetSize +
+                      MediaQuery.paddingOf(context).bottom +
+                      8,
+                ),
         ),
         onMapReady: _onMapReady,
         onCameraChange: _onCameraChange,
@@ -814,6 +829,7 @@ class _NavigationScreenState extends State<NavigationScreen>
 
   Widget _buildSheet() {
     return DraggableScrollableSheet(
+      controller: _sheetController,
       initialChildSize: 0.44,
       minChildSize: 0.12,
       maxChildSize: 0.78,
