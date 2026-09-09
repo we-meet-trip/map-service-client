@@ -159,7 +159,8 @@ class _TripStep5ScreenState extends State<TripStep5Screen> {
     int idx = 0;
     for (final feature in features) {
       final props = feature['properties'] as Map<String, dynamic>;
-      if (props[nameKey] != matchName) continue;
+      final featureName = (props[nameKey] as String?) ?? '';
+      if (!featureName.startsWith(matchName)) continue;
       if (provinceCode != null) {
         final sigCd = props['SIG_CD'] as String? ?? '';
         if (!sigCd.startsWith(provinceCode)) continue;
@@ -217,7 +218,8 @@ class _TripStep5ScreenState extends State<TripStep5Screen> {
 
     for (final feature in features) {
       final props = feature['properties'] as Map<String, dynamic>;
-      if (props[nameKey] != matchName) continue;
+      final featureName = (props[nameKey] as String?) ?? '';
+      if (!featureName.startsWith(matchName)) continue;
       if (provinceCode != null) {
         final sigCd = props['SIG_CD'] as String? ?? '';
         if (!sigCd.startsWith(provinceCode)) continue;
