@@ -81,7 +81,7 @@ class _TripStep5ScreenState extends State<TripStep5Screen> {
       '중구', '남구', '동구', '북구', '울주군',
     ],
     '세종특별자치시': [
-      '세종시',
+      '세종특별자치시',
     ],
     '경기도': [
       '수원시', '성남시', '고양시', '용인시', '부천시', '안산시', '안양시', '남양주시',
@@ -151,15 +151,18 @@ class _TripStep5ScreenState extends State<TripStep5Screen> {
   List<MapPolygonOverlay> _buildOverlays(
     String idPrefix,
     List<dynamic> features,
-    String nameKey,
-    String matchName, {
+    String? nameKey,
+    String? matchName, {
     String? provinceCode,
   }) {
     final overlays = <MapPolygonOverlay>[];
     int idx = 0;
     for (final feature in features) {
       final props = feature['properties'] as Map<String, dynamic>;
-      if (props[nameKey] != matchName) continue;
+      if (matchName != null && nameKey != null) {
+        final featureName = (props[nameKey] as String?) ?? '';
+        if (!featureName.startsWith(matchName)) continue;
+      }
       if (provinceCode != null) {
         final sigCd = props['SIG_CD'] as String? ?? '';
         if (!sigCd.startsWith(provinceCode)) continue;
@@ -198,8 +201,8 @@ class _TripStep5ScreenState extends State<TripStep5Screen> {
   /// 매칭된 feature들의 좌표 전체를 아우르는 MapCoordinateBounds 계산
   MapCoordinateBounds? _computeBounds(
     List<dynamic> features,
-    String nameKey,
-    String matchName, {
+    String? nameKey,
+    String? matchName, {
     String? provinceCode,
   }) {
     double? minLat, maxLat, minLng, maxLng;
@@ -217,7 +220,10 @@ class _TripStep5ScreenState extends State<TripStep5Screen> {
 
     for (final feature in features) {
       final props = feature['properties'] as Map<String, dynamic>;
-      if (props[nameKey] != matchName) continue;
+      if (matchName != null && nameKey != null) {
+        final featureName = (props[nameKey] as String?) ?? '';
+        if (!featureName.startsWith(matchName)) continue;
+      }
       if (provinceCode != null) {
         final sigCd = props['SIG_CD'] as String? ?? '';
         if (!sigCd.startsWith(provinceCode)) continue;
@@ -276,10 +282,16 @@ class _TripStep5ScreenState extends State<TripStep5Screen> {
 
     if (city == _kPlaceholder || city == _kAllCities) {
       // 시/도 오버레이 + 해당 시도 전체가 보이도록 fitBounds
-      final sidoFeatures = _sidoGeo!['features'] as List<dynamic>;
-      final overlays = _buildOverlays(_kOverlayProvince, sidoFeatures, 'CTP_KOR_NM', province);
+      // CTPRVN GeoJSON은 일부 도의 경계 데이터가 불완전하므로
+      // SIG 데이터를 시/도 코드로 필터해서 정확한 범위를 계산한다.
+      final provinceCode = _getProvinceCode(province);
+      final sggFeatures = _sggGeo!['features'] as List<dynamic>;
+      final overlays = _buildOverlays(
+        _kOverlayProvince, sggFeatures, null, null,
+        provinceCode: provinceCode,
+      );
       await controller.addOverlayAll(overlays.toSet());
-      final bounds = _computeBounds(sidoFeatures, 'CTP_KOR_NM', province);
+      final bounds = _computeBounds(sggFeatures, null, null, provinceCode: provinceCode);
       if (bounds != null) _fitBounds(bounds);
     } else {
       // 시/군/구 오버레이 + 해당 구 전체가 보이도록 fitBounds
@@ -344,21 +356,26 @@ class _TripStep5ScreenState extends State<TripStep5Screen> {
                 items: [_kPlaceholder, ..._provinces],
                 onChanged: (v) {
                   if (v == null) return;
-                  widget.onLocationChanged(v, _kPlaceholder);
+                  widget.onLocationChanged(
+                    v,
+                    v == '세종특별자치시' ? _kAllCities : _kPlaceholder,
+                  );
                 },
               ),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildDropdown(
-                label: '시/군/구',
-                value: effectiveCity,
-                items: cities,
-                onChanged: (v) {
-                  if (v != null) widget.onLocationChanged(widget.selectedProvince, v);
-                },
+            if (widget.selectedProvince != '세종특별자치시') ...[
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildDropdown(
+                  label: '시/군/구',
+                  value: effectiveCity,
+                  items: cities,
+                  onChanged: (v) {
+                    if (v != null) widget.onLocationChanged(widget.selectedProvince, v);
+                  },
+                ),
               ),
-            ),
+            ],
           ],
         ),
         const SizedBox(height: 16),
@@ -464,6 +481,7 @@ class _TripStep5ScreenState extends State<TripStep5Screen> {
                 zoomGesturesEnable: true,
                 rotationGesturesEnable: false,
                 mapType: AppMapType.basic,
+                contentPadding: EdgeInsets.only(bottom: 8, left: 8),
               ),
               onMapReady: (controller) {
                 _mapController = controller;

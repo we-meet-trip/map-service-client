@@ -314,6 +314,14 @@ class _AppMapState extends State<AppMap> {
   }
 
   @override
+  void didUpdateWidget(AppMap oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.options.contentPadding != widget.options.contentPadding) {
+      setState(() => _padding = widget.options.contentPadding);
+    }
+  }
+
+  @override
   void dispose() {
     _controller?._dispose();
     _overlays.removeListener(_redraw);

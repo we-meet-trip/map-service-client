@@ -338,7 +338,11 @@ class _BikeScooterLocationScreenState extends State<BikeScooterLocationScreen> {
                 scrollGesturesEnable: true,
                 zoomGesturesEnable: true,
                 rotationGesturesEnable: false,
-                contentPadding: const EdgeInsets.only(bottom: 160),
+                contentPadding: EdgeInsets.only(
+                  bottom: (_selected != null ? 300 : 0) +
+                      MediaQuery.of(context).padding.bottom +
+                      8,
+                ),
               ),
               onMapReady: _onMapReady,
               onCameraChange: (reason, _) {
