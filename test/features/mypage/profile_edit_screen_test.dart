@@ -82,7 +82,7 @@ void main() {
         await tester.pumpWidget(const MaterialApp(home: ProfileEditScreen()));
         await tester.pump();
         expect(calls, 1);
-        await signIn(2);
+        await tester.runAsync(() => signIn(2));
         await tester.pumpAndSettle();
         expect(find.text('new@example.invalid'), findsOneWidget);
         first.complete(account('old@example.invalid'));
