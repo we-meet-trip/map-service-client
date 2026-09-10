@@ -275,7 +275,7 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
       Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(4, 12, 0, 0),
+            padding: EdgeInsets.fromLTRB(4, MediaQuery.paddingOf(context).top + 4, 0, 0),
             child: Align(
               alignment: Alignment.centerLeft,
               child: IconButton(
@@ -292,8 +292,8 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
                 Text(
                   '일정 직접 고치기',
                   style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 26,
+                    fontWeight: FontWeight.w800,
                     color: AppColors.neutralScale[600],
                   ),
                 ),
