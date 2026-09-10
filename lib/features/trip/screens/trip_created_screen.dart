@@ -136,8 +136,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
     transport: s.transportToNext != null
         ? _TransportInfo(
             label: s.transportToNext!.label,
-            duration:
-                '${s.transportToNext!.durationMinutes}분 (${s.transportToNext!.routeDescription})',
+            duration: '${s.transportToNext!.durationMinutes}분',
             distance: '${s.transportToNext!.distanceKm}km',
             path:
                 (s.transportToNext!.hasRoadRoute
@@ -997,17 +996,19 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
                 ),
               ),
               const SizedBox(width: 12),
-              Text(
-                transport.label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.neutralScale[600],
+              Expanded(
+                child: Text(
+                  transport.label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.neutralScale[600],
+                  ),
                 ),
               ),
-              const Spacer(),
               Text(
                 '${transport.duration} · ${transport.distance}',
+                textAlign: TextAlign.right,
                 style: TextStyle(
                   fontSize: 13,
                   color: AppColors.neutralScale[400],

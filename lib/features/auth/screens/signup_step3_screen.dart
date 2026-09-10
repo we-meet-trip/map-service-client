@@ -28,6 +28,7 @@ class _SignupStep3ScreenState extends State<SignupStep3Screen> {
       subtitle: '관심분야를 선택하시면 맞춤 여행 콘텐츠를 추천해드려요.',
       currentStep: 3,
       totalSteps: 4,
+      expandChild: true,
       onBack: () => context.pop(),
       onNext: () {
         UserRepository.instance.updateInterests(_selectedInterests);
@@ -35,9 +36,8 @@ class _SignupStep3ScreenState extends State<SignupStep3Screen> {
             .updateThemes(themeIdsFromLabels(_selectedThemeLabels));
         context.push('/signup/step4');
       },
-      child: Expanded(
-        child: SingleChildScrollView(
-          child: Column(
+      child: SingleChildScrollView(
+        child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -85,7 +85,6 @@ class _SignupStep3ScreenState extends State<SignupStep3Screen> {
               ),
               const SizedBox(height: 12),
             ],
-          ),
         ),
       ),
     );
