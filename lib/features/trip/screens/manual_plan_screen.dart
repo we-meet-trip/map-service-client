@@ -524,15 +524,38 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
   Widget _buildOrderToggle() {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.neutralScale[100],
-        borderRadius: BorderRadius.circular(12),
+        color: AppColors.neutralScale[000],
+        borderRadius: BorderRadius.circular(40),
       ),
       padding: const EdgeInsets.all(4),
-      child: Row(
-        children: [
-          _buildSegmentOption('원래 순서', !_optimize),
-          _buildSegmentOption('최적화 순서', _optimize),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final pillWidth = constraints.maxWidth / 2;
+          return Stack(
+            children: [
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeInOut,
+                left: _optimize ? pillWidth : 0,
+                top: 0,
+                bottom: 0,
+                width: pillWidth,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.secondaryScale[500],
+                    borderRadius: BorderRadius.circular(36),
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  _buildSegmentOption('원래 순서', !_optimize),
+                  _buildSegmentOption('최적화 순서', _optimize),
+                ],
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -541,45 +564,46 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
     return Expanded(
       child: GestureDetector(
         onTap: () => setState(() => _optimize = label == '최적화 순서'),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
+        child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: selected ? Colors.white : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-            boxShadow: selected
-                ? [
-                    BoxShadow(
-                      color: AppColors.neutralScale[200]!.withValues(alpha: 0.5),
-                      blurRadius: 4,
-                      offset: const Offset(0, 1),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
+          child: AnimatedDefaultTextStyle(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeInOut,
             style: TextStyle(
               fontSize: 14,
               fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-              color: selected
-                  ? AppColors.secondaryScale[500]
-                  : AppColors.neutralScale[400],
+              color: selected ? Colors.white : AppColors.neutralScale[400],
             ),
+            child: Text(label, textAlign: TextAlign.center),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildAddButton() => OutlinedButton.icon(
-    onPressed: _addPlace,
-    icon: const Icon(Icons.add),
-    label: const Text('장소 추가하기'),
-    style: OutlinedButton.styleFrom(
-      minimumSize: const Size.fromHeight(52),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+  Widget _buildAddButton() => GestureDetector(
+    onTap: _addPlace,
+    child: Container(
+      decoration: BoxDecoration(
+        color: AppColors.secondaryScale[0],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.secondaryScale[300]!),
+      ),
+      child: ListTile(
+        leading: CircleAvatar(
+          radius: 14,
+          backgroundColor: AppColors.secondaryScale[100],
+          child: Icon(Icons.add, size: 16, color: AppColors.secondaryScale[500]),
+        ),
+        title: Text(
+          '장소 추가하기',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: AppColors.secondaryScale[500],
+          ),
+        ),
+      ),
     ),
   );
 }
