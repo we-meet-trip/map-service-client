@@ -111,7 +111,7 @@ void main() {
     );
     list.onReorder(0, 2);
     await tester.pump();
-    await tester.tap(find.text('동선 만들기  →'));
+    await tester.tap(find.text('이 순서로 계속하기  →'));
     await tester.pump();
     expect(find.byType(ExternalAiConsentDialog), findsNothing);
     await tester.pump(const Duration(seconds: 3));
@@ -162,16 +162,13 @@ void main() {
           ),
         ),
       );
+      await tester.tap(find.text('최적화 순서'));
+      await tester.pump();
       expect(find.textContaining('각 일차의 첫 장소는 유지'), findsOneWidget);
-      final optimize = tester
-          .widget<OutlinedButton>(find.widgetWithText(OutlinedButton, '동선 최적화'))
-          .onPressed!;
-      final manual = tester
-          .widget<NextButton>(find.byType(NextButton))
-          .onPressed!;
-      optimize();
-      optimize();
-      manual();
+      final send = tester.widget<NextButton>(find.byType(NextButton)).onPressed!;
+      send();
+      send();
+      send();
       await tester.pump();
       expect(requests, hasLength(1));
       expect(requests.single.optimize, isTrue);
@@ -221,13 +218,13 @@ void main() {
         ),
       );
       await tester.tap(find.widgetWithText(ChoiceChip, '자전거'));
-      await tester.tap(find.text('수정 취소'));
+      await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded));
       await tester.pumpAndSettle();
       await tester.tap(find.text('계속 수정'));
       await tester.pumpAndSettle();
       expect(cancelled, 0);
       expect(draft.transport, 'bicycle');
-      await tester.tap(find.text('수정 취소'));
+      await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded));
       await tester.pumpAndSettle();
       await tester.tap(
         find.descendant(
@@ -297,7 +294,7 @@ void main() {
           .onReorder(0, 2);
       await tester.pump();
       for (var attempt = 0; attempt < 2; attempt++) {
-        await tester.tap(find.text('동선 만들기  →'));
+        await tester.tap(find.text('이 순서로 계속하기  →'));
         await tester.pump();
         expect(find.byType(ExternalAiConsentDialog), findsNothing);
         await tester.pump(const Duration(seconds: 3));
