@@ -81,7 +81,7 @@ class _SearchStep1ScreenState extends State<SearchStep1Screen> {
                   '일정이 마음에 들지\n않으신가요?',
                   style: TextStyle(
                     fontSize: 26,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w800,
                     color: AppColors.neutralScale[600],
                     height: 1.35,
                   ),
