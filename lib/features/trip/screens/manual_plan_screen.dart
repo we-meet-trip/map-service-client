@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../common/widgets/app_loading_screen.dart';
 import '../../../common/widgets/next_button.dart';
-import '../../../common/widgets/prev_button.dart';
 import '../../../core/api/places_api_service.dart';
 import '../../../core/api/trip_api_service.dart';
 import '../../../core/state/auth_store.dart';
@@ -63,6 +62,7 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
   List<TripStop> get _stops => _draft.stops;
   bool _allowPop = false;
   bool _confirmingCancel = false;
+  bool _optimize = false;
 
   Future<void>? _routeFuture;
   TripGenerateResponse? _result;
@@ -274,9 +274,20 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
     return _guardDraft(
       Column(
         children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 12, 0, 0),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+                color: AppColors.neutralScale[500],
+                onPressed: _cancel,
+              ),
+            ),
+          ),
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(24, 32, 24, 16),
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
               children: [
                 Text(
                   '일정 직접 고치기',
@@ -329,30 +340,34 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
             padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
             child: Column(
               children: [
+                _buildOrderToggle(),
+                const SizedBox(height: 8),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  child: Text(
+                    key: ValueKey(_optimize),
+                    _optimize
+                        ? '각 일차의 첫 장소는 유지하고 나머지 순서를 다시 계산해요.'
+                        : '입력한 순서 그대로 동선을 만들어요.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.neutralScale[400],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 NextButton(
-                  onPressed: blocked == null && _canSend ? _makeRoute : null,
-                  label: '동선 만들기  →',
+                  onPressed: blocked == null && _canSend
+                      ? () => _makeRoute(optimize: _optimize)
+                      : null,
+                  label: '이 순서로 계속하기  →',
                   info: switch (blocked) {
                     ManualRouteBlock.tooFew => '장소를 2곳 이상 넣어 주세요',
                     ManualRouteBlock.tooMany => '한 번에 10곳까지 넣을 수 있어요',
                     null => '${_stops.length}곳으로 동선을 만들어요',
                   },
                 ),
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  onPressed: blocked == null && _canSend
-                      ? () => _makeRoute(optimize: true)
-                      : null,
-                  icon: const Icon(Icons.alt_route),
-                  label: const Text('동선 최적화'),
-                ),
-                const Text(
-                  '각 일차의 첫 장소는 유지하고 나머지 방문 순서를 다시 계산해요.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 12),
-                ),
-                const SizedBox(height: 12),
-                PrevButton(onPressed: _cancel, label: '수정 취소'),
               ],
             ),
           ),
@@ -395,6 +410,26 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       buildDefaultDragHandles: false,
+      proxyDecorator: (child, index, animation) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeIn,
+          reverseCurve: Curves.easeOut,
+        );
+        return AnimatedBuilder(
+          animation: curved,
+          builder: (context, child) => Material(
+            elevation: curved.value * 2,
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            shadowColor: AppColors.secondaryScale[200]!.withValues(
+              alpha: curved.value * 0.15,
+            ),
+            child: child,
+          ),
+          child: child,
+        );
+      },
       itemCount: inDay.length,
       onReorder: (oldIndex, newIndex) =>
           _reorderWithinDay(day, oldIndex, newIndex),
@@ -481,6 +516,58 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
                   },
                 ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOrderToggle() {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.neutralScale[100],
+        borderRadius: BorderRadius.circular(12),
+      ),
+      padding: const EdgeInsets.all(4),
+      child: Row(
+        children: [
+          _buildSegmentOption('원래 순서', !_optimize),
+          _buildSegmentOption('최적화 순서', _optimize),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSegmentOption(String label, bool selected) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _optimize = label == '최적화 순서'),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: selected ? Colors.white : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color: AppColors.neutralScale[200]!.withValues(alpha: 0.5),
+                      blurRadius: 4,
+                      offset: const Offset(0, 1),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+              color: selected
+                  ? AppColors.secondaryScale[500]
+                  : AppColors.neutralScale[400],
+            ),
+          ),
         ),
       ),
     );
