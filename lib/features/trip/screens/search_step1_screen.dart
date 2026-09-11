@@ -72,7 +72,7 @@ class _SearchStep1ScreenState extends State<SearchStep1Screen> {
         // ── 스크롤 영역 ──
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+            padding: EdgeInsets.fromLTRB(24, MediaQuery.paddingOf(context).top + 24, 24, 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -81,7 +81,7 @@ class _SearchStep1ScreenState extends State<SearchStep1Screen> {
                   '일정이 마음에 들지\n않으신가요?',
                   style: TextStyle(
                     fontSize: 26,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w800,
                     color: AppColors.neutralScale[600],
                     height: 1.35,
                   ),

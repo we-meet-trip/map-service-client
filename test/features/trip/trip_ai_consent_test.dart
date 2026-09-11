@@ -333,7 +333,7 @@ void main() {
           .onReorder(0, 2);
       await tester.pump();
       ServiceConsentStore.instance.invalidate();
-      await tester.tap(find.text('동선 만들기  →'));
+      await tester.tap(find.text('이 순서로 계속하기  →'));
       await tester.pumpAndSettle();
       expect(find.byType(ExternalAiConsentDialog), findsNothing);
       expect(calls, 0);
@@ -418,7 +418,7 @@ void main() {
         ),
       ),
     );
-    await tester.tap(find.text('동선 만들기  →'));
+    await tester.tap(find.text('이 순서로 계속하기  →'));
     await tester.pump();
     expect(find.byType(ExternalAiConsentDialog), findsNothing);
     ServiceConsentStore.instance.invalidate();
