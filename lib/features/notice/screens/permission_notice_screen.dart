@@ -16,54 +16,46 @@ class PermissionNoticeScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: Padding(
+        child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 40, 20, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '접근 권한 안내',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.neutralScale[600],
-                ),
+          children: [
+            Text(
+              '접근 권한 안내',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+                color: AppColors.neutralScale[600],
               ),
-              const SizedBox(height: 8),
-              Text(
-                'MAP 은 아래 권한을 선택으로 사용해요.\n각 기능을 쓰는 순간에만 허용을 물어봐요.',
-                style: TextStyle(fontSize: 14, color: bodyColor, height: 1.5),
-              ),
-              const SizedBox(height: 32),
-              const _PermissionItem(
-                name: '위치',
-                purpose: '현재 위치 날씨, 주변 이동수단, 길안내, 장소 인식',
-              ),
-              const _PermissionItem(
-                name: '카메라',
-                purpose: '장소 인식 촬영',
-              ),
-              const _PermissionItem(
-                name: '마이크',
-                purpose: '장소 인식 음성 질문',
-              ),
-              const SizedBox(height: 32),
-              Text(
-                '권한을 거부해도 해당 기능 외에는 그대로 이용할 수 있어요.\n'
-                '허용한 권한은 설정 > 애플리케이션 > MAP > 권한 에서 '
-                '언제든지 철회할 수 있어요.',
-                style: TextStyle(fontSize: 13, color: bodyColor, height: 1.6),
-              ),
-              const Spacer(),
-              NextButton(
-                label: '확인했어요',
-                onPressed: () async {
-                  await PermissionNoticeStore.instance.confirm();
-                  if (context.mounted) context.go('/');
-                },
-              ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'MAP은 아래 권한을 선택으로 사용해요.\n권한이 필요한 기능을 사용할 때 허용 여부를 물어봐요.',
+              style: TextStyle(fontSize: 14, color: bodyColor, height: 1.5),
+            ),
+            const SizedBox(height: 32),
+            const _PermissionItem(
+              name: '위치',
+              purpose: '현재 위치 날씨, 주변 이동수단, 길안내, 장소 인식',
+            ),
+            const _PermissionItem(name: '카메라', purpose: '장소 인식 촬영'),
+            const _PermissionItem(name: '마이크', purpose: '장소 인식 음성 질문'),
+            const _PermissionItem(name: '음성 인식', purpose: '말한 질문을 글로 변환'),
+            const _PermissionItem(name: '사진', purpose: '프로필 사진 선택 (이 기기에 저장)'),
+            const SizedBox(height: 32),
+            Text(
+              '권한을 거부해도 해당 기능 외에는 그대로 이용할 수 있어요.\n'
+              '휴대전화 설정에서 MAP의 접근 권한을 변경할 수 있어요.',
+              style: TextStyle(fontSize: 13, color: bodyColor, height: 1.6),
+            ),
+            const SizedBox(height: 32),
+            NextButton(
+              label: '확인했어요',
+              onPressed: () async {
+                await PermissionNoticeStore.instance.confirm();
+                if (context.mounted) context.go('/');
+              },
+            ),
+          ],
         ),
       ),
     );

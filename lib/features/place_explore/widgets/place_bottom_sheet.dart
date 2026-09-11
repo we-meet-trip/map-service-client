@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../common/widgets/review_summary_section.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../../common/constants/category_tags.dart';
@@ -42,9 +43,6 @@ class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
 
   late bool _isAdded;
 
-  List<String> _bullets = const [];
-  bool _summaryLoading = false;
-
   List<PlacePhoto> _photos = const [];
 
   final List<BlogReview> _reviews = [];
@@ -58,7 +56,6 @@ class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
     _isAdded = widget.isAdded;
     // 요약·후기·사진은 장소명으로 물어본다. 시트는 기다리지 않고 먼저 열리고
     // 받아온 뒤에 그 자리만 채워진다.
-    _loadSummary();
     _loadFirstPage();
     _loadPhotos();
   }
@@ -81,16 +78,6 @@ class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
   void _handleToggle() {
     setState(() => _isAdded = !_isAdded);
     widget.onToggle();
-  }
-
-  Future<void> _loadSummary() async {
-    setState(() => _summaryLoading = true);
-    final bullets = await _api.fetchSummary(widget.detail.name);
-    if (!mounted) return;
-    setState(() {
-      _bullets = bullets;
-      _summaryLoading = false;
-    });
   }
 
   Future<void> _loadFirstPage() async {
@@ -294,23 +281,11 @@ class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
         ),
       );
 
-  /// 요약 자리. 받아오는 동안은 자리만 잡고, 근거를 못 구했으면 접는다.
-  Widget _buildSummary() {
-    if (_summaryLoading) {
-      return const Padding(
-        padding: EdgeInsets.fromLTRB(24, 20, 24, 0),
-        child: Center(
-          child: SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-        ),
-      );
-    }
-    if (_bullets.isEmpty) return const SizedBox.shrink();
-    return PlaceAiSummaryCard(summary: _bullets.join('\n'));
-  }
+  /// 저장된 요약을 표시하고, 없으면 명시적 생성 버튼을 제공한다.
+  Widget _buildSummary() => ReviewSummarySection(
+    query: widget.detail.name,
+    resultBuilder: (bullets) => PlaceAiSummaryCard(summary: bullets.join('\n')),
+  );
 
   Widget _buildReviewsLoading() {
     return const Padding(

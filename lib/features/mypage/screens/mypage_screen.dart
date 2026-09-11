@@ -3,11 +3,14 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../common/utils/support_mail.dart';
 import '../../../core/api/auth_api_service.dart';
+import '../../../core/config/app_environment.dart';
 import '../../../core/state/auth_store.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../common/theme/app_icons.dart';
 import '../../../core/state/user_repository.dart';
 import '../widgets/profile_avatar.dart';
+import '../../moderation/moderation_center_screen.dart';
+import 'external_ai_settings_screen.dart';
 
 class MypageScreen extends StatelessWidget {
   const MypageScreen({super.key});
@@ -30,7 +33,11 @@ class MypageScreen extends StatelessWidget {
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  ProfileAvatar(imagePath: profile.profileImagePath, size: 60, color: AppColors.avatarColorOf(profile.id)),
+                  ProfileAvatar(
+                    imagePath: profile.profileImagePath,
+                    size: 60,
+                    color: AppColors.avatarColorOf(profile.id),
+                  ),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Column(
@@ -104,9 +111,28 @@ class MypageScreen extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 28),
-        _MenuItem(label: '관심사 설정', onTap: () => context.push('/mypage/interests')),
-        Container(height: 9, width: double.infinity, color: AppColors.mypageDivider),
+        _MenuItem(
+          label: '관심사 설정',
+          onTap: () => context.push('/mypage/interests'),
+        ),
+        Container(
+          height: 9,
+          width: double.infinity,
+          color: AppColors.mypageDivider,
+        ),
         _MenuItem(label: '고객센터', onTap: () => _openSupportMail(context)),
+        _MenuItem(
+          label: '신고 내역 및 차단 관리',
+          onTap: () => openModerationCenter(context),
+        ),
+        _MenuItem(
+          label: '외부 AI 전송 동의 설정',
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => const ExternalAiSettingsScreen(),
+            ),
+          ),
+        ),
         _MenuItem(label: '약관 및 정책', onTap: () => _showPolicies(context)),
         const Spacer(),
         Padding(
@@ -137,7 +163,11 @@ class MypageScreen extends StatelessWidget {
                         color: AppColors.savedBadgeFar,
                       ),
                     ),
-                    AppIcon(SvgIcons.chevronRightThin, size: 12, color: AppColors.savedBadgeFar),
+                    AppIcon(
+                      SvgIcons.chevronRightThin,
+                      size: 12,
+                      color: AppColors.savedBadgeFar,
+                    ),
                   ],
                 ),
               ),
@@ -174,7 +204,7 @@ class MypageScreen extends StatelessWidget {
               onPressed: () {
                 Navigator.pop(dialogContext);
                 launchUrl(
-                  Uri.parse('https://mapcenter-b59ca.web.app/legal/${e.value}'),
+                  AppEnvironment.policyUrl(e.value),
                   mode: LaunchMode.externalApplication,
                 );
               },
@@ -210,7 +240,11 @@ class _MenuItem extends StatelessWidget {
             ),
           ),
           const Spacer(),
-          AppIcon(SvgIcons.chevronRightThin, size: 16, color: AppColors.neutralScale[600]),
+          AppIcon(
+            SvgIcons.chevronRightThin,
+            size: 16,
+            color: AppColors.neutralScale[600],
+          ),
         ],
       ),
     );

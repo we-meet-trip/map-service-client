@@ -5,7 +5,7 @@
 	<key>MapsDartDefines</key>
 	<string>$(DART_DEFINES)</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>현재 위치 날씨 정보를 제공하기 위해 위치 권한이 필요합니다.</string>
+	<string>현재 위치의 날씨와 주변 이동수단을 확인하고 길안내 및 선택한 장소 인식을 돕기 위해 위치를 사용합니다.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>프로필 사진을 설정하기 위해 사진 라이브러리 접근 권한이 필요합니다.</string>
 	<key>NSCameraUsageDescription</key>
@@ -24,7 +24,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Map Service Client</string>
+	<string>$(MAP_DISPLAY_NAME)</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -50,20 +50,20 @@
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>CFBundleURLName</key>
-			<string>kr.mapservice.client.auth</string>
+			<string>$(PRODUCT_BUNDLE_IDENTIFIER).auth</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>mapauth</string>
+				<string>$(MAP_KAKAO_SCHEME)</string>
 			</array>
 		</dict>
 		<dict>
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>CFBundleURLName</key>
-			<string>kr.mapservice.client.invite</string>
+			<string>$(PRODUCT_BUNDLE_IDENTIFIER).invite</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>mapservice</string>
+				<string>$(MAP_INVITE_SCHEME)</string>
 			</array>
 		</dict>
 	</array>

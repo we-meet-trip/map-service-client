@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 
 import '../config/app_config.dart';
 import '../state/auth_store.dart';
+import '../state/service_consent_store.dart';
 
 /// 서버가 돌려준 오류.
 ///
@@ -14,11 +15,13 @@ class ApiException implements Exception {
   final int statusCode;
   final String code;
   final String message;
+  final bool retryable;
 
   const ApiException({
     required this.statusCode,
     required this.code,
     required this.message,
+    this.retryable = false,
   });
 
   @override
@@ -60,7 +63,8 @@ class ApiClient {
     String path, {
     Object? body,
     Duration? timeout,
-  }) => _send('POST', path, body: body, timeout: timeout);
+    bool Function()? canSend,
+  }) => _send('POST', path, body: body, timeout: timeout, canSend: canSend);
 
   Future<Map<String, dynamic>> put(
     String path, {
@@ -76,9 +80,10 @@ class ApiClient {
 
   Future<Map<String, dynamic>> delete(
     String path, {
+    Map<String, String>? query,
     Object? body,
     Duration? timeout,
-  }) => _send('DELETE', path, body: body, timeout: timeout);
+  }) => _send('DELETE', path, query: query, body: body, timeout: timeout);
 
   Future<Map<String, dynamic>> _send(
     String method,
@@ -87,7 +92,9 @@ class ApiClient {
     Object? body,
     Duration? timeout,
     bool retried = false,
+    bool Function()? canSend,
   }) async {
+    _checkRequestPermission(canSend);
     if (!AppConfig.instance.requestsAllowed) {
       throw const ApiException(
         statusCode: 503,
@@ -96,6 +103,15 @@ class ApiClient {
       );
     }
     final sessionVersion = AuthStore.instance.sessionVersion;
+    if (AuthStore.instance.accessToken != null &&
+        !ServiceConsentStore.permitsWithoutConsent(method, path) &&
+        !ServiceConsentStore.instance.canAccess) {
+      throw const ApiException(
+        statusCode: 403,
+        code: 'SERVICE_POLICY_REQUIRED',
+        message: '만 18세 이상 및 이용약관·개인정보처리방침 확인이 필요해요.',
+      );
+    }
     final uri = Uri.parse(
       '$kApiBaseUrl$path',
     ).replace(queryParameters: query == null || query.isEmpty ? null : query);
@@ -112,6 +128,7 @@ class ApiClient {
       if (body != null) {
         request.body = jsonEncode(body);
       }
+      _checkRequestPermission(canSend);
       response = await request
           .send()
           .then(http.Response.fromStream)
@@ -122,6 +139,12 @@ class ApiClient {
         code: 'REQUEST_TIMEOUT',
         message: '응답이 지연되고 있어요. 잠시 후 다시 시도해주세요.',
       );
+    } on http.ClientException {
+      throw const ApiException(
+        statusCode: 503,
+        code: 'NETWORK_ERROR',
+        message: '서버에 연결하지 못했어요. 인터넷 연결 상태를 확인해주세요.',
+      );
     }
 
     if (sessionVersion != AuthStore.instance.sessionVersion) {
@@ -131,9 +154,17 @@ class ApiClient {
         message: '로그인 상태가 변경됐어요. 다시 시도해주세요.',
       );
     }
+    _checkRequestPermission(canSend);
 
     if (response.statusCode == 401 && !retried && !_isAuthPath(path)) {
       final refreshed = await AuthStore.instance.refresh();
+      if (sessionVersion != AuthStore.instance.sessionVersion) {
+        throw const ApiException(
+          statusCode: 409,
+          code: 'SESSION_CHANGED',
+          message: '로그인 상태가 변경됐어요. 다시 시도해주세요.',
+        );
+      }
       if (refreshed) {
         return _send(
           method,
@@ -142,11 +173,22 @@ class ApiClient {
           body: body,
           timeout: timeout,
           retried: true,
+          canSend: canSend,
         );
       }
     }
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
+      // Another concurrent response may have invalidated policy while this was in flight.
+      if (token != null &&
+          !ServiceConsentStore.permitsWithoutConsent(method, path) &&
+          !ServiceConsentStore.instance.canAccess) {
+        throw const ApiException(
+          statusCode: 403,
+          code: 'SERVICE_POLICY_REQUIRED',
+          message: '이용 조건을 다시 확인해주세요.',
+        );
+      }
       if (response.body.isEmpty) {
         return const {};
       }
@@ -154,7 +196,21 @@ class ApiClient {
       return decoded is Map<String, dynamic> ? decoded : {'data': decoded};
     }
 
-    throw _toException(response);
+    final error = _toException(response, path);
+    if (ServiceConsentStore.isPolicyDenial(error.statusCode, error.code)) {
+      ServiceConsentStore.instance.invalidate(reason: error.code);
+    }
+    throw error;
+  }
+
+  static void _checkRequestPermission(bool Function()? canSend) {
+    if (canSend != null && !canSend()) {
+      throw const ApiException(
+        statusCode: 403,
+        code: 'REQUEST_PERMISSION_REVOKED',
+        message: '요청 허용 상태가 바뀌어 전송과 응답 반영을 중단했어요.',
+      );
+    }
   }
 
   /// 목록을 돌려주는 경로용. 서버가 배열을 최상위로 주는 경우가 있다.
@@ -167,9 +223,10 @@ class ApiClient {
     return data is List ? data : const [];
   }
 
-  ApiException _toException(http.Response response) {
+  ApiException _toException(http.Response response, String path) {
     String code = 'UNKNOWN_ERROR';
     String message = '알 수 없는 오류가 발생했습니다.';
+    bool retryable = false;
     if (response.body.isNotEmpty) {
       try {
         final parsed = jsonDecode(utf8.decode(response.bodyBytes));
@@ -178,6 +235,30 @@ class ApiClient {
           final detail = parsed['message'] ?? parsed['detail'];
           if (errorCode is String) code = errorCode;
           if (detail is String) message = detail;
+          if (path.startsWith('/api/v1/trip/')) {
+            final legacy = parsed['error'];
+            if (legacy == 'trip_generation_failed' &&
+                !_recommendationMessages.containsKey(code)) {
+              code = 'generation_failed';
+            } else if (code == 'trip_generation_timeout' ||
+                (legacy == 'trip_generation_timeout' &&
+                    !_recommendationMessages.containsKey(code))) {
+              code = 'recommendation_pending';
+            }
+            if (_recommendationMessages.containsKey(code)) {
+              // Only known transient terminal failures can recommend a new request.
+              // A facade timeout can leave its worker running and is not retryable.
+              retryable =
+                  parsed['retryable'] == true &&
+                  const {
+                    'upstream_unavailable',
+                    'generation_timeout',
+                  }.contains(code);
+              message = code == 'upstream_unavailable' && retryable
+                  ? '추천에 필요한 정보를 가져오지 못했어요. 잠시 후 다시 시도해주세요.'
+                  : _recommendationMessages[code]!;
+            }
+          }
         }
       } on FormatException {
         // 본문이 JSON 이 아니면 상태 코드만 남긴다.
@@ -190,6 +271,19 @@ class ApiClient {
       statusCode: response.statusCode,
       code: code,
       message: message,
+      retryable: retryable,
     );
   }
+
+  static const _recommendationMessages = {
+    'no_matching_places': '현재 조건에서 추천할 장소를 찾지 못했어요. 선택 조건을 확인해주세요.',
+    'selection_invalid': '추천 결과를 구성하지 못했어요. 선택한 장소와 일정을 확인해주세요.',
+    'invalid_request': '선택한 장소와 일정 조건을 확인해주세요.',
+    'upstream_unavailable': '추천에 필요한 정보를 가져오지 못했어요.',
+    'quota_exceeded': '현재 추천 요청 한도에 도달했어요. 잠시 뒤 다시 확인해주세요.',
+    'generation_timeout': '추천 생성 시간이 초과됐어요. 잠시 후 다시 시도해주세요.',
+    'recommendation_pending': '추천 응답 대기 시간이 초과됐어요. 요청이 아직 처리 중일 수 있어요.',
+    'generation_failed': '추천을 생성하지 못했어요.',
+    'timeline_changed': '이동시간과 방문 가능 시간이 달라졌어요. 장소와 활동 시간을 확인해 동선을 다시 요청해주세요.',
+  };
 }

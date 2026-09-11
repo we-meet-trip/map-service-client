@@ -3,11 +3,15 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:map_service_client/common/widgets/app_loading_screen.dart';
+import 'package:map_service_client/common/widgets/external_ai_consent.dart';
 import 'package:map_service_client/core/api/api_client.dart';
 import 'package:map_service_client/core/api/trip_api_service.dart';
 import 'package:map_service_client/core/state/trip_repository.dart';
+import 'package:map_service_client/core/state/auth_store.dart';
+import 'package:map_service_client/core/state/service_consent_store.dart';
 import 'package:map_service_client/features/place_explore/screens/place_explore_result_screen.dart';
 import 'package:map_service_client/features/place_explore/utils/plan_place_id.dart';
 
@@ -15,6 +19,7 @@ import 'package:map_service_client/features/place_explore/utils/plan_place_id.da
 ///
 /// 응답 본문은 로컬 스택의 `/api/v1/trip/route` 가 실제로 돌려준 모양이다.
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   final requested = <Uri>[];
   final sentBodies = <String>[];
 
@@ -85,7 +90,24 @@ void main() {
         'weather_forecast': <dynamic>[],
       });
 
-  setUp(() {
+  setUp(() async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('plugins.it_nomads.com/flutter_secure_storage'),
+          (_) async => null,
+        );
+    await AuthStore.instance.save(const AuthTokens(
+      accessToken: 'test-a', refreshToken: 'test-ra', userId: 1,
+    ));
+    ServiceConsentStore.instance.loadStatus = () async => ServiceConsentStatus(
+      termsVersion: servicePolicyVersion,
+      privacyVersion: servicePrivacyVersion,
+      minimumAge: serviceMinimumAge,
+      accepted: true,
+      ageEligible: true,
+      acceptedAt: DateTime.utc(2026, 9, 7),
+    );
+    await ServiceConsentStore.instance.refresh(force: true);
     requested.clear();
     sentBodies.clear();
     TripRepository.instance.lastPlan = null;
@@ -116,8 +138,16 @@ void main() {
 
   Future<void> pump(WidgetTester tester, Set<String> selected) async {
     await tester.pumpWidget(MaterialApp(
-      home: PlaceExploreResultScreen(selectedIds: selected),
+      home: PlaceExploreResultScreen(selectedIds: selected, consentGate: ExternalAiConsentGate()),
     ));
+    await tester.pump();
+  }
+
+  Future<void> acceptConsent(WidgetTester tester) async {
+    await tester.pumpAndSettle();
+    expect(requested, isEmpty, reason: '동의 전에는 요청을 보내지 않는다');
+    expect(find.byType(AppLoadingScreen), findsNothing);
+    await tester.tap(find.text('전송에 동의'));
     await tester.pump();
   }
 
@@ -131,6 +161,7 @@ void main() {
         ]);
 
         await pump(tester, {planPlaceId(0), planPlaceId(1), planPlaceId(2)});
+        expect(find.byType(ExternalAiConsentDialog), findsNothing);
         expect(find.byType(AppLoadingScreen), findsOneWidget);
         await tester.pump(const Duration(milliseconds: 100));
 
@@ -192,6 +223,24 @@ void main() {
       createHttpClient: (_) =>
           _FakeHttpClient(routeBody(), 200, requested, sentBodies),
     );
+  });
+
+  testWidgets('서비스 약관 동의가 없으면 HTTP 0건이며 선택과 일정이 유지된다', (tester) async {
+    await HttpOverrides.runZoned(() async {
+      givenPlan([stop(order: 1, name: '가'), stop(order: 2, name: '나'), stop(order: 3, name: '다')]);
+      final original = TripRepository.instance.lastPlan;
+      final selected = {planPlaceId(0), planPlaceId(1), planPlaceId(2)};
+      ServiceConsentStore.instance.invalidate();
+      await pump(tester, selected);
+      await tester.pumpAndSettle();
+      expect(find.byType(ExternalAiConsentDialog), findsNothing);
+      expect(requested, isEmpty);
+      expect(sentBodies, isEmpty);
+      expect(selected, {planPlaceId(0), planPlaceId(1), planPlaceId(2)});
+      expect(TripRepository.instance.lastPlan, same(original));
+      expect(find.byType(AppLoadingScreen), findsNothing);
+      expect(find.text('동선 다시 만들기'), findsOneWidget);
+    }, createHttpClient: (_) => _FakeHttpClient(routeBody(), 200, requested, sentBodies));
   });
 
   testWidgets('손볼 일정이 없으면 요청하지 않고 안내한다', (tester) async {
@@ -291,12 +340,14 @@ void main() {
         ));
 
         await pump(tester, {planPlaceId(0)});
+        await acceptConsent(tester);
         await tester.pump(const Duration(milliseconds: 100));
 
         // 동선만 다시 짜는 자리가 아니라 새 장소를 받아 오는 자리로 간다.
         expect(requested.map((u) => u.path),
             contains(endsWith('/trip/research')));
         expect(requested.where((u) => u.path.endsWith('/trip/route')), isEmpty);
+        expect(requested.where((u) => u.path.endsWith('/trip/research')), hasLength(1));
 
         final body = jsonDecode(sentBodies.single) as Map<String, dynamic>;
         expect(body['prev_trip_id'], 'job-prev');
@@ -333,9 +384,11 @@ void main() {
         ));
 
         await pump(tester, {planPlaceId(0), planPlaceId(1), planPlaceId(2)});
+        expect(find.byType(ExternalAiConsentDialog), findsNothing);
         await tester.pump(const Duration(milliseconds: 100));
 
         expect(requested.map((u) => u.path), contains(endsWith('/trip/route')));
+        expect(requested.where((u) => u.path.endsWith('/trip/route')), hasLength(1));
         expect(
             requested.where((u) => u.path.endsWith('/trip/research')), isEmpty);
 

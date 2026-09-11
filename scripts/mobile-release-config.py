@@ -2,6 +2,7 @@
 """Validate mobile release configuration and emit only approved Dart defines."""
 import argparse
 import json
+import ipaddress
 import os
 from pathlib import Path
 import re
@@ -11,11 +12,31 @@ from urllib.parse import urlsplit
 
 TEST_API_ORIGIN = "https://mapapptest.duckdns.org"
 TEST_CONFIG_URL = "https://mapcenter-b59ca.web.app/app_config.json"
+TEST_INVITE_ORIGIN = "https://mapcenter-b59ca.web.app"
+TEST_HOSTS = {"mapapptest.duckdns.org", "mapcenter-b59ca.web.app", "mapcenter-b59ca.firebaseapp.com"}
+PROD_URLS = {
+    "API_ALLOWED_ORIGINS": "https://api.mapservice.app",
+    "APP_CONFIG_URL": "https://mapservice.app/app_config.json",
+    "INVITE_LINK_ORIGIN": "https://mapservice.app",
+    "PUBLIC_SITE_ORIGIN": "https://mapservice.app",
+}
 PLATFORM_KEYS = {
     "android": "GOOGLE_MAPS_ANDROID_API_KEY",
     "ios": "GOOGLE_MAPS_IOS_API_KEY",
     "web": "GOOGLE_MAPS_WEB_API_KEY",
 }
+
+
+def native_identity(environment):
+    if environment not in ("test", "prod"):
+        raise ConfigError("unsupported environment")
+    suffix = ".test" if environment == "test" else ""
+    scheme_suffix = "-test" if environment == "test" else ""
+    return {
+        "NATIVE_APPLICATION_ID": "kr.mapservice.client" + suffix,
+        "INVITE_URL_SCHEME": "mapservice" + scheme_suffix,
+        "KAKAO_CALLBACK_SCHEME": "mapauth" + scheme_suffix,
+    }
 
 
 class ConfigError(ValueError):
@@ -39,6 +60,12 @@ def https_url(value, field, *, origin_only=False):
     if port is not None and not 1 <= port <= 65535:
         raise ConfigError(f"{field}: invalid port")
     host = uri.hostname.lower()
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        if (len(host) > 253 or not all(re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", label)
+                                      for label in host.split('.'))):
+            raise ConfigError(f"{field}: a valid DNS hostname or IP address is required")
     if ":" in host:
         host = f"[{host}]"
     origin = f"https://{host}" + (f":{port}" if port not in (None, 443) else "")
@@ -50,19 +77,38 @@ def make_config(environment, platform, signed, environ):
         raise ConfigError("unsupported environment or platform")
     raw_origins = environ.get("API_ALLOWED_ORIGINS", "").strip()
     config_url = environ.get("APP_CONFIG_URL", "").strip()
+    invite_origin = environ.get("INVITE_LINK_ORIGIN", "").strip()
+    public_origin = environ.get("PUBLIC_SITE_ORIGIN", "").strip()
     if environment == "test":
+        public_origin = public_origin or TEST_INVITE_ORIGIN
+        invite_origin = invite_origin or TEST_INVITE_ORIGIN
         raw_origins = raw_origins or TEST_API_ORIGIN
         config_url = config_url or TEST_CONFIG_URL
-    elif not raw_origins or not config_url:
-        raise ConfigError("prod requires explicit API_ALLOWED_ORIGINS and APP_CONFIG_URL")
+    elif not raw_origins or not config_url or not invite_origin or not public_origin:
+        raise ConfigError("prod requires explicit API_ALLOWED_ORIGINS, APP_CONFIG_URL, INVITE_LINK_ORIGIN and PUBLIC_SITE_ORIGIN")
     origins = list(dict.fromkeys(
         https_url(value.strip(), "API_ALLOWED_ORIGINS", origin_only=True)
         for value in raw_origins.split(",")
     ))
     config_url = https_url(config_url, "APP_CONFIG_URL")
+    invite_origin = https_url(invite_origin, "INVITE_LINK_ORIGIN", origin_only=True)
+    public_origin = https_url(public_origin, "PUBLIC_SITE_ORIGIN", origin_only=True)
+    if urlsplit(invite_origin).port not in (None, 443):
+        raise ConfigError("INVITE_LINK_ORIGIN: native links require the default HTTPS port")
+    invite_host = urlsplit(invite_origin).hostname
+    if not re.fullmatch(r"[a-z0-9.-]+", invite_host) or '.' not in invite_host:
+        raise ConfigError("INVITE_LINK_ORIGIN: native links require a DNS hostname")
+    try:
+        ipaddress.ip_address(invite_host)
+    except ValueError:
+        pass
+    else:
+        raise ConfigError("INVITE_LINK_ORIGIN: native links require a DNS hostname")
     if environment == "prod" and (
-        any(urlsplit(origin).hostname == urlsplit(TEST_API_ORIGIN).hostname for origin in origins)
-        or config_url == TEST_CONFIG_URL
+        any(urlsplit(origin).hostname in TEST_HOSTS for origin in origins)
+        or urlsplit(config_url).hostname in TEST_HOSTS
+        or urlsplit(invite_origin).hostname in TEST_HOSTS
+        or urlsplit(public_origin).hostname in TEST_HOSTS
     ):
         raise ConfigError("prod configuration must not use the GCP test endpoints")
     key_name = PLATFORM_KEYS[platform]
@@ -76,10 +122,29 @@ def make_config(environment, platform, signed, environ):
         "APP_ENV": environment,
         "API_ALLOWED_ORIGINS": ",".join(origins),
         "APP_CONFIG_URL": config_url,
+        "INVITE_LINK_ORIGIN": invite_origin,
+        "PUBLIC_SITE_ORIGIN": public_origin,
+        **native_identity(environment),
     }
+    if environment == "prod" and any(config[field] != value for field, value in PROD_URLS.items()):
+        raise ConfigError("prod configuration must use the approved mapservice.app URLs")
     if key:
         config[key_name] = key
     return config
+
+
+def ios_xcconfig(config):
+    """Only validated, non-secret identity values enter Xcode build settings."""
+    values = {
+        "MAP_APP_ENV": config["APP_ENV"],
+        "MAP_APPLICATION_ID": config["NATIVE_APPLICATION_ID"],
+        "MAP_INVITE_SCHEME": config["INVITE_URL_SCHEME"],
+        "MAP_KAKAO_SCHEME": config["KAKAO_CALLBACK_SCHEME"],
+        "MAP_INVITE_HOST": urlsplit(config["INVITE_LINK_ORIGIN"]).hostname,
+        "MAP_DISPLAY_NAME": "MAP Test" if config["APP_ENV"] == "test" else "MAP",
+    }
+    return "// Generated by scripts/mobile-release-config.py. Do not edit.\n" + "".join(
+        f"{key} = {value}\n" for key, value in values.items())
 
 
 def release_version(ref, pubspec, number):
@@ -98,6 +163,30 @@ def release_version(ref, pubspec, number):
     return name, number
 
 
+def build_number(requested, store_maximum, attempt, *, production_signed):
+    """An explicit base plus the workflow attempt avoids same-run reupload reuse.
+
+    Store maxima are supplied after console inspection, never inferred from Git.
+    Every new workflow run must use a newly reserved base above the latest upload.
+    """
+    if production_signed and (not requested or store_maximum is None):
+        raise ConfigError("signed prod requires an explicit build number and verified store maximum")
+    if not re.fullmatch(r"[1-9][0-9]*", attempt):
+        raise ConfigError("workflow run attempt must be a positive integer")
+    base = requested or subprocess.check_output(
+        ["git", "rev-list", "--count", "HEAD"], text=True,
+        stderr=subprocess.DEVNULL).strip()
+    release_version("", "version: 1.0.1", base)
+    number = str(int(base) + int(attempt) - 1)
+    release_version("", "version: 1.0.1", number)
+    if store_maximum is not None:
+        if not re.fullmatch(r"0|[1-9][0-9]*", store_maximum):
+            raise ConfigError("verified store maximum must be a nonnegative integer")
+        if int(number) <= int(store_maximum):
+            raise ConfigError("build number must exceed the verified store maximum")
+    return number
+
+
 def write_private(path, text):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -114,7 +203,9 @@ def main(argv=None):
     parser.add_argument("--signed", action="store_true")
     parser.add_argument("--output", required=True)
     parser.add_argument("--pubspec", default="pubspec.yaml")
-    parser.add_argument("--build-number")
+    parser.add_argument("--build-number", default=os.environ.get("RELEASE_BUILD_NUMBER") or None)
+    parser.add_argument("--store-max-build-number", default=os.environ.get("STORE_MAX_BUILD_NUMBER") or None)
+    parser.add_argument("--ios-xcconfig", help="iOS native identity output required before an iOS build")
     args = parser.parse_args(argv)
     try:
         ref = os.environ.get("GITHUB_REF", "")
@@ -122,12 +213,15 @@ def main(argv=None):
             raise ConfigError("v tags require APP_ENV=prod")
         signed = args.signed or ref.startswith("refs/tags/v")
         config = make_config(args.environment, args.platform, signed, os.environ)
-        number = args.build_number or subprocess.check_output(
-            ["git", "rev-list", "--count", "HEAD"], text=True,
-            stderr=subprocess.DEVNULL,
-        ).strip()
+        number = build_number(args.build_number, args.store_max_build_number,
+                              os.environ.get("GITHUB_RUN_ATTEMPT", "1"),
+                              production_signed=args.environment == "prod" and signed and args.platform != "web")
         name, number = release_version(ref, Path(args.pubspec).read_text(), number)
+        if args.ios_xcconfig and args.platform != "ios":
+            raise ConfigError("--ios-xcconfig requires platform ios")
         write_private(args.output, json.dumps(config, ensure_ascii=False) + "\n")
+        if args.ios_xcconfig:
+            write_private(args.ios_xcconfig, ios_xcconfig(config))
         github_output = os.environ.get("GITHUB_OUTPUT")
         if github_output:
             with open(github_output, "a") as output:

@@ -26,12 +26,12 @@ class BlogReview {
   });
 
   factory BlogReview.fromJson(Map<String, dynamic> json) => BlogReview(
-        bloggerName: json['bloggername'] as String? ?? '',
-        title: json['title'] as String? ?? '',
-        description: json['description'] as String? ?? '',
-        postDate: json['postdate'] as String? ?? '',
-        link: json['link'] as String? ?? '',
-      );
+    bloggerName: json['bloggername'] as String? ?? '',
+    title: json['title'] as String? ?? '',
+    description: json['description'] as String? ?? '',
+    postDate: json['postdate'] as String? ?? '',
+    link: json['link'] as String? ?? '',
+  );
 
   /// 화면에 쓰는 날짜 표기. 서버가 주는 8자리를 점으로 끊어 준다.
   String get displayDate {
@@ -90,20 +90,17 @@ class ReviewApiService {
       final raw = body['reviews'];
       final items = raw is List
           ? raw
-              .whereType<Map<String, dynamic>>()
-              .map(BlogReview.fromJson)
-              .toList()
+                .whereType<Map<String, dynamic>>()
+                .map(BlogReview.fromJson)
+                .toList()
           : <BlogReview>[];
-      return BlogReviewPage(
-        reviews: items,
-        hasMore: items.length >= display,
-      );
+      return BlogReviewPage(reviews: items, hasMore: items.length >= display);
     } catch (_) {
       return const BlogReviewPage(reviews: [], hasMore: false);
     }
   }
 
-  /// 장소의 두 줄 요약을 받는다.
+  /// 저장된 요약만 읽는다. 캐시가 없어도 새 AI 처리를 시작하지 않는다.
   ///
   /// 근거가 부족하거나 요약에 실패하면 빈 목록이 온다. 그 자체는 오류가 아니며
   /// 화면은 요약 영역만 접는다.
@@ -120,5 +117,41 @@ class ReviewApiService {
     } catch (_) {
       return const [];
     }
+  }
+
+  /// 명시적 동의 후에만 생성한다. 재시도는 같은 clientRequestId를 사용한다.
+  Future<List<String>> generateSummary(
+    String query, {
+    required String clientRequestId,
+    required bool Function() canSend,
+  }) async {
+    if (!canSend()) {
+      throw const ApiException(
+        statusCode: 403,
+        code: 'REQUEST_PERMISSION_REVOKED',
+        message: '전송 동의를 다시 확인해주세요.',
+      );
+    }
+    final body = await ApiClient.instance.post(
+      '/api/v1/reviews/summary',
+      body: {
+        'query': query,
+        'consent': true,
+        'client_request_id': clientRequestId,
+      },
+      timeout: const Duration(seconds: 30),
+      canSend: canSend,
+    );
+    if (!canSend()) {
+      throw const ApiException(
+        statusCode: 403,
+        code: 'REQUEST_PERMISSION_REVOKED',
+        message: '동의가 바뀌어 응답을 표시하지 않았어요.',
+      );
+    }
+    final raw = body['bullets'];
+    return raw is List
+        ? raw.whereType<String>().where((s) => s.trim().isNotEmpty).toList()
+        : const [];
   }
 }

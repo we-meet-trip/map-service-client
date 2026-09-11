@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../data/models/weather_alert.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../common/theme/app_icons.dart';
 import '../../../common/utils/d_day.dart';
@@ -313,6 +314,7 @@ class _SavedScreenState extends State<SavedScreen> {
               startDate: s.dateStart ?? today,
               endDate: s.dateEnd ?? s.dateStart ?? today,
               registeredAt: s.createdAt ?? s.dateStart ?? today,
+              weatherAlert: s.weatherAlert,
             ))
         .toList());
     if (cards.isEmpty) return _buildEmpty(emptyText);
@@ -410,6 +412,10 @@ class _SavedScreenState extends State<SavedScreen> {
                       completed
                           ? _buildCompletedBadge(card.endDate)
                           : _buildPlannedBadge(card.startDate),
+                      if (card.weatherAlert != null) ...[
+                        const SizedBox(width: 6),
+                        _buildWeatherAlertBadge(card.weatherAlert!),
+                      ],
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -509,6 +515,34 @@ class _SavedScreenState extends State<SavedScreen> {
     );
   }
 
+  /// 날씨가 바뀐 일정임을 목록에서 한눈에 알리는 작은 배지.
+  /// 자세한 내용과 선택지(다시 추천받기 / 이대로 갈게요)는 상세 화면에 있다.
+  Widget _buildWeatherAlertBadge(WeatherAlert alert) {
+    final rain = alert.isRainAppeared;
+    final fg = rain ? const Color(0xFF1D5FCC) : const Color(0xFF1F7A45);
+    final bg = rain ? const Color(0xFFEAF2FF) : const Color(0xFFEDF9F0);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(rain ? Icons.umbrella_rounded : Icons.wb_sunny_rounded,
+              size: 12, color: fg),
+          const SizedBox(width: 4),
+          Text(
+            alert.headline,
+            style: TextStyle(
+                fontSize: 11, fontWeight: FontWeight.w600, color: fg),
+          ),
+        ],
+      ),
+    );
+  }
+
   DateTime _dateOnly(DateTime dt) => DateTime(dt.year, dt.month, dt.day);
 
   String _fmtDate(DateTime dt) =>
@@ -522,11 +556,15 @@ class _TripCardData {
   final DateTime endDate;
   final DateTime registeredAt;
 
+  /// 걸려 있는 날씨 변화 알림. 없으면 null.
+  final WeatherAlert? weatherAlert;
+
   const _TripCardData({
     required this.scheduleId,
     required this.name,
     required this.startDate,
     required this.endDate,
     required this.registeredAt,
+    this.weatherAlert,
   });
 }

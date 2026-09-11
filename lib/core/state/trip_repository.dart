@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../../data/models/weather_alert.dart';
 import '../api/schedule_api_service.dart';
 import '../api/trip_api_service.dart';
 
@@ -131,6 +132,8 @@ class SavedTrip {
   final String? transport;
   final int? activeStartHour;
   final int? activeEndHour;
+  /// 걸려 있는 날씨 변화 알림. 없으면 null.
+  final WeatherAlert? weatherAlert;
 
   SavedTrip({
     this.scheduleId,
@@ -148,6 +151,7 @@ class SavedTrip {
     this.transport,
     this.activeStartHour,
     this.activeEndHour,
+    this.weatherAlert,
   });
 
   String get id => scheduleId?.toString() ?? '';
@@ -193,6 +197,7 @@ class SavedTrip {
       transport: d.transport,
       activeStartHour: d.activeStartHour,
       activeEndHour: d.activeEndHour,
+      weatherAlert: d.weatherAlert,
     );
   }
 }

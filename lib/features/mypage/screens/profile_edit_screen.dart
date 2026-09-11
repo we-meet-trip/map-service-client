@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../common/theme/app_colors.dart';
@@ -16,16 +17,90 @@ import '../../../core/state/user_repository.dart';
 import '../../auth/widgets/birthdate_field.dart';
 import '../widgets/profile_avatar.dart';
 
-class ProfileEditScreen extends StatelessWidget {
+class ProfileEditScreen extends StatefulWidget {
   const ProfileEditScreen({super.key});
 
+  @override
+  State<ProfileEditScreen> createState() => _ProfileEditScreenState();
+}
+
+class _ProfileEditScreenState extends State<ProfileEditScreen> {
+  String? _accountEmail;
+  bool _emailLoading = false;
+  bool _emailFailed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    AuthStore.instance.sessionChanges.addListener(_sessionChanged);
+    _loadAccountEmail();
+  }
+
+  void _sessionChanged() {
+    setState(() {
+      _accountEmail = null;
+      _emailLoading = false;
+      _emailFailed = false;
+    });
+    // save() publishes the session before finishing its logged-in flag update.
+    Future<void>.microtask(_loadAccountEmail);
+  }
+
+  Future<void> _loadAccountEmail() async {
+    if (!mounted) return;
+    final auth = AuthStore.instance;
+    final session = auth.sessionVersion;
+    setState(() => _emailLoading = auth.isLoggedIn.value);
+    if (!_emailLoading) return;
+    try {
+      final account = await UserApiService.instance.me();
+      if (mounted && session == auth.sessionVersion) {
+        setState(() => _accountEmail = account.email);
+      }
+    } catch (_) {
+      if (mounted && session == auth.sessionVersion) {
+        setState(() => _emailFailed = true);
+      }
+    } finally {
+      if (mounted && session == auth.sessionVersion) {
+        setState(() => _emailLoading = false);
+      }
+    }
+  }
+
+  String get _emailLabel {
+    if (!AuthStore.instance.isLoggedIn.value) return '로그인 후 확인할 수 있어요';
+    if (_emailLoading) return '확인 중이에요';
+    if (_emailFailed) return '이메일을 확인하지 못했어요';
+    return _accountEmail ?? '등록된 이메일이 없어요';
+  }
+
+  @override
+  void dispose() {
+    AuthStore.instance.sessionChanges.removeListener(_sessionChanged);
+    super.dispose();
+  }
+
   Future<void> _pickImage(BuildContext context) async {
-    final picked = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 85,
-    );
-    if (picked != null) {
-      UserRepository.instance.updateProfileImage(picked.path);
+    final session = AuthStore.instance.sessionVersion;
+    try {
+      final picked = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 85,
+      );
+      if (picked != null &&
+          mounted &&
+          session == AuthStore.instance.sessionVersion) {
+        UserRepository.instance.updateProfileImage(picked.path);
+      }
+    } on PlatformException {
+      if (context.mounted && session == AuthStore.instance.sessionVersion) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('사진을 선택하지 못했어요. 휴대전화 설정에서 사진 접근 권한을 확인해주세요.'),
+          ),
+        );
+      }
     }
   }
 
@@ -38,7 +113,8 @@ class ProfileEditScreen extends StatelessWidget {
   /// 거치기 전에도 이 화면을 쓸 수 있다.
   Future<void> _saveNickname(BuildContext context, String nickname) async {
     final trimmed = nickname.trim();
-    if (trimmed.isEmpty || trimmed == UserRepository.instance.profile.value.nickname) {
+    if (trimmed.isEmpty ||
+        trimmed == UserRepository.instance.profile.value.nickname) {
       return;
     }
     if (!AuthStore.instance.isLoggedIn.value) {
@@ -53,9 +129,9 @@ class ProfileEditScreen extends StatelessWidget {
       await AuthStore.instance.updateNickname(updated.nickname);
     } on ApiException catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
     }
   }
 
@@ -174,7 +250,9 @@ class ProfileEditScreen extends StatelessWidget {
           ),
           cancelLabel: '취소',
           confirmLabel: '저장',
-          onConfirm: selected != null ? () => Navigator.of(ctx).pop(selected) : null,
+          onConfirm: selected != null
+              ? () => Navigator.of(ctx).pop(selected)
+              : null,
         ),
       ),
     );
@@ -195,11 +273,11 @@ class ProfileEditScreen extends StatelessWidget {
           valueListenable: UserRepository.instance.profile,
           builder: (context, profile, _) {
             void editNickname() => _editText(
-                  context,
-                  title: '이름',
-                  initialValue: profile.nickname,
-                  onSave: (v) => _saveNickname(context, v),
-                );
+              context,
+              title: '이름',
+              initialValue: profile.nickname,
+              onSave: (v) => _saveNickname(context, v),
+            );
             return Column(
               children: [
                 BackHeader(title: '프로필 설정', onBack: () => context.pop()),
@@ -210,7 +288,18 @@ class ProfileEditScreen extends StatelessWidget {
                         const SizedBox(height: 12),
                         GestureDetector(
                           onTap: () => _pickImage(context),
-                          child: ProfileAvatar(imagePath: profile.profileImagePath, size: 110, color: AppColors.avatarColorOf(profile.id)),
+                          child: ProfileAvatar(
+                            imagePath: profile.profileImagePath,
+                            size: 110,
+                            color: AppColors.avatarColorOf(profile.id),
+                          ),
+                        ),
+                        const Padding(
+                          padding: EdgeInsets.only(top: 8),
+                          child: Text(
+                            '사진은 이 기기에만 저장돼요.',
+                            style: TextStyle(fontSize: 12),
+                          ),
                         ),
                         const SizedBox(height: 12),
                         GestureDetector(
@@ -227,12 +316,20 @@ class ProfileEditScreen extends StatelessWidget {
                                 ),
                               ),
                               const SizedBox(width: 6),
-                              Icon(Icons.edit, size: 16, color: AppColors.neutralScale[300]),
+                              Icon(
+                                Icons.edit,
+                                size: 16,
+                                color: AppColors.neutralScale[300],
+                              ),
                             ],
                           ),
                         ),
                         const SizedBox(height: 24),
-                        Container(height: 9, width: double.infinity, color: AppColors.mypageDivider),
+                        Container(
+                          height: 9,
+                          width: double.infinity,
+                          color: AppColors.mypageDivider,
+                        ),
                         Padding(
                           padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
                           child: Row(
@@ -250,26 +347,34 @@ class ProfileEditScreen extends StatelessWidget {
                         ),
                         _InfoRow(
                           label: '이름',
-                          value: profile.nickname.isEmpty ? null : profile.nickname,
+                          value: profile.nickname.isEmpty
+                              ? null
+                              : profile.nickname,
                           onTap: editNickname,
                         ),
                         _InfoRow(
                           label: '영문이름',
+                          localOnly: true,
                           value: profile.englishName,
                           onTap: () => _editText(
                             context,
                             title: '영문이름',
                             initialValue: profile.englishName ?? '',
-                            onSave: (v) => UserRepository.instance.updateEnglishName(v),
+                            onSave: (v) =>
+                                UserRepository.instance.updateEnglishName(v),
                           ),
                         ),
                         _InfoRow(
                           label: '생년월일',
-                          value: profile.birthdate != null ? _fmtDate(profile.birthdate!) : null,
-                          onTap: () => _editBirthdate(context, profile.birthdate),
+                          value: profile.birthdate != null
+                              ? _fmtDate(profile.birthdate!)
+                              : null,
+                          onTap: () =>
+                              _editBirthdate(context, profile.birthdate),
                         ),
                         _InfoRow(
                           label: '휴대폰 번호',
+                          localOnly: true,
                           value: profile.phone,
                           showEditButton: true,
                           onTap: () => _editText(
@@ -277,23 +382,14 @@ class ProfileEditScreen extends StatelessWidget {
                             title: '휴대폰 번호',
                             initialValue: profile.phone ?? '',
                             keyboardType: TextInputType.phone,
-                            onSave: (v) => UserRepository.instance.updatePhone(v),
+                            onSave: (v) =>
+                                UserRepository.instance.updatePhone(v),
                           ),
                         ),
-                        _InfoRow(
-                          label: '이메일',
-                          value: profile.email,
-                          showEditButton: true,
-                          onTap: () => _editText(
-                            context,
-                            title: '이메일',
-                            initialValue: profile.email ?? '',
-                            keyboardType: TextInputType.emailAddress,
-                            onSave: (v) => UserRepository.instance.updateEmail(v),
-                          ),
-                        ),
+                        _InfoRow(label: '계정 이메일', value: _emailLabel),
                         _InfoRow(
                           label: '집주소',
+                          localOnly: true,
                           value: profile.homeAddress,
                           showEditButton: true,
                           onTap: () => _editHomeAddress(context),
@@ -301,15 +397,23 @@ class ProfileEditScreen extends StatelessWidget {
                         for (var i = 0; i < profile.otherAddresses.length; i++)
                           _InfoRow(
                             label: i == 0 ? '주소' : '',
-                            value: '${profile.otherAddresses[i].name} · ${profile.otherAddresses[i].address}',
+                            localOnly: i == 0,
+                            value:
+                                '${profile.otherAddresses[i].name} · ${profile.otherAddresses[i].address}',
                             onTap: () => _editOtherAddress(context, i),
                             trailing: GestureDetector(
-                              onTap: () => UserRepository.instance.removeOtherAddress(i),
-                              child: Icon(Icons.close_rounded, size: 16, color: AppColors.neutralScale[300]),
+                              onTap: () =>
+                                  UserRepository.instance.removeOtherAddress(i),
+                              child: Icon(
+                                Icons.close_rounded,
+                                size: 16,
+                                color: AppColors.neutralScale[300],
+                              ),
                             ),
                           ),
                         _InfoRow(
                           label: profile.otherAddresses.isEmpty ? '주소' : '',
+                          localOnly: profile.otherAddresses.isEmpty,
                           value: null,
                           onTap: () => _addOtherAddress(context),
                         ),
@@ -339,7 +443,11 @@ class ProfileEditScreen extends StatelessWidget {
                               color: AppColors.savedBadgeFar,
                             ),
                           ),
-                          AppIcon(SvgIcons.chevronRightThin, size: 12, color: AppColors.savedBadgeFar),
+                          AppIcon(
+                            SvgIcons.chevronRightThin,
+                            size: 12,
+                            color: AppColors.savedBadgeFar,
+                          ),
                         ],
                       ),
                     ),
@@ -358,9 +466,14 @@ class ProfileEditScreen extends StatelessWidget {
       context: context,
       builder: (ctx) => AppConfirmDialog(
         content: Text(
-          '정말 탈퇴하시겠어요?\n탈퇴 시 모든 정보가 삭제됩니다.',
+          '정말 탈퇴하시겠어요?\n계정·프로필·본인 일정과 추천 결과·본인이 작성한 채팅 내용이 삭제됩니다.\n'
+          '다른 참여자가 작성한 메시지는 보존되고, 본인 소유 채팅방은 종료됩니다. 탈퇴는 되돌릴 수 없습니다.',
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 16, color: AppColors.neutralScale[600], height: 1.5),
+          style: TextStyle(
+            fontSize: 16,
+            color: AppColors.neutralScale[600],
+            height: 1.5,
+          ),
         ),
         cancelLabel: '취소',
         confirmLabel: '탈퇴하기',
@@ -381,15 +494,15 @@ class ProfileEditScreen extends StatelessWidget {
       await AuthApiService.instance.withdraw();
     } on ApiException catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
       return;
     }
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('탈퇴가 완료되었어요.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('탈퇴가 완료되었어요.')));
     context.go('/mypage');
   }
 }
@@ -398,14 +511,16 @@ class _InfoRow extends StatelessWidget {
   const _InfoRow({
     required this.label,
     required this.value,
-    required this.onTap,
+    this.onTap,
+    this.localOnly = false,
     this.showEditButton = false,
     this.trailing,
   });
 
   final String label;
   final String? value;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
+  final bool localOnly;
   final bool showEditButton;
   final Widget? trailing;
 
@@ -420,13 +535,20 @@ class _InfoRow extends StatelessWidget {
           children: [
             SizedBox(
               width: 84,
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.tabBarUnselected,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.tabBarUnselected,
+                    ),
+                  ),
+                  if (localOnly)
+                    const Text('이 기기에 저장', style: TextStyle(fontSize: 11)),
+                ],
               ),
             ),
             Expanded(
@@ -441,10 +563,16 @@ class _InfoRow extends StatelessWidget {
                         color: AppColors.neutralScale[600],
                       ),
                     )
+                  : onTap == null
+                  ? const Text('등록된 정보가 없어요')
                   : Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.add, size: 14, color: AppColors.blueScale[500]),
+                        Icon(
+                          Icons.add,
+                          size: 14,
+                          color: AppColors.blueScale[500],
+                        ),
                         const SizedBox(width: 2),
                         Text(
                           '추가',

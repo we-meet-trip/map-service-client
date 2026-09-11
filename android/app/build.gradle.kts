@@ -1,5 +1,6 @@
 import java.util.Properties
 import java.util.Base64
+import java.net.URI
 
 plugins {
     id("com.android.application")
@@ -40,6 +41,25 @@ if (keystorePropertiesFile.exists()) {
 val keystoreFile = keystoreProperties.getProperty("storeFile")?.let { file(it) }
 val hasReleaseSigning = keystoreFile != null && keystoreFile.exists()
 
+val appEnvironment = dartDefines["APP_ENV"] ?: "test"
+require(appEnvironment in setOf("test", "prod")) { "APP_ENV must be test or prod" }
+val nativeApplicationId = if (appEnvironment == "test") "kr.mapservice.client.test" else "kr.mapservice.client"
+val inviteScheme = if (appEnvironment == "test") "mapservice-test" else "mapservice"
+val kakaoScheme = if (appEnvironment == "test") "mapauth-test" else "mapauth"
+mapOf("NATIVE_APPLICATION_ID" to nativeApplicationId, "INVITE_URL_SCHEME" to inviteScheme,
+    "KAKAO_CALLBACK_SCHEME" to kakaoScheme).forEach { (name, expected) ->
+    require(dartDefines[name] == null || dartDefines[name] == expected) { "$name does not match APP_ENV" }
+}
+val inviteOrigin = dartDefines["INVITE_LINK_ORIGIN"]
+    ?: if (appEnvironment == "test") "https://mapcenter-b59ca.web.app" else ""
+val inviteUri = requireNotNull(runCatching { URI(inviteOrigin) }.getOrNull()) {
+    "Invalid INVITE_LINK_ORIGIN"
+}
+require(inviteUri.scheme == "https" && !inviteUri.host.isNullOrEmpty()
+        && inviteUri.rawUserInfo == null && inviteUri.rawQuery == null && inviteUri.rawFragment == null
+        && (inviteUri.rawPath.isNullOrEmpty() || inviteUri.rawPath == "/")
+        && (inviteUri.port == -1 || inviteUri.port == 443)) { "Invalid INVITE_LINK_ORIGIN" }
+
 val googleMapsApiKey = dartDefines["GOOGLE_MAPS_ANDROID_API_KEY"]?.trim() ?: ""
 
 android {
@@ -59,7 +79,7 @@ android {
     defaultConfig {
         // 지도 SDK 인증은 이 식별자로 이뤄진다. 지도 콘솔에 이 이름이 등록돼
         // 있어야 지도가 뜬다 — 등록되지 않으면 401 로 타일이 비어 나온다.
-        applicationId = "kr.mapservice.client"
+        applicationId = nativeApplicationId
         // Google Maps Flutter requires Android API 24 or newer.
         minSdk = 24
         targetSdk = flutter.targetSdkVersion
@@ -69,7 +89,10 @@ android {
         // 초대 링크를 받는 도메인. 이 도메인의 /.well-known/assetlinks.json 에
         // 아래 applicationId 와 릴리스 서명 지문이 올라가 있어야 링크가 앱으로
         // 열린다(그렇지 않으면 브라우저로만 열린다).
-        manifestPlaceholders["deepLinkHost"] = "mapcenter-b59ca.web.app"
+        manifestPlaceholders["deepLinkHost"] = inviteUri.host
+        manifestPlaceholders["inviteScheme"] = inviteScheme
+        manifestPlaceholders["kakaoScheme"] = kakaoScheme
+        manifestPlaceholders["appLabel"] = if (appEnvironment == "test") "MAP Test" else "MAP"
     }
 
     signingConfigs {

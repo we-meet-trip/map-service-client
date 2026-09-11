@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/chat_api_service.dart';
 import '../../../core/api/chat_realtime_service.dart';
+import '../../../core/api/moderation_api_service.dart';
 import '../../../core/state/auth_store.dart';
 import '../../../data/local/chat_outbox_store.dart';
 import '../../../data/models/chat_message.dart';
@@ -17,8 +18,10 @@ class ChatRoomDetailProvider extends ChangeNotifier {
     this.roomId, {
     ChatRealtimeService? realtime,
     ChatOutboxStore? outboxStore,
+    ModerationApiService? moderation,
   }) : _realtime = realtime ?? ChatRealtimeService(),
        _store = outboxStore ?? ChatOutboxStore(roomId),
+       _moderation = moderation ?? ModerationApiService.instance,
        _sessionVersion = AuthStore.instance.sessionVersion,
        _userId = AuthStore.instance.userId;
 
@@ -26,6 +29,10 @@ class ChatRoomDetailProvider extends ChangeNotifier {
   final InviteLinkRepository _inviteLinkRepository;
   final ChatRealtimeService _realtime;
   final ChatOutboxStore _store;
+  final ModerationApiService _moderation;
+  Set<int> _blockedUserIds = {};
+  final Set<int> _removedMessageSeqs = {};
+  int _historyVersion = 0;
   final int _sessionVersion;
   final int? _userId;
   final int roomId;
@@ -48,7 +55,41 @@ class ChatRoomDetailProvider extends ChangeNotifier {
 
   bool get _active =>
       !_disposed && _sessionVersion == AuthStore.instance.sessionVersion;
-  List<ChatMessage> get messages => _messages;
+  List<ChatMessage> get messages =>
+      _messages.where(_visible).toList(growable: false);
+  bool _visible(ChatMessage message) =>
+      !_blockedUserIds.contains(message.senderId) &&
+      !_removedMessageSeqs.contains(message.seq);
+
+  /// Refresh server history after changing visibility. A stale in-flight request
+  /// must not put blocked/removed content back into the local conversation.
+  Future<void> refreshBlocks({bool reloadHistory = true}) async {
+    final version = _historyVersion;
+    final blocked = await _moderation.blocks();
+    if (!_active || version != _historyVersion) return;
+    _blockedUserIds = blocked.map((user) => user.userId).toSet();
+    _messages.removeWhere((message) => !_visible(message));
+    _historyVersion++;
+    _notify();
+    if (reloadHistory) await loadMessages(replaceConfirmed: true);
+  }
+
+  Future<void> blockUser(int userId) async {
+    if (!_active || userId <= 0 || userId == _userId) return;
+    await _moderation.block(userId);
+    if (!_active) return;
+    _blockedUserIds.add(userId);
+    _messages.removeWhere((message) => !_visible(message));
+    _historyVersion++;
+    _notify();
+    try {
+      await loadMessages(replaceConfirmed: true);
+    } catch (_) {
+      realtimeNotice = '차단했어요. 대화 기록은 연결이 회복되면 다시 확인할게요.';
+      _notify();
+    }
+  }
+
   bool get hasUnsent => _outbox.isNotEmpty;
 
   void _notify() {
@@ -99,23 +140,34 @@ class ChatRoomDetailProvider extends ChangeNotifier {
     _realtime.connect(roomId);
   }
 
-  Future<void> loadMessages() async {
+  Future<void> loadMessages({bool replaceConfirmed = false}) async {
     if (!_active) return;
+    final version = _historyVersion;
+    final beforeLoad = _messages
+        .where((m) => !m.pending)
+        .map((m) => m.seq)
+        .toSet();
     isLoading = true;
     _notify();
     try {
       final loaded = await _chatRepository.getMessages(roomId);
-      if (!_active) return;
+      if (!_active || version != _historyVersion) return;
       final confirmed = loaded
           .where((m) => m.isMe && m.clientMsgId != null)
           .map((m) => m.clientMsgId)
           .toSet();
       _outbox.removeWhere((m) => confirmed.contains(m.clientMsgId));
       await _store.save(List.of(_outbox));
-      if (!_active) return;
-      final bySeq = {for (final m in loaded) m.seq: m};
+      if (!_active || version != _historyVersion) return;
+      final bySeq = {for (final m in loaded.where(_visible)) m.seq: m};
       // 조회가 진행되는 동안 받은 소켓/전송 확인도 보존한다.
-      for (final m in _messages.where((m) => !m.pending && m.seq > 0)) {
+      for (final m in _messages.where(
+        (m) =>
+            !m.pending &&
+            m.seq > 0 &&
+            _visible(m) &&
+            (!replaceConfirmed || !beforeLoad.contains(m.seq)),
+      )) {
         bySeq.putIfAbsent(m.seq, () => m);
       }
       _messages = [...bySeq.values, ..._outbox.map(_optimistic)]
@@ -154,7 +206,17 @@ class ChatRoomDetailProvider extends ChangeNotifier {
 
   void _onEvent(ChatEvent event) {
     if (!_active) return;
+    if (event.roomId != null && event.roomId != roomId) return;
     switch (event.kind) {
+      case ChatEventKind.messageRemoved:
+        final seq = event.data?['seq'];
+        if (seq is int && seq > 0) {
+          _removedMessageSeqs.add(seq);
+          _messages.removeWhere((message) => message.seq == seq);
+          _historyVersion++;
+          _notify();
+          unawaited(_reload());
+        }
       case ChatEventKind.message:
       case ChatEventKind.system:
         final data = event.data;
@@ -191,6 +253,7 @@ class ChatRoomDetailProvider extends ChangeNotifier {
 
   void _accept(ChatMessage saved) {
     if (!_active) return;
+    if (!_visible(saved)) return;
     if (saved.isMe && saved.clientMsgId != null) {
       _outbox.removeWhere((m) => m.clientMsgId == saved.clientMsgId);
     }

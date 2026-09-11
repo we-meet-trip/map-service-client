@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+1
+version: 1.0.1+1
 
 environment:
   sdk: ^3.11.4
@@ -125,10 +125,10 @@ flutter:
   # see https://flutter.dev/to/font-from-package
 
 # 런처 아이콘 설정. 배경 흰색 + 글리프 전경(안전영역 60% 안에 들어오게
-# 616px 로 중앙 배치한 원본)으로 적응형까지 생성한다. iOS 는 이번 판에 없다.
+# 616px 로 중앙 배치한 원본)으로 적응형까지 생성한다. iOS 도 같은 MAP 원본을 쓴다.
 flutter_launcher_icons:
   android: true
-  ios: false
+  ios: true
   image_path: assets/icon/app_icon.png
   adaptive_icon_background: "#FFFFFF"
   adaptive_icon_foreground: assets/icon/app_icon_foreground.png

@@ -27,6 +27,7 @@ class _SignupCompleteScreenState extends State<SignupCompleteScreen> {
   bool _submitting = false;
 
   Future<void> _finish() async {
+    if (_submitting) return;
     final repo = UserRepository.instance;
     final email = repo.signUpEmail;
     final password = repo.signUpPassword;
@@ -51,8 +52,15 @@ class _SignupCompleteScreenState extends State<SignupCompleteScreen> {
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => _submitting = false);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.message)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.code == 'AGE_RESTRICTED'
+                ? 'MAP은 만 18세 이상만 가입할 수 있습니다. 입력한 생년월일을 확인해주세요.'
+                : e.message,
+          ),
+        ),
+      );
       return;
     }
     if (!mounted) return;
@@ -83,10 +91,7 @@ class _SignupCompleteScreenState extends State<SignupCompleteScreen> {
                     ),
                   ),
                   const SizedBox(height: 40),
-                  Text(
-                    '가입을 축하합니다!',
-                    style: AppTextStyles.title2,
-                  ),
+                  Text('가입 준비가 완료됐어요', style: AppTextStyles.title2),
                   const SizedBox(height: 12),
                   Text(
                     '나만의 여행 콘텐츠들을 추천받고\n빛나는 여정을 시작해보세요.',

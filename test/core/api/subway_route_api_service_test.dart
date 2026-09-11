@@ -154,10 +154,14 @@ void main() {
       );
     });
 
-    test('통신 자체가 끊기면 그대로 밖으로 나간다 — 조용히 없음이 되지 않는다', () async {
+    test('통신 실패는 원문 노출 없이 오류로 전달되고 경로 없음이 되지 않는다', () async {
       expect(
         _call((_) async => throw http.ClientException('연결 끊김')),
-        throwsA(isA<http.ClientException>()),
+        throwsA(
+          isA<Exception>()
+              .having((e) => e.toString(), '안전한 안내', contains('경로 탐색에 실패'))
+              .having((e) => e.toString(), '원문 보호', isNot(contains('연결 끊김'))),
+        ),
       );
     });
 
@@ -179,10 +183,16 @@ void main() {
   group('findFastestSubwayRoute — 요청', () {
     test('출발·도착 좌표를 이름 그대로 실어 보낸다', () async {
       Uri? sent;
-      await _call((request) async {
-        sent = request.url;
-        return _json({'status': 'not_found'});
-      }, startLat: 37.5665, startLng: 126.9780, endLat: 37.4979, endLng: 127.0276);
+      await _call(
+        (request) async {
+          sent = request.url;
+          return _json({'status': 'not_found'});
+        },
+        startLat: 37.5665,
+        startLng: 126.9780,
+        endLat: 37.4979,
+        endLng: 127.0276,
+      );
 
       expect(sent, isNotNull);
       expect(sent!.path, '/api/v1/transit/subway');

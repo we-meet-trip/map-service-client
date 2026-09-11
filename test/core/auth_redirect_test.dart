@@ -36,10 +36,10 @@ void main() {
     }
   });
 
-  test('로그인했으면 어디로도 보내지 않는다', () {
+  test('로그인 후 서비스 동의를 요구하고 인증 화면은 유지한다', () {
     expect(
       authRedirect(authed: true, noticeSeen: true, location: '/saved'),
-      isNull,
+      '/service-consent',
     );
     expect(
       authRedirect(authed: true, noticeSeen: true, location: '/auth'),
@@ -68,14 +68,58 @@ void main() {
     }
   });
 
-  test('고지를 봤으면 로그인 판정만 남는다', () {
+  test('고지를 봤으면 로그인과 서비스 동의를 판정한다', () {
     expect(
       authRedirect(authed: false, noticeSeen: true, location: '/'),
       '/auth',
     );
     expect(
       authRedirect(authed: true, noticeSeen: true, location: '/'),
-      isNull,
+      '/service-consent',
     );
+  });
+
+  test('서버 동의 확인 후에만 모든 보호 경로에 들어간다', () {
+    for (final location in [
+      '/vision',
+      '/google-map',
+      '/invite/token',
+      '/navigation',
+      '/bike-scooter',
+      '/trip/research',
+      '/saved',
+      '/chat/7',
+      '/mypage',
+      '/address-search',
+    ]) {
+      expect(
+        authRedirect(authed: true, noticeSeen: true, location: location),
+        '/service-consent',
+        reason: location,
+      );
+      expect(
+        authRedirect(
+          authed: true,
+          noticeSeen: true,
+          location: location,
+          policyAccepted: true,
+        ),
+        isNull,
+        reason: location,
+      );
+    }
+  });
+
+  test('미동의 계정의 정정 및 탈퇴 전용 화면은 허용한다', () {
+    for (final location in ['/service-consent', '/service-consent/profile']) {
+      expect(
+        authRedirect(authed: true, noticeSeen: true, location: location),
+        isNull,
+      );
+      expect(
+        authRedirect(authed: false, noticeSeen: true, location: location),
+        '/auth',
+      );
+    }
   });
 }

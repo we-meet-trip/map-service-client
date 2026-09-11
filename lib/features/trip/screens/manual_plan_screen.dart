@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../common/widgets/app_loading_screen.dart';
 import '../../../common/widgets/next_button.dart';
-import '../../../common/widgets/prev_button.dart';
 import '../../../core/api/places_api_service.dart';
 import '../../../core/api/trip_api_service.dart';
+import '../../../core/state/auth_store.dart';
+import '../../../core/state/service_consent_store.dart';
 import '../utils/manual_route_request.dart';
 import '../utils/plan_edit_draft.dart';
 import '../widgets/transport_theme.dart';
@@ -61,9 +62,15 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
   List<TripStop> get _stops => _draft.stops;
   bool _allowPop = false;
   bool _confirmingCancel = false;
+  bool _optimize = false;
 
   Future<void>? _routeFuture;
   TripGenerateResponse? _result;
+  final _screenSession = AuthStore.instance.sessionVersion;
+  bool get _canSend =>
+      mounted &&
+      _screenSession == AuthStore.instance.sessionVersion &&
+      ServiceConsentStore.instance.canAccess;
 
   @override
   void initState() {
@@ -167,9 +174,13 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
     });
   }
 
-  void _makeRoute() {
+  Future<void> _makeRoute({bool optimize = false}) async {
+    if (_routeFuture != null || !_canSend) {
+      return;
+    }
     final draft = buildManualRouteDraft(
       stops: _stops,
+      optimize: optimize,
       startDate: widget.startDate,
       endDate: widget.endDate,
       activeStartHour: widget.activeStartHour,
@@ -181,9 +192,23 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
     final request = draft.request;
     if (request == null) return;
     setState(() {
-      _routeFuture = (widget.route ?? TripApiService.instance.routeTrip)(
-        request,
-      ).then((response) => _result = response);
+      _routeFuture =
+          (widget.route != null
+                  ? widget.route!(request)
+                  : TripApiService.instance.routeTrip(
+                      request,
+                      canSend: () => _canSend,
+                    ))
+              .then((response) {
+                if (!_canSend) {
+                  throw const TripApiException(
+                    error: 'SESSION_CHANGED',
+                    message: '로그인 상태가 바뀌었어요.',
+                    statusCode: 409,
+                  );
+                }
+                _result = response;
+              });
       // Attach immediately, before the next frame installs the loading widget.
       // That widget still receives the same failure and restores the draft.
       _routeFuture!.ignore();
@@ -191,6 +216,16 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
   }
 
   void _onRouteComplete() {
+    if (!_canSend) {
+      _onRouteError(
+        const TripApiException(
+          error: 'SESSION_CHANGED',
+          message: '로그인 상태가 바뀌었어요.',
+          statusCode: 409,
+        ),
+      );
+      return;
+    }
     final result = _result;
     if (result == null || result.stops.isEmpty) {
       _onRouteError(const _EmptyManualRouteError());
@@ -239,15 +274,26 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
     return _guardDraft(
       Column(
         children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(4, MediaQuery.paddingOf(context).top + 4, 0, 0),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+                color: AppColors.neutralScale[500],
+                onPressed: _cancel,
+              ),
+            ),
+          ),
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(24, 32, 24, 16),
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
               children: [
                 Text(
                   '일정 직접 고치기',
                   style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 26,
+                    fontWeight: FontWeight.w800,
                     color: AppColors.neutralScale[600],
                   ),
                 ),
@@ -294,17 +340,34 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
             padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
             child: Column(
               children: [
+                _buildOrderToggle(),
+                const SizedBox(height: 8),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  child: Text(
+                    key: ValueKey(_optimize),
+                    _optimize
+                        ? '각 일차의 첫 장소는 유지하고 나머지 순서를 다시 계산해요.'
+                        : '입력한 순서 그대로 동선을 만들어요.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.neutralScale[400],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 NextButton(
-                  onPressed: blocked == null ? _makeRoute : null,
-                  label: '동선 만들기  →',
+                  onPressed: blocked == null && _canSend
+                      ? () => _makeRoute(optimize: _optimize)
+                      : null,
+                  label: '이 순서로 계속하기  →',
                   info: switch (blocked) {
                     ManualRouteBlock.tooFew => '장소를 2곳 이상 넣어 주세요',
                     ManualRouteBlock.tooMany => '한 번에 10곳까지 넣을 수 있어요',
                     null => '${_stops.length}곳으로 동선을 만들어요',
                   },
                 ),
-                const SizedBox(height: 12),
-                PrevButton(onPressed: _cancel, label: '수정 취소'),
               ],
             ),
           ),
@@ -347,6 +410,26 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       buildDefaultDragHandles: false,
+      proxyDecorator: (child, index, animation) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeIn,
+          reverseCurve: Curves.easeOut,
+        );
+        return AnimatedBuilder(
+          animation: curved,
+          builder: (context, child) => Material(
+            elevation: curved.value * 2,
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            shadowColor: AppColors.secondaryScale[200]!.withValues(
+              alpha: curved.value * 0.15,
+            ),
+            child: child,
+          ),
+          child: child,
+        );
+      },
       itemCount: inDay.length,
       onReorder: (oldIndex, newIndex) =>
           _reorderWithinDay(day, oldIndex, newIndex),
@@ -438,13 +521,89 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
     );
   }
 
-  Widget _buildAddButton() => OutlinedButton.icon(
-    onPressed: _addPlace,
-    icon: const Icon(Icons.add),
-    label: const Text('장소 추가하기'),
-    style: OutlinedButton.styleFrom(
-      minimumSize: const Size.fromHeight(52),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+  Widget _buildOrderToggle() {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.neutralScale[000],
+        borderRadius: BorderRadius.circular(40),
+      ),
+      padding: const EdgeInsets.all(4),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final pillWidth = constraints.maxWidth / 2;
+          return Stack(
+            children: [
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeInOut,
+                left: _optimize ? pillWidth : 0,
+                top: 0,
+                bottom: 0,
+                width: pillWidth,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.secondaryScale[500],
+                    borderRadius: BorderRadius.circular(36),
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  _buildSegmentOption('원래 순서', !_optimize),
+                  _buildSegmentOption('최적화 순서', _optimize),
+                ],
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildSegmentOption(String label, bool selected) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _optimize = label == '최적화 순서'),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: AnimatedDefaultTextStyle(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeInOut,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+              color: selected ? Colors.white : AppColors.neutralScale[400],
+            ),
+            child: Text(label, textAlign: TextAlign.center),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAddButton() => GestureDetector(
+    onTap: _addPlace,
+    child: Container(
+      decoration: BoxDecoration(
+        color: AppColors.secondaryScale[0],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.secondaryScale[300]!),
+      ),
+      child: ListTile(
+        leading: CircleAvatar(
+          radius: 14,
+          backgroundColor: AppColors.secondaryScale[100],
+          child: Icon(Icons.add, size: 16, color: AppColors.secondaryScale[500]),
+        ),
+        title: Text(
+          '장소 추가하기',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: AppColors.secondaryScale[500],
+          ),
+        ),
+      ),
     ),
   );
 }

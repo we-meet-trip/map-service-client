@@ -22,7 +22,8 @@ class ManualRouteDraft {
 
 /// 직접 고친 방문지 목록으로 동선 요청을 짠다.
 ///
-/// 순서는 화면에 보이는 그대로 담으며 optimize=false로 사용자 순서를 보존한다.
+/// 순서는 화면에 보이는 그대로 담는다. 기본값은 사용자 순서 보존이며,
+/// 명시적 최적화 동작에서만 서버에 재정렬을 요청한다.
 ///
 /// 방문 시각은 싣지 않는다. 장소를 더하거나 빼면 그 앞뒤가 전부 밀리므로
 /// 시각은 서버가 다시 계산한다.
@@ -35,6 +36,7 @@ ManualRouteDraft buildManualRouteDraft({
   required String transport,
   required String province,
   required String city,
+  bool optimize = false,
   int minPlaces = 2,
   int maxPlaces = 10,
 }) {
@@ -47,7 +49,7 @@ ManualRouteDraft buildManualRouteDraft({
 
   return ManualRouteDraft(
     request: TripRouteRequest(
-      optimize: false,
+      optimize: optimize,
       startDate: startDate,
       endDate: endDate,
       activeStartHour: activeStartHour,

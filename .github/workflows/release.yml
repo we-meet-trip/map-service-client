@@ -5,13 +5,37 @@ on:
     tags: ["v*", "iosbuild-*"]
   workflow_dispatch:
     inputs:
+      build_number:
+        description: "확인한 스토어 최고 번호보다 큰 새 빌드 번호 (재실행은 attempt-1 가산)"
+        type: string
+        required: false
+      store_max_build_number:
+        description: "콘솔에서 확인한 최고 업로드 번호 (신규임을 확인한 경우에만 0)"
+        type: string
+        required: false
       app_environment:
         description: "앱의 서버 환경"
         type: choice
         options: [test, prod]
         default: test
+      build_android:
+        description: "Android artifact 생성 (iOS만 만들 때 해제)"
+        type: boolean
+        default: true
       signed_android:
-        description: "Android 서명 설치본 생성 및 테스터 배포 (기본은 debug 컴파일 검사)"
+        description: "Android 서명 APK/AAB 생성 (기본은 debug 컴파일 검사)"
+        type: boolean
+        default: false
+      distribute_android:
+        description: "서명 APK를 Firebase testers 그룹에 배포 (별도 선택 필요)"
+        type: boolean
+        default: false
+      signed_ios:
+        description: "검증된 App Store profile로 IPA 생성 (업로드 없음)"
+        type: boolean
+        default: false
+      build_ios_simulator:
+        description: "arm64 iOS Simulator 설치본 생성 (실행 없음)"
         type: boolean
         default: false
       build_ios:
@@ -23,7 +47,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.ref }}-${{ inputs.app_environment || 'test' }}
+  group: release-${{ startsWith(github.ref, 'refs/tags/v') && 'prod' || inputs.app_environment || 'test' }}
   cancel-in-progress: false
 
 env:
@@ -32,7 +56,7 @@ env:
 
 jobs:
   android:
-    if: ${{ !startsWith(github.ref, 'refs/tags/iosbuild-') }}
+    if: ${{ (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && inputs.build_android) }}
     runs-on: ubuntu-latest
     environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'prod' || inputs.app_environment || 'test' }}
     permissions:
@@ -44,6 +68,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Verify release source branch
+        run: python3 scripts/mobile-release-source.py --environment "$APP_ENV"
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -63,8 +89,12 @@ jobs:
       - name: 플랫폼 설정 및 판번호 검증
         id: config
         env:
+          RELEASE_BUILD_NUMBER: ${{ inputs.build_number || vars.RELEASE_BUILD_NUMBER }}
+          STORE_MAX_BUILD_NUMBER: ${{ inputs.store_max_build_number || vars.STORE_MAX_BUILD_NUMBER }}
           API_ALLOWED_ORIGINS: ${{ vars.API_ALLOWED_ORIGINS }}
           APP_CONFIG_URL: ${{ vars.APP_CONFIG_URL }}
+          INVITE_LINK_ORIGIN: ${{ vars.INVITE_LINK_ORIGIN }}
+          PUBLIC_SITE_ORIGIN: ${{ vars.PUBLIC_SITE_ORIGIN }}
           GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.GOOGLE_MAPS_ANDROID_API_KEY }}
         run: |
           set -euo pipefail
@@ -134,16 +164,34 @@ jobs:
           actual="$("$apksigner" verify --print-certs "$apk" | sed -n 's/.*SHA-256 digest: *//p' | head -1 | tr -d ' :' | tr 'A-Z' 'a-z')"
           [[ "$actual" == "$EXPECTED_SIGNER_SHA256" ]] || { echo 'Release signing certificate mismatch'; exit 1; }
 
+      - name: Artifact source and SDK manifest
+        env:
+          BUILD_NAME: ${{ steps.config.outputs.build_name }}
+          BUILD_NUMBER: ${{ steps.config.outputs.build_number }}
+        run: |
+          set -euo pipefail
+          if [[ "$SIGNED_RELEASE" == 'true' ]]; then
+            python3 scripts/mobile-artifact-manifest.py --config "$RUNNER_TEMP/mobile-android.json" \
+              --kind android-signed --artifact build/app/outputs/flutter-apk/app-release.apk \
+              --artifact build/app/outputs/bundle/release/app-release.aab --output build/native-evidence/android.json
+          else
+            python3 scripts/mobile-artifact-manifest.py --config "$RUNNER_TEMP/mobile-android.json" \
+              --kind android-compile-only --artifact build/app/outputs/flutter-apk/app-debug.apk \
+              --output build/native-evidence/android.json
+          fi
+
       - uses: actions/upload-artifact@v4
         with:
           name: android-${{ env.APP_ENV }}-${{ env.SIGNED_RELEASE == 'true' && 'signed' || 'compile-only' }}-${{ steps.config.outputs.build_name }}-${{ steps.config.outputs.build_number }}
           path: |
             build/app/outputs/flutter-apk/*.apk
             build/app/outputs/bundle/release/*.aab
+            build/native-evidence/android.json
+            pubspec.lock
           if-no-files-found: error
 
       - name: 테스터 배포
-        if: env.SIGNED_RELEASE == 'true'
+        if: env.APP_ENV == 'test' && env.SIGNED_RELEASE == 'true' && github.event_name == 'workflow_dispatch' && inputs.distribute_android
         env:
           FIREBASE_ANDROID_APP_ID: ${{ secrets.FIREBASE_ANDROID_APP_ID }}
           FIREBASE_SERVICE_ACCOUNT_B64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_B64 }}
@@ -187,15 +235,21 @@ jobs:
           PY
 
   ios:
-    if: ${{ startsWith(github.ref, 'refs/tags/iosbuild-') || (github.event_name == 'workflow_dispatch' && inputs.build_ios) }}
-    runs-on: macos-15
+    needs: [android]
+    if: ${{ !cancelled() && (needs.android.result == 'success' || needs.android.result == 'skipped') && (startsWith(github.ref, 'refs/tags/iosbuild-') || (github.event_name == 'workflow_dispatch' && (inputs.build_ios || inputs.signed_ios || inputs.build_ios_simulator))) }}
+    runs-on: macos-26
     environment: ${{ inputs.app_environment || 'test' }}
     env:
       APP_ENV: ${{ inputs.app_environment || 'test' }}
+      SIGNED_IOS: ${{ inputs.signed_ios || false }}
+      BUILD_SIMULATOR: ${{ inputs.build_ios_simulator || false }}
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Verify release source branch
+        run: python3 scripts/mobile-release-source.py --environment "$APP_ENV"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -204,30 +258,114 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
-      - name: 플랫폼 설정 검증
+      - name: Verify App Store SDK minimum
+        run: |
+          python3 - <<'PYSDK'
+          import re, subprocess
+          xcode = subprocess.check_output(['xcodebuild', '-version'], text=True)
+          sdk = subprocess.check_output(['xcrun', '--sdk', 'iphoneos', '--show-sdk-version'], text=True).strip()
+          assert int(re.search(r'Xcode (\d+)', xcode).group(1)) >= 26, 'Xcode 26 or later required'
+          assert int(sdk.split('.')[0]) >= 26, 'iOS 26 SDK or later required'
+          print('App Store SDK minimum verified:', xcode.strip(), 'iOS SDK', sdk)
+          PYSDK
+      - name: Validate platform configuration
         id: config
         env:
+          RELEASE_BUILD_NUMBER: ${{ inputs.build_number || vars.RELEASE_BUILD_NUMBER }}
+          STORE_MAX_BUILD_NUMBER: ${{ inputs.store_max_build_number || vars.STORE_MAX_BUILD_NUMBER }}
           API_ALLOWED_ORIGINS: ${{ vars.API_ALLOWED_ORIGINS }}
           APP_CONFIG_URL: ${{ vars.APP_CONFIG_URL }}
+          INVITE_LINK_ORIGIN: ${{ vars.INVITE_LINK_ORIGIN }}
+          PUBLIC_SITE_ORIGIN: ${{ vars.PUBLIC_SITE_ORIGIN }}
           GOOGLE_MAPS_IOS_API_KEY: ${{ secrets.GOOGLE_MAPS_IOS_API_KEY }}
         run: |
-          python3 scripts/mobile-release-config.py --environment "$APP_ENV" --platform ios \
-            --output "$RUNNER_TEMP/mobile-ios.json"
-      - name: 의존성 받기
-        run: flutter pub get
-      - name: 빌드 건전성 확인
+          set -euo pipefail
+          args=(--environment "$APP_ENV" --platform ios --output "$RUNNER_TEMP/mobile-ios.json"
+                --ios-xcconfig ios/Flutter/NativeEnvironment.xcconfig)
+          if [[ "$SIGNED_IOS" == 'true' ]]; then args+=(--signed); fi
+          python3 scripts/mobile-release-config.py "${args[@]}"
+      - name: Install validated signing inputs
+        if: env.SIGNED_IOS == 'true'
+        env:
+          IOS_DISTRIBUTION_P12_B64: ${{ secrets.IOS_DISTRIBUTION_P12_B64 }}
+          IOS_DISTRIBUTION_P12_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_P12_PASSWORD }}
+          IOS_APP_STORE_PROFILE_B64: ${{ secrets.IOS_APP_STORE_PROFILE_B64 }}
+          IOS_TEAM_ID: ${{ vars.IOS_TEAM_ID }}
+          IOS_APP_ID_PREFIX: ${{ vars.IOS_APP_ID_PREFIX }}
+          IOS_DISTRIBUTION_CERT_SHA1: ${{ vars.IOS_DISTRIBUTION_CERT_SHA1 }}
+        run: |
+          python3 scripts/ios-signing.py prepare --config "$RUNNER_TEMP/mobile-ios.json" \
+            --xcconfig ios/Flutter/NativeEnvironment.xcconfig
+      - name: Dependencies and regression tests
+        run: |
+          flutter pub get
+          python3 -m unittest discover -s scripts/tests -v
+      - name: Device compile or signed IPA (no upload)
+        if: ${{ inputs.build_ios || inputs.signed_ios || startsWith(github.ref, 'refs/tags/iosbuild-') }}
         env:
           BUILD_NAME: ${{ steps.config.outputs.build_name }}
           BUILD_NUMBER: ${{ steps.config.outputs.build_number }}
         run: |
-          flutter build ios --release --no-codesign \
-            --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" \
+          set -euo pipefail
+          common=(--build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER"
+                  --dart-define-from-file "$RUNNER_TEMP/mobile-ios.json")
+          if [[ "$SIGNED_IOS" == 'true' ]]; then
+            flutter build ipa --release "${common[@]}" --export-options-plist "$RUNNER_TEMP/map-export-options.plist"
+            app=build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app
+            ipa=(build/ios/ipa/*.ipa)
+            [[ "${#ipa[@]}" == 1 && -f "${ipa[0]}" ]]
+            codesign --verify --deep --strict "$app"
+            python3 scripts/mobile-artifact-manifest.py --config "$RUNNER_TEMP/mobile-ios.json" \
+              --kind ios-signed --artifact "${ipa[0]}" --app-directory "$app" \
+              --output build/native-evidence/ios-signed.json
+          else
+            flutter build ios --release --no-codesign "${common[@]}"
+            ditto -c -k --sequesterRsrc --keepParent build/ios/iphoneos/Runner.app build/ios/ios-compile-only.zip
+            python3 scripts/mobile-artifact-manifest.py --config "$RUNNER_TEMP/mobile-ios.json" \
+              --kind ios-compile-only --artifact build/ios/ios-compile-only.zip \
+              --app-directory build/ios/iphoneos/Runner.app --output build/native-evidence/ios-compile-only.json
+          fi
+      - name: Prepare arm64 Simulator install artifact
+        if: env.BUILD_SIMULATOR == 'true'
+        env:
+          BUILD_NAME: ${{ steps.config.outputs.build_name }}
+          BUILD_NUMBER: ${{ steps.config.outputs.build_number }}
+        run: |
+          set -euo pipefail
+          [[ "$(uname -m)" == arm64 ]] || { echo 'arm64 runner required for the target Simulator'; exit 1; }
+          flutter build ios --simulator --debug --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" \
             --dart-define-from-file "$RUNNER_TEMP/mobile-ios.json"
-      - name: 임시 지도 설정 정리
+          lipo build/ios/iphonesimulator/Runner.app/Runner -verify_arch arm64
+          ditto -c -k --sequesterRsrc --keepParent build/ios/iphonesimulator/Runner.app build/ios/ios-simulator.zip
+          python3 scripts/mobile-artifact-manifest.py --config "$RUNNER_TEMP/mobile-ios.json" \
+            --kind ios-simulator --artifact build/ios/ios-simulator.zip \
+            --app-directory build/ios/iphonesimulator/Runner.app --output build/native-evidence/ios-simulator.json
+      - name: Preserve resolved iOS SDK and privacy inventory
+        if: always()
+        run: |
+          mkdir -p build/native-evidence
+          for file in ios/Podfile.lock pubspec.lock; do
+            if [[ -f "$file" ]]; then cp "$file" build/native-evidence/; fi
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-${{ env.APP_ENV }}-${{ github.sha }}
+          path: |
+            build/ios/ipa/*.ipa
+            build/ios/ios-compile-only.zip
+            build/ios/ios-simulator.zip
+            build/native-evidence/
+          if-no-files-found: error
+      - name: Clean temporary signing inputs
+        if: always() && env.SIGNED_IOS == 'true'
+        run: python3 scripts/ios-signing.py cleanup
+      - name: Clean temporary platform configuration
         if: always()
         run: |
           python3 - <<'PY'
           import os
           from pathlib import Path
           (Path(os.environ['RUNNER_TEMP']) / 'mobile-ios.json').unlink(missing_ok=True)
+          Path('ios/Flutter/NativeEnvironment.xcconfig').unlink(missing_ok=True)
           PY

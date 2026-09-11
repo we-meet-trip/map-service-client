@@ -5,6 +5,36 @@ import 'package:map_service_client/core/maps/map_adapter.dart';
 import 'package:map_service_client/core/maps/map_bootstrap.dart';
 
 void main() {
+  test('origin and destination markers keep their distinct SDK colors', () {
+    final store = MapOverlayStore();
+    addTearDown(store.dispose);
+    store.add(
+      MapMarker(
+        id: 'origin',
+        position: const MapCoordinate(37, 127),
+        icon: MapOverlayImage.defaultMarker(hue: 120),
+      ),
+    );
+    store.add(
+      MapMarker(
+        id: 'destination',
+        position: const MapCoordinate(38, 128),
+        icon: MapOverlayImage.defaultMarker(),
+      ),
+    );
+    expect(
+      store.markers.first.icon.toJson(),
+      g.BitmapDescriptor.defaultMarkerWithHue(120).toJson(),
+    );
+    expect(
+      store.markers.last.icon.toJson(),
+      g.BitmapDescriptor.defaultMarkerWithHue(0).toJson(),
+    );
+    expect(
+      store.markers.first.icon.toJson(),
+      isNot(store.markers.last.icon.toJson()),
+    );
+  });
   test(
     'platform keys remain separate and missing keys never use a server fallback',
     () {

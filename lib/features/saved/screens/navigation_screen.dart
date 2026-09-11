@@ -15,6 +15,7 @@ import '../../../core/maps/map_adapter.dart';
 import '../../../core/maps/map_bootstrap.dart';
 import '../../../core/state/trip_repository.dart';
 import '../../trip/widgets/transport_theme.dart';
+import '../../trip/widgets/route_data_attribution.dart';
 
 class NavigationScreen extends StatefulWidget {
   const NavigationScreen({super.key, required this.trip});
@@ -46,8 +47,8 @@ class _NavigationScreenState extends State<NavigationScreen>
   MapMarker? _fovMarker;
   MapMarker? _ringMarker;
   MapMarker? _triangleMarker;
-  static const _kFovConeSize  = Size(80, 80);
-  static const _kRingSize     = Size(22, 22);
+  static const _kFovConeSize = Size(80, 80);
+  static const _kRingSize = Size(22, 22);
   // 아래쪽 ~9px 간격
   static const _kTriangleSize = Size(22, 26);
 
@@ -55,7 +56,6 @@ class _NavigationScreenState extends State<NavigationScreen>
   StreamSubscription<Position>? _locationSub;
   StreamSubscription<CompassEvent>? _compassSub;
   Position? _lastPosition;
-
 
   // ── 일정 데이터 ─────────────────────────────────────────────────────────
   /// 전 일차의 방문지. 화면은 여기서 고른 일차만 그린다.
@@ -76,16 +76,28 @@ class _NavigationScreenState extends State<NavigationScreen>
       _allStops.where((s) => s.day == _selectedDay).toList();
 
   // ── 사용자 현재 구간 (하단 시트 타임라인 표시용) ───────────────────────────
-  int _currentSegmentIndex = 0;   // 현재 위치가 속한 구간 (0 = stop[0]→stop[1])
-  double _segmentProgress = 0.0;  // 구간 내 진행도 (0.0 = 출발지, 1.0 = 목적지)
+  int _currentSegmentIndex = 0; // 현재 위치가 속한 구간 (0 = stop[0]→stop[1])
+  double _segmentProgress = 0.0; // 구간 내 진행도 (0.0 = 출발지, 1.0 = 목적지)
+
+  // ── 하단 시트 ────────────────────────────────────────────────────────────
+  final _sheetController = DraggableScrollableController();
+  double _sheetSize = 0.44;
 
   @override
   void initState() {
     super.initState();
     _initStops();
-    _markStarted();
-    _startLocationTracking();
-    _startCompass();
+    if (_allStops.isNotEmpty) {
+      _markStarted();
+      _startLocationTracking();
+      _startCompass();
+    }
+    _sheetController.addListener(_onSheetSizeChanged);
+  }
+
+  void _onSheetSizeChanged() {
+    if (!mounted) return;
+    setState(() => _sheetSize = _sheetController.size);
   }
 
   /// 이 일정을 따라가기 시작했다고 서버에 알리고, 최신 상세로 갈아 끼운다.
@@ -114,6 +126,7 @@ class _NavigationScreenState extends State<NavigationScreen>
   void dispose() {
     _locationSub?.cancel();
     _compassSub?.cancel();
+    _sheetController.dispose();
     super.dispose();
   }
 
@@ -124,11 +137,6 @@ class _NavigationScreenState extends State<NavigationScreen>
     if (stops.isNotEmpty) {
       _applyStops(stops);
       _totalMinutes = widget.trip.totalDurationMinutes;
-    } else {
-      _allStops = _kPlaceholder;
-      _days = const [1];
-      _selectedDay = 1;
-      _totalMinutes = 25;
     }
   }
 
@@ -138,23 +146,29 @@ class _NavigationScreenState extends State<NavigationScreen>
   /// 목록이 갱신될 때 보고 있던 날이 1일차로 튀지 않게 한다.
   void _applyStops(List<TripStop> stops) {
     _allStops = stops
-        .map((s) => _Stop(
-              day: s.day,
-              name: s.name,
-              address: s.address,
-              time: s.time,
-              latLng: MapCoordinate(s.latitude, s.longitude),
-              transport: s.transportToNext != null
-                  ? _Transport(
-                      label: s.transportToNext!.label,
-                      duration: '${s.transportToNext!.durationMinutes}분',
-                      distance: '${s.transportToNext!.distanceKm}km',
-                      path: s.transportToNext!.path
-                          ?.map((p) => MapCoordinate(p[0], p[1]))
-                          .toList(),
-                    )
-                  : null,
-            ))
+        .map(
+          (s) => _Stop(
+            day: s.day,
+            name: s.name,
+            address: s.address,
+            time: s.time,
+            latLng: MapCoordinate(s.latitude, s.longitude),
+            transport: s.transportToNext != null
+                ? _Transport(
+                    label: s.transportToNext!.label,
+                    duration: '${s.transportToNext!.durationMinutes}분',
+                    description: s.transportToNext!.routeDescription,
+                    distance: '${s.transportToNext!.distanceKm}km',
+                    path:
+                        (s.transportToNext!.hasRoadRoute
+                                ? s.transportToNext!.path
+                                : null)
+                            ?.map((p) => MapCoordinate(p[0], p[1]))
+                            .toList(),
+                  )
+                : null,
+          ),
+        )
         .toList();
     _days = _allStops.map((s) => s.day).toSet().toList()..sort();
     if (_days.isEmpty) {
@@ -188,32 +202,6 @@ class _NavigationScreenState extends State<NavigationScreen>
     final controller = _mapController;
     if (controller != null) await _renderDay(controller);
   }
-
-  static final _kPlaceholder = [
-    _Stop(
-      name: '속초 버스 터미널',
-      address: '강원특별자치도 속초시 중앙로 96',
-      time: '09:00',
-      latLng: const MapCoordinate(38.2052, 128.5917),
-      transport: const _Transport(
-          label: '이동: 전동 킥보드', duration: '12분', distance: '1.8km'),
-    ),
-    _Stop(
-      name: '속초해변',
-      address: '강원특별자치도 속초시 청호동',
-      time: '09:12',
-      latLng: const MapCoordinate(38.2014, 128.6008),
-      transport:
-          const _Transport(label: '이동: 자전거', duration: '13분', distance: '3.8km'),
-    ),
-    _Stop(
-      name: '속초 중앙시장',
-      address: '강원특별자치도 속초시 중앙로 147',
-      time: '09:25',
-      latLng: const MapCoordinate(38.2089, 128.5875),
-      transport: null,
-    ),
-  ];
 
   String get _totalTimeLabel {
     // 여러 날 일정은 그날 것만 센다. 전 일차 합을 보여주면 오늘 얼마나
@@ -345,15 +333,12 @@ class _NavigationScreenState extends State<NavigationScreen>
     // ── 팔로우 모드: 카메라가 사용자를 따라감 ────────────────────────────
     if (_isFollowing && _mapController != null) {
       await _mapController!.updateCamera(
-        MapCameraUpdate.fromCameraPosition(MapCameraPosition(
-          target: latLng,
-          zoom: 16,
-          bearing: bearing,
-        ))
-          ..setAnimation(
-            animation: MapCameraAnimation.easing,
-            duration: const Duration(milliseconds: 1000),
-          ),
+        MapCameraUpdate.fromCameraPosition(
+          MapCameraPosition(target: latLng, zoom: 16, bearing: bearing),
+        )..setAnimation(
+          animation: MapCameraAnimation.easing,
+          duration: const Duration(milliseconds: 1000),
+        ),
       );
     }
   }
@@ -382,7 +367,8 @@ class _NavigationScreenState extends State<NavigationScreen>
 
       final closestLat = a.latitude + tClamped * dLat;
       final closestLng = a.longitude + tClamped * dLng;
-      final dist = (closestLat - pos.latitude) * (closestLat - pos.latitude) +
+      final dist =
+          (closestLat - pos.latitude) * (closestLat - pos.latitude) +
           (closestLng - pos.longitude) * (closestLng - pos.longitude);
 
       if (dist < bestDist) {
@@ -400,20 +386,19 @@ class _NavigationScreenState extends State<NavigationScreen>
   Future<void> _recenterOnUser() async {
     if (_lastPosition == null || _mapController == null) return;
 
-    final latLng =
-        MapCoordinate(_lastPosition!.latitude, _lastPosition!.longitude);
+    final latLng = MapCoordinate(
+      _lastPosition!.latitude,
+      _lastPosition!.longitude,
+    );
     setState(() => _isFollowing = true);
 
     await _mapController!.updateCamera(
-      MapCameraUpdate.fromCameraPosition(MapCameraPosition(
-        target: latLng,
-        zoom: 16,
-        bearing: _userHeading,
-      ))
-        ..setAnimation(
-          animation: MapCameraAnimation.fly,
-          duration: const Duration(milliseconds: 600),
-        ),
+      MapCameraUpdate.fromCameraPosition(
+        MapCameraPosition(target: latLng, zoom: 16, bearing: _userHeading),
+      )..setAnimation(
+        animation: MapCameraAnimation.fly,
+        duration: const Duration(milliseconds: 600),
+      ),
     );
   }
 
@@ -422,15 +407,16 @@ class _NavigationScreenState extends State<NavigationScreen>
     if (_mapController == null) return;
     final current = await _mapController!.getCameraPosition();
     await _mapController!.updateCamera(
-      MapCameraUpdate.fromCameraPosition(MapCameraPosition(
-        target: current.target,
-        zoom: current.zoom,
-        bearing: 0,
-      ))
-        ..setAnimation(
-          animation: MapCameraAnimation.easing,
-          duration: const Duration(milliseconds: 400),
+      MapCameraUpdate.fromCameraPosition(
+        MapCameraPosition(
+          target: current.target,
+          zoom: current.zoom,
+          bearing: 0,
         ),
+      )..setAnimation(
+        animation: MapCameraAnimation.easing,
+        duration: const Duration(milliseconds: 400),
+      ),
     );
   }
 
@@ -438,6 +424,29 @@ class _NavigationScreenState extends State<NavigationScreen>
 
   @override
   Widget build(BuildContext context) {
+    if (_stops.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('길안내')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('표시할 일정이 없어요'),
+                const SizedBox(height: 12),
+                const Text('저장한 일정에서 방문지를 확인해주세요.'),
+                const SizedBox(height: 20),
+                TextButton(
+                  onPressed: () => context.go('/saved'),
+                  child: const Text('저장 일정 보기'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
     return Scaffold(
       backgroundColor: Colors.white,
       body: Stack(
@@ -446,6 +455,12 @@ class _NavigationScreenState extends State<NavigationScreen>
           Positioned.fill(child: _buildMap()),
           // ── 뒤로가기 ──
           _buildBackButton(),
+          if (_stops.any((stop) => stop.transport?.path != null))
+            const Positioned(
+              top: 0,
+              right: 8,
+              child: SafeArea(bottom: false, child: RouteDataAttribution()),
+            ),
           // ── 나침반 + 내 위치 버튼 ──
           _buildCompassAndLocation(),
           // ── 하단 정보 시트 ──
@@ -471,7 +486,12 @@ class _NavigationScreenState extends State<NavigationScreen>
           zoomGesturesEnable: true,
           rotationGesturesEnable: true, // 회전 허용 (나침반과 연동)
           mapType: AppMapType.basic,
-          contentPadding: const EdgeInsets.only(bottom: 280),
+          contentPadding: EdgeInsets.only(
+            bottom:
+                MediaQuery.sizeOf(context).height * _sheetSize +
+                MediaQuery.paddingOf(context).bottom +
+                8,
+          ),
         ),
         onMapReady: _onMapReady,
         onCameraChange: _onCameraChange,
@@ -488,7 +508,10 @@ class _NavigationScreenState extends State<NavigationScreen>
 
     // 맵 준비 전 수신된 GPS 위치가 있으면 즉시 반영
     if (_lastPosition != null) {
-      final latLng = MapCoordinate(_lastPosition!.latitude, _lastPosition!.longitude);
+      final latLng = MapCoordinate(
+        _lastPosition!.latitude,
+        _lastPosition!.longitude,
+      );
       overlay.setPosition(latLng);
       overlay.setIsVisible(true);
     } else {
@@ -546,45 +569,34 @@ class _NavigationScreenState extends State<NavigationScreen>
         context: context,
       );
       if (stale()) return;
-      await controller.addOverlay(MapMarker(
-        id: 'nav_stop_${_selectedDay}_$i',
-        position: dayStops[i].latLng,
-        icon: icon,
-      ));
+      await controller.addOverlay(
+        MapMarker(
+          id: 'nav_stop_${_selectedDay}_$i',
+          position: dayStops[i].latLng,
+          icon: icon,
+        ),
+      );
       if (stale()) return;
     }
 
     // 경로 폴리라인 — 구간마다 도로 좌표가 있으면 그것을, 없으면 두 방문지를
-    // 잇는 직선을 이어 붙인다.
+    // 잇는 선을 만들지 않는다.
     final routeCoords = <MapCoordinate>[];
-    void addPoint(MapCoordinate p) {
-      // 구간 접점의 중복 좌표는 값 비교로 걸러 낸다.
-      if (routeCoords.isEmpty ||
-          routeCoords.last.latitude != p.latitude ||
-          routeCoords.last.longitude != p.longitude) {
-        routeCoords.add(p);
-      }
-    }
-
     for (int i = 0; i < dayStops.length - 1; i++) {
       final legPath = dayStops[i].transport?.path;
-      final seg = (legPath != null && legPath.length >= 2)
-          ? legPath
-          : [dayStops[i].latLng, dayStops[i + 1].latLng];
-      for (final p in seg) {
-        addPoint(p);
-      }
-    }
-
-    if (routeCoords.length >= 2) {
-      await controller.addOverlay(MapPathOverlay(
-        id: 'nav_route_$_selectedDay',
-        coords: routeCoords,
-        color: AppColors.primaryScale[400]!,
-        width: 6,
-        outlineColor: Colors.white,
-        outlineWidth: 2,
-      ));
+      if (legPath == null || legPath.length < 2) continue;
+      // Separate overlays preserve gaps: missing routes must not become straight roads.
+      routeCoords.addAll(legPath);
+      await controller.addOverlay(
+        MapPathOverlay(
+          id: 'nav_route_${_selectedDay}_$i',
+          coords: legPath,
+          color: AppColors.primaryScale[400]!,
+          width: 6,
+          outlineColor: Colors.white,
+          outlineWidth: 2,
+        ),
+      );
       if (stale()) return;
     }
 
@@ -601,11 +613,10 @@ class _NavigationScreenState extends State<NavigationScreen>
           northEast: MapCoordinate(lats.reduce(max), lngs.reduce(max)),
         ),
         padding: const EdgeInsets.fromLTRB(60, 120, 60, 420),
-      )
-        ..setAnimation(
-          animation: MapCameraAnimation.fly,
-          duration: const Duration(milliseconds: 900),
-        ),
+      )..setAnimation(
+        animation: MapCameraAnimation.fly,
+        duration: const Duration(milliseconds: 900),
+      ),
     );
     if (stale()) return;
 
@@ -794,10 +805,7 @@ class _NavigationScreenState extends State<NavigationScreen>
     );
   }
 
-  Widget _mapCircleButton({
-    required Widget child,
-    bool highlight = false,
-  }) {
+  Widget _mapCircleButton({required Widget child, bool highlight = false}) {
     return Container(
       width: 48,
       height: 48,
@@ -823,6 +831,7 @@ class _NavigationScreenState extends State<NavigationScreen>
 
   Widget _buildSheet() {
     return DraggableScrollableSheet(
+      controller: _sheetController,
       initialChildSize: 0.44,
       minChildSize: 0.12,
       maxChildSize: 0.78,
@@ -852,11 +861,10 @@ class _NavigationScreenState extends State<NavigationScreen>
               ],
               _buildTotalTime(),
               const SizedBox(height: 4),
-              ..._stops.asMap().entries.map((e) => _buildStopItem(
-                    e.value,
-                    e.key,
-                    e.key == _stops.length - 1,
-                  )),
+              ..._stops.asMap().entries.map(
+                (e) =>
+                    _buildStopItem(e.value, e.key, e.key == _stops.length - 1),
+              ),
             ],
           ),
         );
@@ -1022,7 +1030,9 @@ class _NavigationScreenState extends State<NavigationScreen>
                   if (stop.transport != null) ...[
                     const SizedBox(height: 10),
                     _buildTransitChip(
-                        stop.transport!, index == _currentTransitIndex),
+                      stop.transport!,
+                      index == _currentTransitIndex,
+                    ),
                     const SizedBox(height: 12),
                   ] else
                     const SizedBox(height: 8),
@@ -1039,83 +1049,64 @@ class _NavigationScreenState extends State<NavigationScreen>
 
   Widget _buildTransitChip(_Transport transport, bool isCurrent) {
     final theme = TransportTheme.byLabel(transport.label);
-
-    if (isCurrent) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              AppColors.gradientScale[200]!,
-              AppColors.gradientScale[600]!,
-            ],
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
-          ),
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.primaryScale[400]!.withAlpha(0x55),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AppIcon(theme.svgPath, size: 15, color: Colors.white),
-            const SizedBox(width: 7),
-            Text(
-              transport.label,
-              style: const TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              '${transport.duration} · ${transport.distance}',
-              style: const TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
+    final color = isCurrent ? Colors.white : AppColors.primaryScale[400]!;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
       decoration: BoxDecoration(
-        color: AppColors.primaryScale[0],
+        color: isCurrent ? null : AppColors.primaryScale[0],
+        gradient: isCurrent
+            ? LinearGradient(
+                colors: [
+                  AppColors.gradientScale[200]!,
+                  AppColors.gradientScale[600]!,
+                ],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+              )
+            : null,
         borderRadius: BorderRadius.circular(14),
+        boxShadow: isCurrent
+            ? [
+                BoxShadow(
+                  color: AppColors.primaryScale[400]!.withAlpha(0x55),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ]
+            : null,
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          AppIcon(theme.svgPath,
-              size: 15, color: AppColors.primaryScale[400]!),
-          const SizedBox(width: 7),
-          Text(
-            transport.label,
-            style: TextStyle(
-              fontSize: 12.5,
-              fontWeight: FontWeight.w600,
-              color: AppColors.primaryScale[400],
-            ),
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              AppIcon(theme.svgPath, size: 15, color: color),
+              Text(
+                transport.label,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: color,
+                ),
+              ),
+              Text(
+                '${transport.duration} · ${transport.distance}',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: isCurrent ? Colors.white : AppColors.neutralScale[500],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
+          const SizedBox(height: 4),
           Text(
-            '${transport.duration} · ${transport.distance}',
-            style: TextStyle(
-              fontSize: 12.5,
-              fontWeight: FontWeight.w700,
-              color: AppColors.neutralScale[500],
-            ),
+            transport.description,
+            style: TextStyle(fontSize: 12, color: color),
           ),
         ],
       ),
@@ -1132,10 +1123,7 @@ class _CompassNeedle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(
-      size: const Size(36, 36),
-      painter: _CompassPainter(),
-    );
+    return CustomPaint(size: const Size(36, 36), painter: _CompassPainter());
   }
 }
 
@@ -1194,8 +1182,18 @@ class _CompassPainter extends CustomPainter {
 
     // 동서남북 라벨
     _drawLabel(canvas, '북', Offset(cx, 3.5), const Color(0xFFE53935));
-    _drawLabel(canvas, '남', Offset(cx, size.height - 3.5), AppColors.neutralScale[400]!);
-    _drawLabel(canvas, '동', Offset(size.width - 3.5, cy), AppColors.neutralScale[400]!);
+    _drawLabel(
+      canvas,
+      '남',
+      Offset(cx, size.height - 3.5),
+      AppColors.neutralScale[400]!,
+    );
+    _drawLabel(
+      canvas,
+      '동',
+      Offset(size.width - 3.5, cy),
+      AppColors.neutralScale[400]!,
+    );
     _drawLabel(canvas, '서', Offset(3.5, cy), AppColors.neutralScale[400]!);
   }
 
@@ -1298,7 +1296,6 @@ class _RingPainter extends CustomPainter {
 class _TriangleArrowPainter extends CustomPainter {
   const _TriangleArrowPainter();
 
-
   @override
   void paint(Canvas canvas, Size size) {
     final cx = size.width / 2;
@@ -1315,9 +1312,12 @@ class _TriangleArrowPainter extends CustomPainter {
       ..moveTo(cx, topY)
       ..lineTo(cx + side / 2, botY)
       ..cubicTo(
-        cx + side / 4, botY - concaveDepth,
-        cx - side / 4, botY - concaveDepth,
-        cx - side / 2, botY,
+        cx + side / 4,
+        botY - concaveDepth,
+        cx - side / 4,
+        botY - concaveDepth,
+        cx - side / 2,
+        botY,
       )
       ..close();
 
@@ -1367,8 +1367,7 @@ class _SegmentLinePainter extends CustomPainter {
       // 현재 구간: 진행된 부분만 컬러
       final progressY = size.height * progress;
       if (progressY > 0) {
-        canvas.drawRect(
-            Rect.fromLTWH(cx - 1, 0, 2, progressY), colorPaint);
+        canvas.drawRect(Rect.fromLTWH(cx - 1, 0, 2, progressY), colorPaint);
       }
 
       // 사용자 위치 dot
@@ -1386,8 +1385,7 @@ class _SegmentLinePainter extends CustomPainter {
       // 흰 테두리
       canvas.drawCircle(dotCenter, dotRadius, Paint()..color = Colors.white);
       // 컬러 fill
-      canvas.drawCircle(
-          dotCenter, dotRadius - 2.5, Paint()..color = dotColor);
+      canvas.drawCircle(dotCenter, dotRadius - 2.5, Paint()..color = dotColor);
     }
   }
 
@@ -1422,14 +1420,16 @@ class _Stop {
 class _Transport {
   final String label;
   final String duration;
+  final String description;
   final String distance;
 
-  /// 서버가 내려준 도로 좌표. 없으면 두 방문지를 직선으로 잇는다.
+  /// 서버가 확인한 도로 좌표. 없으면 두 방문지를 연결하지 않는다.
   final List<MapCoordinate>? path;
 
   const _Transport({
     required this.label,
     required this.duration,
+    required this.description,
     required this.distance,
     this.path,
   });
