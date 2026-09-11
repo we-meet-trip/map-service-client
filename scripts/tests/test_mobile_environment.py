@@ -24,10 +24,10 @@ ios = module('ios', 'ios/Flutter/verify_native_environment.py')
 
 class MobileEnvironmentTest(unittest.TestCase):
     def production(self):
-        return {'API_ALLOWED_ORIGINS': 'https://api.example.com',
-                'APP_CONFIG_URL': 'https://config.example.com/prod.json',
-                'INVITE_LINK_ORIGIN': 'https://invite.example.com',
-                'PUBLIC_SITE_ORIGIN': 'https://www.example.com'}
+        return {'API_ALLOWED_ORIGINS': 'https://api.mapservice.app',
+                'APP_CONFIG_URL': 'https://mapservice.app/app_config.json',
+                'INVITE_LINK_ORIGIN': 'https://mapservice.app',
+                'PUBLIC_SITE_ORIGIN': 'https://mapservice.app'}
 
     def test_native_identity_is_distinct_and_cannot_be_overridden(self):
         for environment in ('test', 'prod'):

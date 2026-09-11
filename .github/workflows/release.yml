@@ -5,6 +5,14 @@ on:
     tags: ["v*", "iosbuild-*"]
   workflow_dispatch:
     inputs:
+      build_number:
+        description: "확인한 스토어 최고 번호보다 큰 새 빌드 번호 (재실행은 attempt-1 가산)"
+        type: string
+        required: false
+      store_max_build_number:
+        description: "콘솔에서 확인한 최고 업로드 번호 (신규임을 확인한 경우에만 0)"
+        type: string
+        required: false
       app_environment:
         description: "앱의 서버 환경"
         type: choice
@@ -39,7 +47,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.ref }}-${{ inputs.app_environment || 'test' }}
+  group: release-${{ startsWith(github.ref, 'refs/tags/v') && 'prod' || inputs.app_environment || 'test' }}
   cancel-in-progress: false
 
 env:
@@ -48,7 +56,7 @@ env:
 
 jobs:
   android:
-    if: ${{ startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.build_android) }}
+    if: ${{ (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && inputs.build_android) }}
     runs-on: ubuntu-latest
     environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'prod' || inputs.app_environment || 'test' }}
     permissions:
@@ -60,6 +68,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Verify release source branch
+        run: python3 scripts/mobile-release-source.py --environment "$APP_ENV"
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -79,6 +89,8 @@ jobs:
       - name: 플랫폼 설정 및 판번호 검증
         id: config
         env:
+          RELEASE_BUILD_NUMBER: ${{ inputs.build_number || vars.RELEASE_BUILD_NUMBER }}
+          STORE_MAX_BUILD_NUMBER: ${{ inputs.store_max_build_number || vars.STORE_MAX_BUILD_NUMBER }}
           API_ALLOWED_ORIGINS: ${{ vars.API_ALLOWED_ORIGINS }}
           APP_CONFIG_URL: ${{ vars.APP_CONFIG_URL }}
           INVITE_LINK_ORIGIN: ${{ vars.INVITE_LINK_ORIGIN }}
@@ -153,6 +165,9 @@ jobs:
           [[ "$actual" == "$EXPECTED_SIGNER_SHA256" ]] || { echo 'Release signing certificate mismatch'; exit 1; }
 
       - name: Artifact source and SDK manifest
+        env:
+          BUILD_NAME: ${{ steps.config.outputs.build_name }}
+          BUILD_NUMBER: ${{ steps.config.outputs.build_number }}
         run: |
           set -euo pipefail
           if [[ "$SIGNED_RELEASE" == 'true' ]]; then
@@ -176,7 +191,7 @@ jobs:
           if-no-files-found: error
 
       - name: 테스터 배포
-        if: env.SIGNED_RELEASE == 'true' && github.event_name == 'workflow_dispatch' && inputs.distribute_android
+        if: env.APP_ENV == 'test' && env.SIGNED_RELEASE == 'true' && github.event_name == 'workflow_dispatch' && inputs.distribute_android
         env:
           FIREBASE_ANDROID_APP_ID: ${{ secrets.FIREBASE_ANDROID_APP_ID }}
           FIREBASE_SERVICE_ACCOUNT_B64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_B64 }}
@@ -233,6 +248,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Verify release source branch
+        run: python3 scripts/mobile-release-source.py --environment "$APP_ENV"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -254,6 +271,8 @@ jobs:
       - name: Validate platform configuration
         id: config
         env:
+          RELEASE_BUILD_NUMBER: ${{ inputs.build_number || vars.RELEASE_BUILD_NUMBER }}
+          STORE_MAX_BUILD_NUMBER: ${{ inputs.store_max_build_number || vars.STORE_MAX_BUILD_NUMBER }}
           API_ALLOWED_ORIGINS: ${{ vars.API_ALLOWED_ORIGINS }}
           APP_CONFIG_URL: ${{ vars.APP_CONFIG_URL }}
           INVITE_LINK_ORIGIN: ${{ vars.INVITE_LINK_ORIGIN }}

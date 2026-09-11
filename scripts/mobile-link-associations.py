@@ -18,14 +18,14 @@ config_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(config_module)
 
 
-def make_associations(config, certificates, apple_app_id_prefix):
+def make_associations(config, certificates, apple_app_id_prefix, *, allow_missing_apple=False):
     environment = config.get('APP_ENV')
     validated = config_module.make_config(environment, 'web', False, config)
     identity = config_module.native_identity(environment)
     for field, expected in identity.items():
         if config.get(field) != expected:
             raise ValueError(f'{field}: supplied config does not match APP_ENV')
-    if not re.fullmatch(r'[A-Z0-9]{10}', apple_app_id_prefix):
+    if not (allow_missing_apple and apple_app_id_prefix is None) and not re.fullmatch(r'[A-Z0-9]{10}', apple_app_id_prefix or ''):
         raise ValueError('Apple signed application-identifier prefix is required (10 uppercase characters)')
     normalized = []
     for fingerprint in certificates:
@@ -36,17 +36,12 @@ def make_associations(config, certificates, apple_app_id_prefix):
     if not normalized:
         raise ValueError('At least one installed Android signing certificate SHA-256 is required')
     package = identity['NATIVE_APPLICATION_ID']
-    return {
+    artifacts = {
         '.well-known/assetlinks.json': [{
             'relation': ['delegate_permission/common.handle_all_urls'],
             'target': {'namespace': 'android_app', 'package_name': package,
                        'sha256_cert_fingerprints': list(dict.fromkeys(normalized))},
         }],
-        '.well-known/apple-app-site-association': {
-            'applinks': {'apps': [], 'details': [{
-                'appID': f'{apple_app_id_prefix}.{package}', 'paths': ['/invite/*'],
-            }]},
-        },
         'invite-environment.json': {
             'schema_version': 1, 'app_environment': environment,
             'android_package': package, 'invite_scheme': identity['INVITE_URL_SCHEME'],
@@ -56,6 +51,13 @@ def make_associations(config, certificates, apple_app_id_prefix):
             'public_site_origin': validated['PUBLIC_SITE_ORIGIN'],
         },
     }
+    if apple_app_id_prefix is not None:
+        artifacts['.well-known/apple-app-site-association'] = {
+            'applinks': {'apps': [], 'details': [{
+                'appID': f'{apple_app_id_prefix}.{package}', 'paths': ['/invite/*'],
+            }]},
+        }
+    return artifacts
 
 
 def main(argv=None):

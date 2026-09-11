@@ -4,6 +4,7 @@ import argparse
 from datetime import datetime, timezone
 import hashlib
 import json
+import os
 from pathlib import Path
 import platform
 import plistlib
@@ -37,6 +38,12 @@ def main():
     result = {
         'schema_version': 1, 'recorded_utc': datetime.now(timezone.utc).isoformat(),
         'source_sha': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
+        'source_ref': os.environ.get('GITHUB_REF', ''),
+        'required_source_branch': 'master' if source['APP_ENV'] == 'prod' else 'develop',
+        'workflow_run_id': os.environ.get('GITHUB_RUN_ID'),
+        'workflow_run_attempt': os.environ.get('GITHUB_RUN_ATTEMPT'),
+        'requested_version': {'name': os.environ.get('BUILD_NAME'),
+                              'number': os.environ.get('BUILD_NUMBER')},
         'kind': args.kind, 'runner_architecture': platform.machine(),
         'environment': {field: source[field] for field in fields},
         'artifacts': [], 'privacy_manifests': [],
@@ -55,9 +62,11 @@ def main():
         schemes = [scheme for entry in info.get('CFBundleURLTypes', []) for scheme in entry.get('CFBundleURLSchemes', [])]
         if sorted(schemes) != sorted([source['INVITE_URL_SCHEME'], source['KAKAO_CALLBACK_SCHEME']]):
             raise SystemExit('Built iOS URL scheme mismatch')
+        if info.get('UIDeviceFamily') != [1]:
+            raise SystemExit('Built iOS app must target iPhone only')
         result['ios_bundle'] = {key: info.get(key) for key in ['CFBundleIdentifier', 'CFBundleDisplayName',
                                                              'CFBundleShortVersionString', 'CFBundleVersion',
-                                                             'MinimumOSVersion', 'DTSDKName', 'DTXcode', 'DTXcodeBuild']}
+                                                             'MinimumOSVersion', 'DTSDKName', 'DTXcode', 'DTXcodeBuild', 'UIDeviceFamily']}
         for path in sorted(app.rglob('*.xcprivacy')):
             result['privacy_manifests'].append({'path': str(path.relative_to(app)),
                                                'sha256': digest(path),
