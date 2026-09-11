@@ -351,11 +351,17 @@ class _GoogleMapScreenState extends State<GoogleMapScreen> {
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontSize: 12),
             ),
-          if (transport != null)
+          if (transport != null) ...[
+            if (transport.durationMinutes > 0)
+              Text(
+                '약 ${transport.durationMinutes}분',
+                style: const TextStyle(fontSize: 12),
+              ),
             Text(
-              transport.durationMinutes > 0 ? '약 ${transport.durationMinutes}분' : '',
+              transport.routeDescription,
               style: const TextStyle(fontSize: 12),
             ),
+          ],
         ],
       ),
     );

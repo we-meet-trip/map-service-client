@@ -442,11 +442,13 @@ class TripApiException implements Exception {
   final String error;
   final String message;
   final int statusCode;
+  final bool retryable;
 
   const TripApiException({
     required this.error,
     required this.message,
     required this.statusCode,
+    this.retryable = false,
   });
 
   @override
@@ -581,9 +583,10 @@ class TripApiService {
       throw TripApiException(
         error: e.statusCode == 408 ? 'REQUEST_TIMEOUT' : e.code,
         message: e.statusCode == 408
-            ? '여행 생성이 지연되고 있어요. 잠시 후 다시 시도해주세요.'
+            ? '추천 응답 대기 시간이 초과됐어요. 요청이 아직 처리 중일 수 있어요.'
             : e.message,
         statusCode: e.statusCode,
+        retryable: e.retryable,
       );
     } on FormatException {
       // 본문이 비었거나 JSON 이 아닌 응답(게이트웨이 오류 등).

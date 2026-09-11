@@ -15,11 +15,13 @@ class ApiException implements Exception {
   final int statusCode;
   final String code;
   final String message;
+  final bool retryable;
 
   const ApiException({
     required this.statusCode,
     required this.code,
     required this.message,
+    this.retryable = false,
   });
 
   @override
@@ -137,6 +139,12 @@ class ApiClient {
         code: 'REQUEST_TIMEOUT',
         message: '응답이 지연되고 있어요. 잠시 후 다시 시도해주세요.',
       );
+    } on http.ClientException {
+      throw const ApiException(
+        statusCode: 503,
+        code: 'NETWORK_ERROR',
+        message: '서버에 연결하지 못했어요. 인터넷 연결 상태를 확인해주세요.',
+      );
     }
 
     if (sessionVersion != AuthStore.instance.sessionVersion) {
@@ -188,7 +196,7 @@ class ApiClient {
       return decoded is Map<String, dynamic> ? decoded : {'data': decoded};
     }
 
-    final error = _toException(response);
+    final error = _toException(response, path);
     if (ServiceConsentStore.isPolicyDenial(error.statusCode, error.code)) {
       ServiceConsentStore.instance.invalidate(reason: error.code);
     }
@@ -215,9 +223,10 @@ class ApiClient {
     return data is List ? data : const [];
   }
 
-  ApiException _toException(http.Response response) {
+  ApiException _toException(http.Response response, String path) {
     String code = 'UNKNOWN_ERROR';
     String message = '알 수 없는 오류가 발생했습니다.';
+    bool retryable = false;
     if (response.body.isNotEmpty) {
       try {
         final parsed = jsonDecode(utf8.decode(response.bodyBytes));
@@ -226,6 +235,30 @@ class ApiClient {
           final detail = parsed['message'] ?? parsed['detail'];
           if (errorCode is String) code = errorCode;
           if (detail is String) message = detail;
+          if (path.startsWith('/api/v1/trip/')) {
+            final legacy = parsed['error'];
+            if (legacy == 'trip_generation_failed' &&
+                !_recommendationMessages.containsKey(code)) {
+              code = 'generation_failed';
+            } else if (code == 'trip_generation_timeout' ||
+                (legacy == 'trip_generation_timeout' &&
+                    !_recommendationMessages.containsKey(code))) {
+              code = 'recommendation_pending';
+            }
+            if (_recommendationMessages.containsKey(code)) {
+              // Only known transient terminal failures can recommend a new request.
+              // A facade timeout can leave its worker running and is not retryable.
+              retryable =
+                  parsed['retryable'] == true &&
+                  const {
+                    'upstream_unavailable',
+                    'generation_timeout',
+                  }.contains(code);
+              message = code == 'upstream_unavailable' && retryable
+                  ? '추천에 필요한 정보를 가져오지 못했어요. 잠시 후 다시 시도해주세요.'
+                  : _recommendationMessages[code]!;
+            }
+          }
         }
       } on FormatException {
         // 본문이 JSON 이 아니면 상태 코드만 남긴다.
@@ -238,6 +271,19 @@ class ApiClient {
       statusCode: response.statusCode,
       code: code,
       message: message,
+      retryable: retryable,
     );
   }
+
+  static const _recommendationMessages = {
+    'no_matching_places': '현재 조건에서 추천할 장소를 찾지 못했어요. 선택 조건을 확인해주세요.',
+    'selection_invalid': '추천 결과를 구성하지 못했어요. 선택한 장소와 일정을 확인해주세요.',
+    'invalid_request': '선택한 장소와 일정 조건을 확인해주세요.',
+    'upstream_unavailable': '추천에 필요한 정보를 가져오지 못했어요.',
+    'quota_exceeded': '현재 추천 요청 한도에 도달했어요. 잠시 뒤 다시 확인해주세요.',
+    'generation_timeout': '추천 생성 시간이 초과됐어요. 잠시 후 다시 시도해주세요.',
+    'recommendation_pending': '추천 응답 대기 시간이 초과됐어요. 요청이 아직 처리 중일 수 있어요.',
+    'generation_failed': '추천을 생성하지 못했어요.',
+    'timeline_changed': '이동시간과 방문 가능 시간이 달라졌어요. 장소와 활동 시간을 확인해 동선을 다시 요청해주세요.',
+  };
 }
