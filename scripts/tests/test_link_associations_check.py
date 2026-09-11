@@ -9,7 +9,7 @@ CHECK = ROOT / 'scripts/link-associations-check.py'
 PACKAGE = 'kr.mapservice.client.test'
 PRINT = ':'.join(f'{value:02X}' for value in range(1, 33))
 PROD_PACKAGE = 'kr.mapservice.client'
-PROD_API = 'https://api.map.example.com'
+PROD_API = 'https://api.mapservice.app'
 
 
 def manifest(**overrides):
@@ -39,9 +39,9 @@ def association(app_id=f'ABCDE12345.{PACKAGE}', paths=('/invite/*',)):
 
 def production():
     return manifest(app_environment='prod', android_package=PROD_PACKAGE,
-                    invite_scheme='mapservice', invite_origin='https://map.example.com',
-                    app_config_url='https://map.example.com/app_config.json',
-                    api_allowed_origins=[PROD_API], public_site_origin='https://map.example.com')
+                    invite_scheme='mapservice', invite_origin='https://mapservice.app',
+                    app_config_url='https://mapservice.app/app_config.json',
+                    api_allowed_origins=[PROD_API], public_site_origin='https://mapservice.app')
 
 
 class LinkAssociationCheckTest(unittest.TestCase):

@@ -14,6 +14,12 @@ TEST_API_ORIGIN = "https://mapapptest.duckdns.org"
 TEST_CONFIG_URL = "https://mapcenter-b59ca.web.app/app_config.json"
 TEST_INVITE_ORIGIN = "https://mapcenter-b59ca.web.app"
 TEST_HOSTS = {"mapapptest.duckdns.org", "mapcenter-b59ca.web.app", "mapcenter-b59ca.firebaseapp.com"}
+PROD_URLS = {
+    "API_ALLOWED_ORIGINS": "https://api.mapservice.app",
+    "APP_CONFIG_URL": "https://mapservice.app/app_config.json",
+    "INVITE_LINK_ORIGIN": "https://mapservice.app",
+    "PUBLIC_SITE_ORIGIN": "https://mapservice.app",
+}
 PLATFORM_KEYS = {
     "android": "GOOGLE_MAPS_ANDROID_API_KEY",
     "ios": "GOOGLE_MAPS_IOS_API_KEY",
@@ -120,6 +126,8 @@ def make_config(environment, platform, signed, environ):
         "PUBLIC_SITE_ORIGIN": public_origin,
         **native_identity(environment),
     }
+    if environment == "prod" and any(config[field] != value for field, value in PROD_URLS.items()):
+        raise ConfigError("prod configuration must use the approved mapservice.app URLs")
     if key:
         config[key_name] = key
     return config
@@ -155,6 +163,30 @@ def release_version(ref, pubspec, number):
     return name, number
 
 
+def build_number(requested, store_maximum, attempt, *, production_signed):
+    """An explicit base plus the workflow attempt avoids same-run reupload reuse.
+
+    Store maxima are supplied after console inspection, never inferred from Git.
+    Every new workflow run must use a newly reserved base above the latest upload.
+    """
+    if production_signed and (not requested or store_maximum is None):
+        raise ConfigError("signed prod requires an explicit build number and verified store maximum")
+    if not re.fullmatch(r"[1-9][0-9]*", attempt):
+        raise ConfigError("workflow run attempt must be a positive integer")
+    base = requested or subprocess.check_output(
+        ["git", "rev-list", "--count", "HEAD"], text=True,
+        stderr=subprocess.DEVNULL).strip()
+    release_version("", "version: 1.0.1", base)
+    number = str(int(base) + int(attempt) - 1)
+    release_version("", "version: 1.0.1", number)
+    if store_maximum is not None:
+        if not re.fullmatch(r"0|[1-9][0-9]*", store_maximum):
+            raise ConfigError("verified store maximum must be a nonnegative integer")
+        if int(number) <= int(store_maximum):
+            raise ConfigError("build number must exceed the verified store maximum")
+    return number
+
+
 def write_private(path, text):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -171,7 +203,8 @@ def main(argv=None):
     parser.add_argument("--signed", action="store_true")
     parser.add_argument("--output", required=True)
     parser.add_argument("--pubspec", default="pubspec.yaml")
-    parser.add_argument("--build-number")
+    parser.add_argument("--build-number", default=os.environ.get("RELEASE_BUILD_NUMBER") or None)
+    parser.add_argument("--store-max-build-number", default=os.environ.get("STORE_MAX_BUILD_NUMBER") or None)
     parser.add_argument("--ios-xcconfig", help="iOS native identity output required before an iOS build")
     args = parser.parse_args(argv)
     try:
@@ -180,10 +213,9 @@ def main(argv=None):
             raise ConfigError("v tags require APP_ENV=prod")
         signed = args.signed or ref.startswith("refs/tags/v")
         config = make_config(args.environment, args.platform, signed, os.environ)
-        number = args.build_number or subprocess.check_output(
-            ["git", "rev-list", "--count", "HEAD"], text=True,
-            stderr=subprocess.DEVNULL,
-        ).strip()
+        number = build_number(args.build_number, args.store_max_build_number,
+                              os.environ.get("GITHUB_RUN_ATTEMPT", "1"),
+                              production_signed=args.environment == "prod" and signed and args.platform != "web")
         name, number = release_version(ref, Path(args.pubspec).read_text(), number)
         if args.ios_xcconfig and args.platform != "ios":
             raise ConfigError("--ios-xcconfig requires platform ios")

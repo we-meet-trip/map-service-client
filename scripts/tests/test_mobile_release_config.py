@@ -17,10 +17,10 @@ spec.loader.exec_module(config)
 class MobileReleaseConfigTest(unittest.TestCase):
     def production(self, **extra):
         return {
-            'API_ALLOWED_ORIGINS': 'https://api.example.com',
-            'APP_CONFIG_URL': 'https://config.example.com/prod.json',
-            'INVITE_LINK_ORIGIN': 'https://invite.example.com',
-            'PUBLIC_SITE_ORIGIN': 'https://www.example.com',
+            'API_ALLOWED_ORIGINS': 'https://api.mapservice.app',
+            'APP_CONFIG_URL': 'https://mapservice.app/app_config.json',
+            'INVITE_LINK_ORIGIN': 'https://mapservice.app',
+            'PUBLIC_SITE_ORIGIN': 'https://mapservice.app',
             **extra,
         }
 
@@ -94,7 +94,7 @@ class MobileReleaseConfigTest(unittest.TestCase):
 
     def test_config_url_preserves_an_explicit_https_path(self):
         actual = config.make_config('prod', 'ios', False, self.production())
-        self.assertEqual(actual['APP_CONFIG_URL'], 'https://config.example.com/prod.json')
+        self.assertEqual(actual['APP_CONFIG_URL'], 'https://mapservice.app/app_config.json')
         for invalid in ['http://config.example.com/prod.json', 'https://user@config.example.com/x',
                         'https://config.example.com/x?secret=yes']:
             with self.assertRaises(config.ConfigError):
@@ -115,6 +115,22 @@ class MobileReleaseConfigTest(unittest.TestCase):
         for number in ['0', '-1', '1;id', '1\n2', '2100000001']:
             with self.subTest(number=number), self.assertRaises(config.ConfigError):
                 config.release_version('', 'version: 1.0.0+1', number)
+
+    def test_production_requires_the_four_selected_urls(self):
+        for field in config.PROD_URLS:
+            with self.subTest(field=field), self.assertRaises(config.ConfigError):
+                config.make_config('prod', 'ios', False,
+                                   self.production(**{field: 'https://another.example.com'}))
+
+    def test_build_number_requires_observed_store_maximum_and_increments_retry(self):
+        self.assertEqual(config.build_number('301', '300', '1', production_signed=True), '301')
+        self.assertEqual(config.build_number('301', '300', '2', production_signed=True), '302')
+        self.assertEqual(config.build_number('1', '0', '1', production_signed=True), '1')
+        for base, maximum, attempt in [(None, '0', '1'), ('301', None, '1'),
+                                       ('300', '300', '1'), ('1', '-1', '1'),
+                                       ('1', '0', '0'), ('2100000000', '0', '2')]:
+            with self.subTest(base=base, maximum=maximum), self.assertRaises(config.ConfigError):
+                config.build_number(base, maximum, attempt, production_signed=True)
 
     def test_cli_generates_private_config_without_touching_local_env(self):
         with tempfile.TemporaryDirectory() as temporary:
