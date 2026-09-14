@@ -376,9 +376,9 @@ class _VisionScreenState extends State<VisionScreen>
           voiceTriggered: true,
           voiceText: words,
           location: permission.includeLocation && _currentPosition != null
-              ? VisionLocation(
-                  lat: _currentPosition!.latitude,
-                  lng: _currentPosition!.longitude,
+              ? VisionLocation.inServiceArea(
+                  _currentPosition!.latitude,
+                  _currentPosition!.longitude,
                 )
               : null,
         ),
@@ -423,9 +423,9 @@ class _VisionScreenState extends State<VisionScreen>
               ? history.sublist(history.length - 8)
               : history,
           location: permission.includeLocation && _currentPosition != null
-              ? VisionLocation(
-                  lat: _currentPosition!.latitude,
-                  lng: _currentPosition!.longitude,
+              ? VisionLocation.inServiceArea(
+                  _currentPosition!.latitude,
+                  _currentPosition!.longitude,
                 )
               : null,
         ),

@@ -161,7 +161,16 @@ class AppConfig {
       final remote = _trustedRemote(await _fetchRemote());
       if (remote == null) continue;
       await _writeCache(remote);
-      // 이미 시작한 세션의 목적지는 바꾸지 않는다. 새 주소는 다음 시작에 적용한다.
+      // 기본값으로 시작했다면 아직 아무 요청도 보내지 못한 상태다(release 의
+      // requestsAllowed 가 false). 그 경우에만 이번 실행에 반영해 사용자가 앱을
+      // 다시 열지 않아도 되게 한다. 캐시 주소로 시작했다면 바꾸지 않는다 —
+      // 발급받은 토큰이 그 주소에 묶여 있다.
+      if (debugAdoptsLateRemote(_source)) {
+        _apiBaseUrl = remote;
+        _source = 'remote';
+        debugPrint('AppConfig: 늦게 받은 설정을 이번 실행에 반영했다');
+        return;
+      }
       debugPrint('AppConfig: 다음 시작에 사용할 설정을 저장했다');
       return;
     }
@@ -197,6 +206,15 @@ class AppConfig {
 
   /// 주소 판정을 검사에서 그대로 부를 수 있게 열어 둔다. 이 판정이 무너지면
   /// 토큰이 어디로 나가는지가 바뀌는데, 그 사실은 화면만 봐서는 드러나지 않는다.
+  /// 늦게 받은 주소를 이번 실행에 반영할지.
+  ///
+  /// 기본값으로 시작했다면 아직 아무 요청도 보내지 못한 상태다(release 의
+  /// requestsAllowed 가 false). 그때는 바꿔 주어야 사용자가 앱을 다시 열지
+  /// 않아도 된다. 캐시 주소로 시작했다면 바꾸지 않는다 — 그 주소로 발급받은
+  /// 토큰이 이미 쓰이고 있어서, 목적지를 바꾸면 그 토큰이 다른 서버로 간다.
+  @visibleForTesting
+  static bool debugAdoptsLateRemote(String source) => source == 'fallback';
+
   @visibleForTesting
   static String? debugNormalize(String? raw, {bool requireHttps = false}) =>
       _normalize(raw, requireHttps: requireHttps);

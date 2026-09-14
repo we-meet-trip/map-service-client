@@ -13,6 +13,7 @@ import 'package:map_service_client/core/api/api_client.dart';
 import 'package:map_service_client/core/state/auth_store.dart';
 import 'package:map_service_client/core/state/service_consent_store.dart';
 import 'package:map_service_client/features/mypage/screens/external_ai_settings_screen.dart';
+import '../../support/policy_versions.dart';
 
 http.Response jsonResponse(String body, int status) => http.Response(
   body,
