@@ -18,6 +18,7 @@ import 'package:map_service_client/core/state/user_repository.dart' as profile;
 import 'package:map_service_client/features/vision/services/vision_ws_service.dart';
 import 'package:map_service_client/features/vision/models/vision_models.dart';
 import 'package:map_service_client/core/api/chat_realtime_service.dart';
+import '../support/policy_versions.dart';
 
 Map<String, dynamic> receipt({
   bool accepted = false,

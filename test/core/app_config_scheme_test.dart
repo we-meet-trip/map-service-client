@@ -33,4 +33,14 @@ void main() {
     // 호출부가 '$base/api/v1/...' 로 이어 붙이므로, 남아 있으면 //api/v1 이 된다.
     expect(AppConfig.debugNormalize('https://api.example.com/'), 'https://api.example.com');
   });
+
+  test('늦게 받은 주소는 기본값으로 시작한 실행에만 반영한다', () {
+    // 기본값으로 시작하면 release 에서는 아무 요청도 못 보낸 상태다. 늦게라도
+    // 주소를 받으면 이번 실행에 반영해야 사용자가 앱을 다시 열지 않아도 된다.
+    expect(AppConfig.debugAdoptsLateRemote('fallback'), isTrue);
+    // 캐시 주소로 이미 로그인했다면 목적지를 바꾸지 않는다. 발급받은 토큰이
+    // 그 주소에 묶여 있어서, 바꾸면 그 토큰이 다른 서버로 나간다.
+    expect(AppConfig.debugAdoptsLateRemote('cache'), isFalse);
+    expect(AppConfig.debugAdoptsLateRemote('remote'), isFalse);
+  });
 }

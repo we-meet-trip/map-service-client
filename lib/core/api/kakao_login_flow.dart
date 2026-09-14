@@ -44,12 +44,31 @@ class KakaoLoginFlow {
   final Timer Function(Duration, void Function()) _callbackTimer;
   final Duration _timeout;
   bool _running = false;
+  void Function(_CallbackResult)? _pending;
 
   static const _timedOut = ApiException(
     statusCode: 0,
     code: 'KAKAO_TIMEOUT',
     message: '로그인이 완료되지 않았어요. 다시 시도해주세요.',
   );
+
+  static const _cancelled = ApiException(
+    statusCode: 0,
+    code: 'KAKAO_CANCELLED',
+    message: '카카오 로그인이 취소되었어요.',
+  );
+
+  /// 기다리는 중인 로그인을 끝낸다. 기다리는 것이 없으면 아무 일도 하지 않는다.
+  ///
+  /// 외부 브라우저가 되돌려 주지 않으면 이 흐름은 제한 시간까지 기다리고, 그
+  /// 사이 화면의 로그인 선택이 잠긴다. 사용자가 브라우저에서 그냥 돌아온 경우와
+  /// 취소를 누른 경우에 호출한다. 이미 끝난 로그인에는 영향이 없다.
+  bool cancel() {
+    final pending = _pending;
+    if (pending == null) return false;
+    pending(const _CallbackResult.failure(_cancelled));
+    return true;
+  }
 
   Future<void> run(String state) async {
     if (_running) {
@@ -92,6 +111,8 @@ class KakaoLoginFlow {
         if (!returned.isCompleted) returned.complete(result);
       }
 
+      _pending = finish;
+
       subscription = _callbacks().listen(
         (uri) {
           if (uri.scheme != AppEnvironment.kakaoScheme ||
@@ -108,15 +129,7 @@ class KakaoLoginFlow {
           }
           final error = uri.queryParameters['error'];
           if (error != null && error.isNotEmpty) {
-            finish(
-              const _CallbackResult.failure(
-                ApiException(
-                  statusCode: 0,
-                  code: 'KAKAO_CANCELLED',
-                  message: '카카오 로그인이 취소되었어요.',
-                ),
-              ),
-            );
+            finish(const _CallbackResult.failure(_cancelled));
             return;
           }
           final code = uri.queryParameters['code'];
@@ -194,6 +207,7 @@ class KakaoLoginFlow {
       );
     } finally {
       timer?.cancel();
+      _pending = null;
       try {
         await subscription?.cancel();
       } finally {

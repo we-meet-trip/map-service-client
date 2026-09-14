@@ -14,6 +14,7 @@ import 'package:map_service_client/core/state/auth_store.dart';
 import 'package:map_service_client/core/state/service_consent_store.dart';
 import 'package:map_service_client/features/place_explore/screens/place_explore_result_screen.dart';
 import 'package:map_service_client/features/place_explore/utils/plan_place_id.dart';
+import '../../support/policy_versions.dart';
 
 /// 탐색 결과 화면이 고른 장소로 실제 동선을 요청하는지 검증.
 ///

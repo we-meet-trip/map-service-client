@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
@@ -22,8 +23,45 @@ class AuthScreen extends StatefulWidget {
   State<AuthScreen> createState() => _AuthScreenState();
 }
 
-class _AuthScreenState extends State<AuthScreen> {
+class _AuthScreenState extends State<AuthScreen>
+    with WidgetsBindingObserver {
   bool _kakaoBusy = false;
+
+  /// 브라우저에서 돌아온 뒤 콜백을 기다려 주는 시간.
+  ///
+  /// 성공해서 돌아온 경우에도 딥링크가 화면 복귀보다 조금 늦게 도착한다.
+  /// 그 순서를 견딜 만큼만 기다리고, 그래도 오지 않으면 기다림을 끝낸다.
+  static const _returnGrace = Duration(seconds: 5);
+  Timer? _returnTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    _returnTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // 카카오는 앱 밖의 브라우저에서 진행한다. 사용자가 거기서 그냥 돌아오면
+    // 되돌아오는 주소가 없어 제한 시간까지 로그인 선택이 잠긴 채로 남는다.
+    if (state != AppLifecycleState.resumed || !_kakaoBusy) return;
+    _returnTimer?.cancel();
+    _returnTimer = Timer(_returnGrace, () {
+      if (_kakaoBusy) KakaoLoginFlow.instance.cancel();
+    });
+  }
+
+  void _endKakaoWait() {
+    _returnTimer?.cancel();
+    _returnTimer = null;
+  }
 
   /// 이번 카카오 요청을 가리키는 값. 되돌아온 주소가 이 값을 그대로 달고
   /// 와야 내가 시작한 로그인으로 인정한다.
@@ -40,6 +78,7 @@ class _AuthScreenState extends State<AuthScreen> {
     try {
       await KakaoLoginFlow.instance.run(_newState());
     } on ApiException catch (e) {
+      _endKakaoWait();
       if (!mounted) return;
       setState(() => _kakaoBusy = false);
       ScaffoldMessenger.of(
@@ -47,6 +86,7 @@ class _AuthScreenState extends State<AuthScreen> {
       ).showSnackBar(SnackBar(content: Text(e.message)));
       return;
     }
+    _endKakaoWait();
     if (!mounted) return;
     setState(() => _kakaoBusy = false);
     // 카카오로 처음 들어온 사용자는 취향을 고르는 단계를 거치지 않는다.
@@ -151,6 +191,18 @@ class _AuthScreenState extends State<AuthScreen> {
                     KakaoLoginButton(
                       onPressed: _kakaoBusy ? () {} : _kakaoLogin,
                     ),
+                    if (_kakaoBusy)
+                      TextButton(
+                        onPressed: () => KakaoLoginFlow.instance.cancel(),
+                        child: Text(
+                          '로그인 취소',
+                          style: TextStyle(
+                            color: AppColors.background,
+                            fontWeight: FontWeight.w400,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
                     if (!kIsWeb &&
                         defaultTargetPlatform == TargetPlatform.iOS) ...[
                       const SizedBox(height: 12),

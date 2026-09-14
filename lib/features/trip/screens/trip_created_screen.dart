@@ -1153,7 +1153,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
               KakaoLoginButton(
                 onPressed: () {
                   Navigator.of(ctx).pop();
-                  // TODO: 카카오 로그인 연동
+                  context.push('/auth');
                 },
               ),
               const SizedBox(height: 12),

@@ -30,10 +30,23 @@ class NcpPublicTest(unittest.TestCase):
                   'files': {'legal/' + name + '.html': public.digest(body) for name, body in pages.items()}}
         return pages, review
 
-    def test_actual_policy_draft_is_marked_and_cannot_be_released(self):
+    def draft(self, directory):
+        """초안 표식을 단 합성 본문. 배포 가능한 법적 문서가 아니다."""
+        pages, _ = self.reviewed(directory)
+        for name in public.content.PAGES:
+            path = directory / (name + '.html')
+            marker = '<p>운영 준비 초안</p></main>'.encode()
+            body = path.read_bytes().replace(b'</main>', marker)
+            path.write_bytes(body)
+            pages[name] = body
+        return pages
+
+    def test_policy_draft_is_marked_and_cannot_be_released(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            result = public.prepare(root / 'draft', ROOT / 'hosting/legal', [CERT], None, None)
+            policy = root / 'policies'; policy.mkdir()
+            self.draft(policy)
+            result = public.prepare(root / 'draft', policy, [CERT], None, None)
             self.assertEqual(result['status'], 'DRAFT_NOT_SUBMITTABLE')
             self.assertIn('apple_app_id_prefix_missing', result['blockers'])
             self.assertIn('policy_draft:privacy', result['blockers'])
@@ -41,8 +54,21 @@ class NcpPublicTest(unittest.TestCase):
             for name in public.content.PAGES:
                 self.assertIn('운영 준비 초안', (root / 'draft/public/legal' / (name + '.html')).read_text())
             with self.assertRaises(ValueError):
-                public.prepare(root / 'release', ROOT / 'hosting/legal', [CERT], PREFIX, None, release=True)
+                public.prepare(root / 'release', policy, [CERT], PREFIX, None, release=True)
             self.assertFalse((root / 'release').exists())
+
+    def test_actual_policy_pages_carry_no_draft_marker_but_still_need_a_review_input(self):
+        """저장소의 정책본은 게시본 그대로다.
+
+        초안 표식이 없다는 것과 배포해도 된다는 것은 다르다. 검토 입력이 없으면
+        어떤 경우에도 배포 가능 상태가 되지 않는다.
+        """
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            result = public.prepare(root / 'actual', ROOT / 'hosting/legal', [CERT], PREFIX, None)
+            self.assertEqual(result['status'], 'DRAFT_NOT_SUBMITTABLE')
+            self.assertNotIn('policy_draft:privacy', result['blockers'])
+            self.assertIn('policy_review_missing', result['blockers'])
 
     def test_release_hashes_links_and_private_metadata_stay_separate(self):
         with tempfile.TemporaryDirectory() as temporary:
