@@ -69,6 +69,7 @@ class _AppRootState extends State<_AppRoot> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
+      debugShowCheckedModeBanner: false,
       title: 'Map Service',
       locale: const Locale('ko', 'KR'),
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
