@@ -90,4 +90,33 @@ void main() {
     expect(auth.userId, 2);
     expect(auth.accessToken, 'new-account');
   });
+
+  test('브라우저에서 콜백 없이 돌아오면 취소로 기다림을 끝낸다', () async {
+    final links = StreamController<Uri>.broadcast(sync: true);
+    addTearDown(links.close);
+    final launched = Completer<void>();
+    final flow = KakaoLoginFlow(
+      authorizeUrl: (_) async => 'https://kauth.kakao.com/oauth/authorize',
+      launch: (_) async {
+        launched.complete();
+        return true;
+      },
+      callbacks: () => links.stream,
+      exchange: (_) async => fail('취소했는데 인가 코드를 교환했다'),
+    );
+
+    final pending = flow.run('state');
+    await launched.future;
+
+    expect(flow.cancel(), isTrue);
+    await expectLater(
+      pending,
+      throwsA(
+        isA<ApiException>().having((e) => e.code, 'code', 'KAKAO_CANCELLED'),
+      ),
+    );
+
+    // 기다리는 것이 없으면 아무 일도 하지 않는다.
+    expect(flow.cancel(), isFalse);
+  });
 }
