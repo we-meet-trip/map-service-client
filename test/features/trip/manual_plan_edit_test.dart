@@ -13,6 +13,7 @@ import 'package:map_service_client/common/widgets/next_button.dart';
 import 'package:map_service_client/features/trip/screens/manual_plan_screen.dart';
 import 'package:map_service_client/features/trip/screens/saved_plan_edit_screen.dart';
 import 'package:map_service_client/features/trip/utils/plan_edit_draft.dart';
+import '../../support/policy_versions.dart';
 
 TripStop stop(String name, {int day = 1}) => TripStop(
   order: 1,

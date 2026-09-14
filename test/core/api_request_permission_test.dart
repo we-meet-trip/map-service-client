@@ -6,6 +6,7 @@ import 'package:http/testing.dart';
 import 'package:map_service_client/core/api/api_client.dart';
 import 'package:map_service_client/core/state/auth_store.dart';
 import 'package:map_service_client/core/state/service_consent_store.dart';
+import '../support/policy_versions.dart';
 
 class _RevokingPayload {
   _RevokingPayload(this.revoke);
