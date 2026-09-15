@@ -90,6 +90,19 @@ class TransitRouteLeg {
       stopNames: rawStops is List ? rawStops.whereType<String>().toList() : const [],
     );
   }
+
+  /// 좌표만 바꾼 사본. 실제 노선 좌표를 받았을 때 정류장 직선을 갈아 끼운다.
+  TransitRouteLeg withGeometry(List<List<double>> geometry) => TransitRouteLeg(
+        type: type,
+        lineName: lineName,
+        startName: startName,
+        endName: endName,
+        sectionTimeMinutes: sectionTimeMinutes,
+        stationCount: stationCount,
+        distanceMeters: distanceMeters,
+        geometry: geometry,
+        stopNames: stopNames,
+      );
 }
 
 /// 통합 길찾기 경로 후보 한 건. 지하철 단독으로 거르지 않은 후보다.
@@ -111,6 +124,13 @@ class TransitRouteOption {
 
   final List<TransitRouteLeg> legs;
 
+  /// 실제 노선 좌표를 따로 조회할 때 서버에 그대로 되돌려 줄 토큰.
+  ///
+  /// 구간이 아니라 경로 후보 단위 값이다. 발급처가 주지 않는 후보(시외·고속
+  /// 버스 등)나 이 필드가 생기기 전 서버의 응답에서는 null 이고, 그때는
+  /// 조회하지 않고 정류장 직선을 그대로 그린다.
+  final String? mapObj;
+
   const TransitRouteOption({
     required this.totalTimeMinutes,
     required this.fare,
@@ -121,6 +141,7 @@ class TransitRouteOption {
     this.subwayDistanceMeters = 0,
     this.busDistanceMeters = 0,
     this.busDistanceRatio = 0.0,
+    this.mapObj,
   });
 
   factory TransitRouteOption.fromJson(Map<String, dynamic> json) {
@@ -153,6 +174,9 @@ class TransitRouteOption {
               .map(TransitRouteLeg.fromJson)
               .toList()
           : const [],
+      // 문자열이 아닌 값은 버린다 — 서버에 되돌려 줄 때 형식 검사에 걸려
+      // 어차피 쓸 수 없다.
+      mapObj: json['map_obj'] is String ? json['map_obj'] as String : null,
     );
   }
 }
