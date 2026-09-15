@@ -94,7 +94,7 @@ class ChatEvent {
   }
 
   /// CONNECT errors can omit the regular event envelope and its `type` field.
-  static String? policyErrorCode(String? body) {
+  static String? errorCodeOf(String? body) {
     try {
       final value = jsonDecode(body ?? '');
       if (value is! Map<String, dynamic>) return null;
@@ -105,13 +105,24 @@ class ChatEvent {
           (nested is Map<String, dynamic>
               ? nested['code'] ?? nested['error']
               : null);
-      return code is String && ServiceConsentStore.isPolicyDenial(403, code)
-          ? code
-          : null;
+      return code is String ? code : null;
     } catch (_) {
       return null;
     }
   }
+
+  static String? policyErrorCode(String? body) {
+    final code = errorCodeOf(body);
+    return code != null && ServiceConsentStore.isPolicyDenial(403, code)
+        ? code
+        : null;
+  }
+
+  /// 다시 붙어도 같은 이유로 거절될 거부. 방이 닫혔거나 더는 참가자가 아닌 경우다.
+  static const _terminalDenials = {'CHAT_004', 'CHAT_005'};
+
+  static bool isTerminalDenial(String? body) =>
+      _terminalDenials.contains(errorCodeOf(body));
 
   static ChatEventKind _kindOf(String? type) {
     switch (type) {
@@ -184,6 +195,48 @@ class ChatRealtimeService {
   bool _hadConnected = false;
   bool _refreshedForThisFailure = false;
   int _attempt = 0;
+  /// 붙은 연결이 이만큼 버티면 정상으로 보고 재시도 간격을 되돌린다.
+  static const _settleAfter = Duration(seconds: 5);
+  Timer? _settled;
+
+  /// 토큰 수명이 끝나기 이만큼 전에 미리 다시 붙는다. 왕복과 시계 오차를 덮을 만큼 둔다.
+  static const _renewBefore = Duration(minutes: 2);
+  Timer? _renewal;
+
+  /// 토큰에 적힌 만료 시각. 서명은 보지 않는다 — 언제 다시 붙을지 정하는 데만 쓴다.
+  ///
+  /// 소켓은 붙을 때 한 번 인증하고 몇 시간이고 열려 있는데 접근 토큰은 그보다 먼저 죽는다.
+  /// 그 뒤로 서버는 내보내기를 멈추지만 소켓은 멀쩡해 보여 끊기지도, 다시 붙지도 않는다.
+  static DateTime? accessTokenExpiry(String? token) {
+    final parts = token?.split('.');
+    if (parts == null || parts.length != 3) return null;
+    try {
+      final payload = jsonDecode(
+        utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
+      );
+      final exp = payload is Map<String, dynamic> ? payload['exp'] : null;
+      return exp is int
+          ? DateTime.fromMillisecondsSinceEpoch(exp * 1000, isUtc: true)
+          : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// 지금 기준으로 얼마 뒤에 다시 붙어야 하는지. 만료를 모르면 예약하지 않는다.
+  static Duration? renewDelay(DateTime? expiry, DateTime now) {
+    if (expiry == null) return null;
+    final left = expiry.subtract(_renewBefore).difference(now);
+    return left.isNegative ? Duration.zero : left;
+  }
+
+  /// 끊고 다시 붙어 새 토큰을 싣는다. connect 는 같은 방이면 그냥 돌아오므로 먼저 끊는다.
+  void _renewSession() {
+    final roomId = _roomId;
+    if (roomId == null) return;
+    disconnect();
+    connect(roomId);
+  }
   ChatConnectionState _state = ChatConnectionState.idle;
 
   ChatConnectionState get state => _state;
@@ -303,7 +356,17 @@ class ChatRealtimeService {
 
     final wasReconnect = _hadConnected;
     _hadConnected = true;
-    _attempt = 0;
+    // 붙었다는 사실만으로 시도 횟수를 되돌리지 않는다. 구독이 거절되면 서버가 곧바로
+    // 연결을 닫는데, 여기서 되돌리면 매번 맨 처음 간격으로 다시 붙어 쉴 새 없이 두드린다.
+    // 잠시 버틴 연결만 정상으로 보고 그때 되돌린다.
+    _settled?.cancel();
+    _settled = Timer(_settleAfter, () => _attempt = 0);
+    _renewal?.cancel();
+    final renew = renewDelay(
+      accessTokenExpiry(AuthStore.instance.accessToken),
+      DateTime.now().toUtc(),
+    );
+    if (renew != null) _renewal = Timer(renew, _renewSession);
     _emit(ChatConnectionState.connected);
     if (wasReconnect) _reconnected.add(null);
   }
@@ -322,6 +385,12 @@ class ChatRealtimeService {
   /// 대개 토큰이라, 다음 시도 전에 갱신을 한 번 시켜 본다.
   void _onStompError(StompFrame frame) {
     if (_onPolicyAwareEvent(frame, emitOther: false)) return;
+    if (ChatEvent.isTerminalDenial(frame.body)) {
+      // 방이 닫혔거나 참가 자격이 없다. 다시 붙어도 같은 자리에서 거절되므로 멈춘다.
+      _events.add(ChatEvent.parse(frame.body));
+      disconnect();
+      return;
+    }
     if (!_hadConnected) {
       _refreshedForThisFailure = true;
       return;
@@ -379,6 +448,10 @@ class ChatRealtimeService {
   }
 
   void disconnect() {
+    _settled?.cancel();
+    _settled = null;
+    _renewal?.cancel();
+    _renewal = null;
     _client?.deactivate();
     _client = null;
     _roomId = null;
