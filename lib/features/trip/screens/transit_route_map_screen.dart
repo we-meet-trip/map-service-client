@@ -45,11 +45,30 @@ class _TransitRouteMapScreenState extends State<TransitRouteMapScreen> {
         TransitLegType.walk => AppColors.neutralScale[300]!,
       };
 
+  /// 지도가 준비되면 가진 좌표(정류장 직선)로 바로 그리고, 실제 노선 좌표를
+  /// 받으면 그 모양으로 다시 그린다.
+  ///
+  /// 받을 때까지 기다렸다 한 번에 그리지 않는 이유: 노선 좌표는 부가 정보라
+  /// 서버가 늦거나 못 줘도 지도가 비어 있으면 안 된다. 못 받으면 직선이 그대로
+  /// 남는다.
   Future<void> _onMapReady(AppMapController controller) async {
+    await _drawRoute(controller, widget.args.option.legs, fitCamera: true);
+    final roadLegs = await TransitRouteOptionsService.instance
+        .fetchLaneLegs(widget.args.option);
+    if (roadLegs == null || !mounted) return;
+    // 카메라는 다시 맞추지 않는다. 같은 경로라 범위가 거의 같고, 그사이
+    // 사용자가 지도를 움직였다면 그 위치를 빼앗게 된다.
+    await _drawRoute(controller, roadLegs, fitCamera: false);
+  }
+
+  Future<void> _drawRoute(
+    AppMapController controller,
+    List<TransitRouteLeg> legs, {
+    required bool fitCamera,
+  }) async {
     await controller.clearOverlays();
 
     final args = widget.args;
-    final legs = args.option.legs;
     final points = <MapCoordinate>[MapCoordinate(args.originLat, args.originLng)];
     MapCoordinate cursor = points.first;
 
@@ -97,6 +116,7 @@ class _TransitRouteMapScreenState extends State<TransitRouteMapScreen> {
           icon: MapOverlayImage.defaultMarker()),
     );
 
+    if (!fitCamera) return;
     final lats = points.map((p) => p.latitude);
     final lngs = points.map((p) => p.longitude);
     final bounds = MapCoordinateBounds(
