@@ -239,4 +239,69 @@ class TransitRouteOptionsService {
         throw Exception('지금은 경로를 알아볼 수 없어요. 잠시 후 다시 시도해 주세요.');
     }
   }
+
+  /// 경로 후보 한 건의 구간 좌표를 실제 노선 모양으로 갈아 끼운 구간 목록.
+  ///
+  /// 목록 조회의 구간 좌표는 지나는 정류장을 직선으로 이은 것이다. 지도를 열
+  /// 때 이 후보 하나에 대해서만 부른다 — 후보마다 부르면 서버의 하루 호출
+  /// 상한을 금방 쓴다.
+  ///
+  /// 조회하지 못하면 null 을 돌려준다(예외를 올리지 않는다). 화면은 그때 이미
+  /// 가진 정류장 직선을 그대로 두면 되므로 오류 문구를 띄울 일이 아니다.
+  /// mapObj 가 없는 후보(시외·고속버스 등)는 서버를 부르지 않는다.
+  Future<List<TransitRouteLeg>?> fetchLaneLegs(TransitRouteOption option) async {
+    final mapObj = option.mapObj;
+    if (mapObj == null || option.legs.isEmpty) return null;
+    final Map<String, dynamic> body;
+    try {
+      body = await ApiClient.instance.post(
+        '/api/v1/transit/routes/lane',
+        body: {
+          'map_obj': mapObj,
+          // 서버가 돌려줄 좌표 목록이 이 순서와 1:1 로 맞춰진다.
+          'types': [for (final leg in option.legs) leg.type.name],
+        },
+        // 부가 정보라 오래 붙들지 않는다. 서버 쪽 조회 제한(4초)에 BFF 를
+        // 거치는 몫을 더한 값이다.
+        timeout: const Duration(seconds: 8),
+      );
+    } on ApiException {
+      // 시간 초과·연결 실패·서버 오류 모두 여기로 온다(ApiClient 가 바꿔 준다).
+      return null;
+    }
+    return _applyLane(option.legs, body);
+  }
+
+  /// 응답 geometries 를 같은 순서의 구간에 입힌다.
+  ///
+  /// 빈 자리(도보 구간 등)와 두 점이 안 되는 자리는 원래 좌표를 둔다 — 한
+  /// 점으로는 선을 그릴 수 없다. 모양이 어긋나거나 바뀐 구간이 하나도 없으면
+  /// null 이라, 화면은 다시 그릴 필요가 없다.
+  static List<TransitRouteLeg>? _applyLane(
+    List<TransitRouteLeg> legs,
+    Map<String, dynamic> body,
+  ) {
+    if (body['status'] != 'ok') return null;
+    final raw = body['geometries'];
+    if (raw is! List || raw.length != legs.length) return null;
+    var replaced = false;
+    final result = <TransitRouteLeg>[];
+    for (var i = 0; i < legs.length; i++) {
+      final slot = raw[i];
+      final points = slot is List
+          ? slot
+              .whereType<List<dynamic>>()
+              .where((p) => p.length >= 2 && p.every((v) => v is num))
+              .map((p) => p.map((v) => (v as num).toDouble()).toList())
+              .toList()
+          : const <List<double>>[];
+      if (points.length >= 2) {
+        result.add(legs[i].withGeometry(points));
+        replaced = true;
+      } else {
+        result.add(legs[i]);
+      }
+    }
+    return replaced ? result : null;
+  }
 }
