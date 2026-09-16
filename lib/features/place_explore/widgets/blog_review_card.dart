@@ -10,7 +10,10 @@ class BlogReviewCard extends StatelessWidget {
 
   Future<void> _openUrl() async {
     if (review.url.isEmpty) return;
-    final uri = Uri.parse(review.url);
+    // 주소는 바깥 검색 결과에서 온다. 모양이 깨진 값이 섞여 들어와도
+    // 후기 목록 전체가 예외로 무너지지 않게 여기서 걸러낸다.
+    final uri = Uri.tryParse(review.url);
+    if (uri == null) return;
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     }

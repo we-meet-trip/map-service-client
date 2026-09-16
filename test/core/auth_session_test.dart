@@ -62,6 +62,32 @@ void main() {
     expect(values, isEmpty);
   });
 
+  test('닿지 못한 갱신은 로그인을 풀지 않는다', () async {
+    await auth.save(a);
+    // 갱신부는 자격이 거절됐을 때만 없음으로 답한다. 예외는 서버까지 닿지
+    // 못했다는 뜻이므로 들고 있는 토큰이 아직 멀쩡하다.
+    auth.refreshHandler = (_) => Future.error(
+      const ApiException(
+        statusCode: 503,
+        code: 'NETWORK_ERROR',
+        message: '서버에 연결하지 못했어요.',
+      ),
+    );
+
+    expect(await auth.refresh(), isFalse);
+    expect(auth.accessToken, 'a');
+    expect(auth.isLoggedIn.value, isTrue);
+  });
+
+  test('거절된 갱신은 로그인을 푼다', () async {
+    await auth.save(a);
+    auth.refreshHandler = (_) async => null;
+
+    expect(await auth.refresh(), isFalse);
+    expect(auth.accessToken, isNull);
+    expect(auth.isLoggedIn.value, isFalse);
+  });
+
   test('old refresh failure cannot clear a different account', () async {
     await auth.save(a);
     final response = Completer<AuthTokens?>();
