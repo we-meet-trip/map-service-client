@@ -76,6 +76,39 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
   late Future<TripForecast?> _forecastFuture;
   DateTime? _forecastStart;
 
+  /// 저장된 일정을 열면 그것을 지금 보고 있는 일정으로 삼는다.
+  ///
+  /// 이 화면 아래 '추가 탐색하기'는 장소 탐색 지도로 이어지는데, 그 지도는
+  /// 화면이 들고 있는 목록이 아니라 보관해 둔 마지막 일정을 읽는다. 저장 탭에서
+  /// 연 일정이 그 자리에 들어가지 않으면, 탐색 지도가 이전에 만들던 다른 일정의
+  /// 장소를 보여 주거나 보여 줄 것이 없다고 멈춘다.
+  ///
+  /// 지역·이동수단·활동 시간대를 모르는 옛 일정은 동선을 다시 짤 수 없어
+  /// 그대로 둔다 — 그 일정은 고치기 입구 자체가 닫혀 있다.
+  static void _adoptSavedPlan(SavedTrip saved) {
+    final transport = saved.transport;
+    final startHour = saved.activeStartHour;
+    final endHour = saved.activeEndHour;
+    if (!saved.canEdit ||
+        transport == null ||
+        startHour == null ||
+        endHour == null) {
+      return;
+    }
+    TripRepository.instance.setLastPlan(
+      TripPlanContext(
+        startDate: saved.tripStartDate,
+        endDate: saved.tripEndDate,
+        activeStartHour: startHour,
+        activeEndHour: endHour,
+        transport: transport,
+        province: saved.province!,
+        city: saved.city!,
+        stops: saved.stops,
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -106,6 +139,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
     if (saved != null) {
       _stops = saved.stops.map(_fromApiStop).toList();
       _totalDurationMinutes = saved.totalDurationMinutes;
+      _adoptSavedPlan(saved);
     } else if (res != null) {
       _stops = res.stops.map(_fromApiStop).toList();
       _totalDurationMinutes = res.totalDurationMinutes;

@@ -5,9 +5,12 @@ import 'package:map_service_client/features/place_explore/widgets/place_bottom_s
 
 /// 후기를 못 받아왔을 때도 장소 팝업이 열리는지 검증.
 ///
-/// 시험 환경의 통신은 모두 실패하므로 요약도 후기도 비어 있는 상태가 된다.
-/// 그때 팝업이 이름과 주소를 그대로 보여 주고, 요약 자리는 접히고, 후기
-/// 자리에는 안내가 남아야 한다.
+/// 시험 환경의 통신은 모두 실패한다. 그때 팝업이 이름과 주소를 그대로 보여
+/// 주고, 요약 자리는 접히고, 후기 자리에는 실패했다는 안내가 남아야 한다.
+///
+/// 실패와 '후기가 원래 없음'을 갈라 말하는지는 응답을 직접 꾸며 넣는
+/// place_detail_states_test.dart 에서 본다. 여기서는 통신이 끊긴 상태에서도
+/// 시트가 온전히 열리는지만 본다.
 void main() {
   Future<void> pumpSheet(WidgetTester tester, PlaceDetail detail) async {
     await tester.pumpWidget(
@@ -15,7 +18,7 @@ void main() {
         home: Scaffold(
           body: PlaceBottomSheet(
             detail: detail,
-            isAdded: false,
+            // 좌표를 넘기지 않으므로 사진은 아예 청하지 않는다.
             onToggle: () {},
           ),
         ),
@@ -48,12 +51,15 @@ void main() {
     expect(find.text('여행 / 관광,명소 / 해수욕장,해변'), findsNothing);
   });
 
-  testWidgets('후기가 없으면 안내를 남기고 더보기를 감춘다', (tester) async {
+  testWidgets('후기를 못 가져오면 그렇게 말하고 더보기를 감춘다', (tester) async {
     await pumpSheet(tester, detail);
     await dragSheetUp(tester);
 
     expect(find.text('블로그 리뷰'), findsOneWidget);
-    expect(find.text('아직 등록된 후기가 없어요.'), findsOneWidget);
+    // 통신이 끊긴 것을 '후기가 없다'로 덮지 않는다. 덮으면 서버가 멈춰 있어도
+    // 화면만 보고는 알 수 없다.
+    expect(find.text('후기를 불러오지 못했어요.'), findsOneWidget);
+    expect(find.text('아직 등록된 후기가 없어요.'), findsNothing);
     expect(find.text('블로그 리뷰 더보기'), findsNothing);
   });
 

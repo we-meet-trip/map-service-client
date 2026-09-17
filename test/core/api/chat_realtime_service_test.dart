@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:map_service_client/core/api/chat_realtime_service.dart';
 import 'package:stomp_dart_client/stomp_dart_client.dart';
@@ -76,5 +77,56 @@ void main() {
     // 같은 맵의 값만 바꿔도 다음 연결에 새 토큰이 실린다.
     headers['Authorization'] = 'Bearer second';
     expect(config.stompConnectHeaders?['Authorization'], 'Bearer second');
+  });
+
+  group('토큰 수명에 맞춘 재접속', () {
+    String tokenExpiringAt(DateTime moment) {
+      String seg(Map<String, dynamic> value) => base64Url
+          .encode(utf8.encode(jsonEncode(value)))
+          .replaceAll('=', '');
+      final exp = moment.millisecondsSinceEpoch ~/ 1000;
+      return '${seg({'alg': 'RS256'})}.${seg({'exp': exp})}.signature';
+    }
+
+    test('토큰에 적힌 만료 시각을 읽는다', () {
+      final moment = DateTime.utc(2026, 9, 16, 12);
+
+      expect(
+        ChatRealtimeService.accessTokenExpiry(tokenExpiringAt(moment)),
+        moment,
+      );
+    });
+
+    test('토큰 모양이 아니면 만료를 모른다고 답한다', () {
+      expect(ChatRealtimeService.accessTokenExpiry(null), isNull);
+      expect(ChatRealtimeService.accessTokenExpiry('not-a-token'), isNull);
+      expect(ChatRealtimeService.accessTokenExpiry('a.b.c'), isNull);
+    });
+
+    test('만료를 모르면 미리 붙을 시각도 정하지 않는다', () {
+      expect(ChatRealtimeService.renewDelay(null, DateTime.utc(2026)), isNull);
+    });
+
+    test('만료 전에 미리 붙도록 앞당겨 예약한다', () {
+      final now = DateTime.utc(2026, 9, 16, 12);
+
+      final delay = ChatRealtimeService.renewDelay(
+        now.add(const Duration(minutes: 60)),
+        now,
+      );
+
+      // 수명이 다한 뒤에는 서버가 내보내기를 멈추는데 소켓은 멀쩡해 보인다.
+      // 그 자리에 닿기 전에 먼저 붙어야 한다.
+      expect(delay, const Duration(minutes: 58));
+    });
+
+    test('이미 지난 만료면 곧바로 다시 붙는다', () {
+      final now = DateTime.utc(2026, 9, 16, 12);
+
+      expect(
+        ChatRealtimeService.renewDelay(now.subtract(const Duration(hours: 1)), now),
+        Duration.zero,
+      );
+    });
   });
 }
