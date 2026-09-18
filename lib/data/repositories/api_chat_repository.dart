@@ -64,7 +64,15 @@ class ApiChatRepository implements ChatRepository {
 
   @override
   Future<List<ChatMessage>> getMessages(int roomId, {int? beforeSeq}) async {
-    final names = await _names(roomId);
+    // 이름은 곁들이는 정보다. 참가자 목록은 나간 사람에게 닫혀 있지만 대화 기록은 열려
+    // 있으므로, 이름을 못 얻었다고 기록까지 비우지 않는다. 이름 없는 자리는 아래에서
+    // '알 수 없음' 으로 채워진다.
+    Map<int, String> names;
+    try {
+      names = await _names(roomId);
+    } catch (_) {
+      names = const {};
+    }
     final history = await _api.history(roomId, beforeSeq: beforeSeq);
     // 서버는 최신부터 내려 주고 화면은 위에서 아래로 읽으므로 뒤집는다.
     return history.messages.reversed.map((m) => _toMessage(m, names)).toList();

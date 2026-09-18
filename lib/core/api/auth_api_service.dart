@@ -200,8 +200,13 @@ class AuthApiService {
         body: {'refreshToken': refreshToken},
       );
       return AuthTokens.fromJson(json);
-    } on ApiException {
-      return null;
+    } on ApiException catch (e) {
+      // 자격이 거절된 것과 서버에 닿지 못한 것은 다르다. 거절이면 이 토큰으로는
+      // 더 볼 일이 없으니 없음으로 답하고, 닿지 못한 것이면 그대로 올려보낸다 —
+      // 그것까지 거절로 다루면 신호가 한 번 끊길 때마다 로그인이 풀린다.
+      const rejected = {400, 401, 403};
+      if (rejected.contains(e.statusCode)) return null;
+      rethrow;
     }
   }
 
