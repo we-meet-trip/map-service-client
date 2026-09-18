@@ -6,11 +6,11 @@ import '../../core/api/place_photo_api_service.dart';
 
 /// 장소 사진 가로 목록. 누르면 크게 본다.
 ///
-/// 일정 결과와 장소 탐색 두 화면이 같은 모양으로 사진을 건다. 한쪽에만 두면
-/// 같은 장소를 다른 화면에서 열었을 때 사진이 있다 없다 해서 화면마다 담는
-/// 정보가 달라진다.
+/// 제목과 제공자 표기는 여기에 두지 않는다. 큰 사진과 이 목록이 한 덩어리로
+/// 걸리는데 각자 표기를 달면, 사진이 한 장뿐이라 목록이 비는 순간 표기까지
+/// 함께 사라진다. 표기는 두 자리를 아우르는 쪽에서 한 번만 단다.
 ///
-/// 사진을 못 구했으면 영역째 접는다 — 빈 제목만 남기지 않는다.
+/// 걸 사진이 없으면 영역째 접는다.
 class PlacePhotoStrip extends StatelessWidget {
   const PlacePhotoStrip({
     super.key,
@@ -26,35 +26,18 @@ class PlacePhotoStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (photos.isEmpty) return const SizedBox.shrink();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: 24),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text('사진',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-            Text('제공: Google',
-                style:
-                    TextStyle(fontSize: 11, color: AppColors.neutralScale[300])),
-          ],
+    return SizedBox(
+      height: stripHeight,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: photos.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, i) => _PhotoTile(
+          photo: photos[i],
+          width: tileWidth,
+          onTap: () => _openViewer(context, i),
         ),
-        const SizedBox(height: 10),
-        SizedBox(
-          height: stripHeight,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: photos.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 8),
-            itemBuilder: (context, i) => _PhotoTile(
-              photo: photos[i],
-              width: tileWidth,
-              onTap: () => _openViewer(context, i),
-            ),
-          ),
-        ),
-      ],
+      ),
     );
   }
 
@@ -64,18 +47,25 @@ class PlacePhotoStrip extends StatelessWidget {
       showPlacePhotoViewer(context, photos, index);
 }
 
-/// 사진 한 장을 크게 거는 자리. 아직 못 받았으면 회색 칸으로 자리를 지킨다.
+/// 사진 한 장을 크게 거는 자리.
 ///
-/// 자리를 비워 두지 않는 이유: 이 칸이 사라지면 시트가 열릴 때와 사진이 도착한
-/// 뒤의 높이가 달라져 화면이 한 번 튄다.
+/// [loading] 인 동안에는 사진이 없어도 자리를 지킨다 — 이 칸이 없다가 생기면
+/// 사진이 도착하는 순간 시트 높이가 달라져 화면이 한 번 튄다. 다만 받을 것이
+/// 없다고 판명된 뒤까지 빈 칸을 남기지는 않는다. 그 판단은 부르는 쪽이 하며,
+/// 여기서는 받은 상태를 그대로 그린다.
 class PlacePhotoHero extends StatelessWidget {
   const PlacePhotoHero({
     super.key,
     required this.photos,
+    this.loading = false,
     this.height = 180,
   });
 
   final List<PlacePhoto> photos;
+
+  /// 아직 조회 중인지. 사진이 없을 때 돌아가는 표시를 둘지 가른다.
+  final bool loading;
+
   final double height;
 
   @override
@@ -86,18 +76,23 @@ class PlacePhotoHero extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
         child: photos.isEmpty
-            ? const _PhotoPlaceholder(loading: false)
-            : GestureDetector(
+            ? _PhotoPlaceholder(loading: loading)
+            : Semantics(
+                button: true,
+                label: '장소 사진. 누르면 크게 봅니다',
+                child: GestureDetector(
                 onTap: () => showPlacePhotoViewer(context, photos, 0),
                 child: Image.network(
                   photos.first.photoUri,
                   fit: BoxFit.cover,
+                  excludeFromSemantics: true,
                   webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
                   loadingBuilder: (context, child, progress) =>
                       progress == null ? child : const _PhotoPlaceholder(),
                   errorBuilder: (_, _, _) =>
                       const _PhotoPlaceholder(failed: true),
                 ),
+              ),
               ),
       ),
     );
@@ -138,7 +133,10 @@ class _PhotoTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return Semantics(
+      button: true,
+      label: '장소 사진. 누르면 크게 봅니다',
+      child: GestureDetector(
       onTap: onTap,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
@@ -147,6 +145,7 @@ class _PhotoTile extends StatelessWidget {
           child: Image.network(
             photo.photoUri,
             fit: BoxFit.cover,
+            excludeFromSemantics: true,
             // 웹에서는 그림을 캔버스에 직접 그리는데, 다른 출처의 이미지는
             // 그쪽이 허용 헤더를 주지 않으면 캔버스에 올릴 수 없다. 그럴 때는
             // 브라우저 이미지 요소로 대신 그리게 두어 사진이 통째로 사라지지
@@ -157,6 +156,7 @@ class _PhotoTile extends StatelessWidget {
             errorBuilder: (_, _, _) => const _PhotoPlaceholder(failed: true),
           ),
         ),
+      ),
       ),
     );
   }
@@ -177,7 +177,14 @@ class _PhotoPlaceholder extends StatelessWidget {
     return Container(
       color: AppColors.neutralScale[100],
       alignment: Alignment.center,
-      child: failed
+      // 그림만 있는 칸은 읽어 줄 글이 없어 화면 낭독기에 아무것도 안 들린다.
+      child: Semantics(
+        label: failed
+            ? '사진을 표시하지 못했어요'
+            : loading
+                ? '사진을 불러오는 중'
+                : '사진 없음',
+        child: failed
           ? Icon(Icons.broken_image_outlined,
               size: 22, color: AppColors.neutralScale[200])
           : loading
@@ -188,6 +195,7 @@ class _PhotoPlaceholder extends StatelessWidget {
                 )
               : Icon(PhosphorIcons.image(),
                   size: 40, color: AppColors.neutralScale[300]),
+      ),
     );
   }
 }

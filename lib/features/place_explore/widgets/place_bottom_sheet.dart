@@ -16,21 +16,31 @@ import 'place_ai_summary_card.dart';
 
 class PlaceBottomSheet extends StatefulWidget {
   final PlaceDetail detail;
+
+  /// 이 장소가 이미 경로에 담겨 있는지. 담기 단추가 없을 때는 쓰이지 않는다.
   final bool isAdded;
-  final VoidCallback onToggle;
+
+  /// 경로에 담고 빼는 동작. 비워 두면 담기 단추 자체가 나오지 않는다 —
+  /// 이미 짜인 일정을 들여다보는 자리에는 담을 곳이 없다.
+  final VoidCallback? onToggle;
 
   /// 사진을 찾을 좌표. 같은 상호가 여러 지역에 있어 이름만으로 물으면 다른
   /// 동네 지점 사진이 온다. 좌표가 없으면 사진을 아예 청하지 않는다.
   final double? latitude;
   final double? longitude;
 
+  /// 시트가 처음 차지하는 화면 비율. 지도 위에서는 지도를 덜 가리게 낮게,
+  /// 목록 위에서는 내용이 바로 보이게 높게 연다.
+  final double initialChildSize;
+
   const PlaceBottomSheet({
     super.key,
     required this.detail,
-    required this.isAdded,
-    required this.onToggle,
+    this.isAdded = false,
+    this.onToggle,
     this.latitude,
     this.longitude,
+    this.initialChildSize = 0.48,
   });
 
   @override
@@ -45,10 +55,20 @@ class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
 
   List<PlacePhoto> _photos = const [];
 
+  /// 사진을 아직 기다리는 중인지. 기다리는 동안에만 큰 사진 자리를 잡아 두고,
+  /// 받을 것이 없다고 판명되면 영역째 접는다.
+  bool _photosLoading = false;
+
+  /// 사진 조회가 실패했는지. 원래 사진이 없는 장소와 갈라 말하기 위해 남긴다.
+  bool _photosFailed = false;
+
   final List<BlogReview> _reviews = [];
   bool _reviewsLoading = true;
   bool _moreLoading = false;
   bool _hasMore = false;
+
+  /// 후기 조회가 실패했는지. 실패와 '후기가 없음'은 화면에서 갈라 보여 준다.
+  bool _reviewsFailed = false;
 
   @override
   void initState() {
@@ -66,18 +86,25 @@ class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
     final lat = widget.latitude;
     final lng = widget.longitude;
     if (lat == null || lng == null) return;
-    final photos = await _photoApi.fetchPhotos(
+    setState(() => _photosLoading = true);
+    final result = await _photoApi.fetchPhotos(
       widget.detail.name,
       latitude: lat,
       longitude: lng,
     );
-    if (!mounted || photos.isEmpty) return;
-    setState(() => _photos = photos);
+    if (!mounted) return;
+    setState(() {
+      _photos = result.photos;
+      _photosFailed = result.failed;
+      _photosLoading = false;
+    });
   }
 
   void _handleToggle() {
+    final toggle = widget.onToggle;
+    if (toggle == null) return;
     setState(() => _isAdded = !_isAdded);
-    widget.onToggle();
+    toggle();
   }
 
   Future<void> _loadFirstPage() async {
@@ -93,6 +120,7 @@ class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
         ..clear()
         ..addAll(result.reviews.map(_toReview));
       _hasMore = result.hasMore;
+      _reviewsFailed = result.failed;
       _reviewsLoading = false;
     });
   }
@@ -125,7 +153,7 @@ class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
   @override
   Widget build(BuildContext context) {
     return DraggableScrollableSheet(
-      initialChildSize: 0.48,
+      initialChildSize: widget.initialChildSize,
       minChildSize: 0.35,
       maxChildSize: 0.92,
       expand: false,
@@ -199,6 +227,7 @@ class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
                   ),
                 ),
               ),
+              if (widget.onToggle != null) ...[
               const SizedBox(width: 12),
               GestureDetector(
                 onTap: _handleToggle,
@@ -231,16 +260,19 @@ class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
                   ),
                 ),
               ),
+              ],
             ],
           ),
-          const SizedBox(height: 4),
-          Text(
-            widget.detail.address,
-            style: TextStyle(
-              fontSize: 13,
-              color: AppColors.neutralScale[400],
+          if (widget.detail.address.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              widget.detail.address,
+              style: TextStyle(
+                fontSize: 13,
+                color: AppColors.neutralScale[400],
+              ),
             ),
-          ),
+          ],
           const SizedBox(height: 6),
           if (tag != null)
             Container(
@@ -258,10 +290,43 @@ class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
                 ),
               ),
             ),
-          const SizedBox(height: 14),
-          PlacePhotoHero(photos: _photos),
+          _buildPhotoHero(),
         ],
       ),
+    );
+  }
+
+  /// 큰 사진과 그 출처 표기.
+  ///
+  /// 표기를 목록이 아니라 여기에 두는 이유: 사진이 한 장뿐이면 아래 목록이
+  /// 비어 접히는데, 표기가 그쪽에 있으면 사진은 걸린 채 출처만 사라진다.
+  ///
+  /// 기다리는 동안에만 빈 자리를 잡아 둔다. 받을 것이 없다고 판명된 뒤까지
+  /// 회색 칸을 남기면 모든 장소에 고장난 자리가 하나씩 생긴다.
+  Widget _buildPhotoHero() {
+    if (_photosFailed) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 14),
+        child: Text(
+          '사진을 불러오지 못했어요.',
+          style: TextStyle(fontSize: 13, color: AppColors.neutralScale[300]),
+        ),
+      );
+    }
+    if (!_photosLoading && _photos.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        const SizedBox(height: 14),
+        PlacePhotoHero(photos: _photos, loading: _photosLoading),
+        if (_photos.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Text(
+            '제공: Google',
+            style: TextStyle(fontSize: 11, color: AppColors.neutralScale[300]),
+          ),
+        ],
+      ],
     );
   }
 
@@ -272,7 +337,7 @@ class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
     );
   }
 
-  /// 사진 목록. 첫 장은 위 큰 자리에 이미 걸려 있어 여기서는 건너뛴다.
+  /// 나머지 사진 목록. 첫 장은 위 큰 자리에 이미 걸려 있어 건너뛴다.
   /// 남는 것이 없으면 공용 위젯이 영역째 접는다.
   Widget _buildPhotos() => Padding(
         padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
@@ -300,17 +365,59 @@ class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
     );
   }
 
+  /// 후기가 한 건도 없을 때의 자리.
+  ///
+  /// 조회가 실패한 것과 후기가 원래 없는 것은 다른 사정이다. 같은 문구로
+  /// 덮으면 서버가 멈춰 있어도 아무도 눈치채지 못한다.
   Widget _buildEmptyReviews() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
-      child: Text(
-        '아직 등록된 후기가 없어요.',
-        style: TextStyle(
-          fontSize: 13,
-          color: AppColors.neutralScale[300],
-        ),
-      ),
+      child: _reviewsFailed
+          ? Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '후기를 불러오지 못했어요.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.neutralScale[400],
+                    ),
+                  ),
+                ),
+                Semantics(
+                  button: true,
+                  child: GestureDetector(
+                  onTap: _retryReviews,
+                  child: Text(
+                    '다시 시도',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.tripAccentPurple,
+                    ),
+                  ),
+                  ),
+                ),
+              ],
+            )
+          : Text(
+              '아직 등록된 후기가 없어요.',
+              style: TextStyle(
+                fontSize: 13,
+                color: AppColors.neutralScale[300],
+              ),
+            ),
     );
+  }
+
+  /// 실패한 첫 장을 다시 청한다.
+  void _retryReviews() {
+    if (_reviewsLoading) return;
+    setState(() {
+      _reviewsLoading = true;
+      _reviewsFailed = false;
+    });
+    _loadFirstPage();
   }
 
   Widget _buildReviewsHeader() {

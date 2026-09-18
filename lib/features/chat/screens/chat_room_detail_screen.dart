@@ -87,7 +87,9 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
       }
     }
     if (!mounted) return;
-    await provider.open(readOnly: room.readOnly);
+    // 보관 표시만 보면 만료일이 지난 방을 아직 열려 있는 것으로 여긴다. 그 상태로 소켓을
+    // 열면 서버가 구독을 거절하고, 거절당한 자리에서 다시 붙기를 되풀이한다.
+    await provider.open(readOnly: room.type == ChatRoomType.past);
     if (mounted) _scrollToBottom();
   }
 
@@ -186,14 +188,16 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
     if (mounted) setState(() => _isSheetOpen = false);
   }
 
-  /// 확인을 받고 방에서 나간다. 방장이 나가면 서버가 방을 종료하므로
+  /// 확인을 받고 방에서 나간다. 방장이 나가면 남은 사람에게 방장이 넘어가므로
   /// 확인 문구부터 다르게 보여준다.
   Future<void> _confirmLeave({required bool isOwner}) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AppConfirmDialog(
         content: Text(
-          isOwner ? '방장이 나가면 방이 종료됩니다.\n채팅방을 나갈까요?' : '채팅방을 나갈까요?',
+          isOwner
+              ? '방장을 남은 멤버에게 넘기고 나갑니다.\n혼자라면 방이 종료됩니다.\n채팅방을 나갈까요?'
+              : '채팅방을 나갈까요?',
           textAlign: TextAlign.center,
           style: const TextStyle(
             fontSize: 16,
@@ -447,6 +451,34 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
                 ),
               ),
             ),
+            // 연결이 끊겼거나 기록을 못 불러온 사정을 알린다. provider 가 이 문구를
+            // 채워 두어도 그리는 자리가 없어, 실패가 조용히 묻혀 있었다.
+            Consumer<ChatRoomDetailProvider>(
+              builder: (context, provider, _) {
+                final notice = provider.realtimeNotice;
+                if (notice == null) return const SizedBox.shrink();
+                return Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF4E5),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    notice,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      height: 1.4,
+                      color: Color(0xFF8A5A00),
+                    ),
+                  ),
+                );
+              },
+            ),
             Expanded(
               child: Stack(
                 children: [
@@ -457,7 +489,13 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
                           children: [
                             Consumer<ChatRoomDetailProvider>(
                               builder: (context, provider, _) {
-                                if (provider.isLoading) {
+                                // 목록을 꺼내는 것만으로 필터를 한 벌 더 만드므로 한 번만 받는다.
+                                final items = provider.messages;
+                                // 첫 조회에만 자리를 비운다. 갱신할 때마다 비우면 대화가
+                                // 깜빡이고, 잦은 갱신에서는 거의 보이지 않게 된다.
+                                // ponytail: loadMessages 는 여전히 재진입 가능하고 isLoading 은
+                                // 단순 bool 이라 "진행 중"을 정확히 나타내지는 않는다.
+                                if (provider.isLoading && items.isEmpty) {
                                   return const Center(
                                     child: CircularProgressIndicator(),
                                   );
@@ -475,11 +513,11 @@ class _ChatRoomDetailScreenState extends State<ChatRoomDetailScreen> {
                                               ).padding.bottom
                                         : 16,
                                   ),
-                                  itemCount: provider.messages.length,
+                                  itemCount: items.length,
                                   separatorBuilder: (_, _) =>
                                       const SizedBox(height: 12),
                                   itemBuilder: (context, index) {
-                                    final msg = provider.messages[index];
+                                    final msg = items[index];
                                     final color = _resolveColor(msg);
                                     return _messageBubble(msg, color);
                                   },

@@ -79,8 +79,9 @@ class PlacePhotoApiService {
   ///
   /// 사진이 없거나 조회에 실패하면 빈 목록을 돌려준다 — 사진이 없다고 장소
   /// 상세를 못 그리는 것은 아니다. 주소가 비어 온 항목도 화면에 걸 수 없어
-  /// 여기서 버린다.
-  Future<List<PlacePhoto>> fetchPhotos(
+  /// 여기서 버린다. 다만 실패였는지는 함께 알려 준다. 사진이 원래 없는 장소와
+  /// 못 가져온 장소를 화면이 같은 말로 덮으면 고장을 아무도 눈치채지 못한다.
+  Future<({List<PlacePhoto> photos, bool failed})> fetchPhotos(
     String query, {
     required double latitude,
     required double longitude,
@@ -96,14 +97,17 @@ class PlacePhotoApiService {
         timeout: _timeout,
       );
       final raw = body['photos'];
-      if (raw is! List) return const [];
-      return raw
-          .whereType<Map<String, dynamic>>()
-          .map(PlacePhoto.fromJson)
-          .where((p) => p.photoUri.isNotEmpty)
-          .toList();
+      if (raw is! List) return (photos: const <PlacePhoto>[], failed: false);
+      return (
+        photos: raw
+            .whereType<Map<String, dynamic>>()
+            .map(PlacePhoto.fromJson)
+            .where((p) => p.photoUri.isNotEmpty)
+            .toList(),
+        failed: false,
+      );
     } catch (_) {
-      return const [];
+      return (photos: const <PlacePhoto>[], failed: true);
     }
   }
 }

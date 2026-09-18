@@ -166,9 +166,13 @@ class AuthStore {
       return false;
     }
     AuthTokens? tokens;
+    // 갱신부는 자격이 거절됐을 때만 없음으로 답한다. 예외가 올라왔다는 것은
+    // 서버까지 닿지 못했다는 뜻이고, 그때 들고 있는 토큰은 아직 멀쩡하다.
+    var credentialRejected = true;
     try {
       tokens = await handler(token);
     } catch (_) {
+      credentialRejected = false;
       tokens = null;
     }
     if (version != _sessionVersion ||
@@ -177,7 +181,8 @@ class AuthStore {
     }
     if (tokens == null) {
       // 갱신이 거절됐다는 것은 이 토큰으로는 더 이상 아무것도 못 한다는 뜻이다.
-      await clear();
+      // 닿지 못한 것뿐이라면 그대로 둔다. 다음 요청에서 다시 해 보면 된다.
+      if (credentialRejected) await clear();
       return false;
     }
     await _saveTokens(tokens);
