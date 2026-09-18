@@ -1,6 +1,7 @@
 import 'dart:math' show min, max;
 
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../common/widgets/back_header.dart';
@@ -27,6 +28,36 @@ class TransitRouteMapArgs {
   });
 }
 
+/// 지도에 그릴 도보 연결선 하나. [id] 는 지도 오버레이 이름이다.
+typedef TransitConnector = ({String id, MapCoordinate from, MapCoordinate to});
+
+/// 구간 사이를 잇는 도보 연결선을 그리는 순서대로 뽑는다.
+///
+/// 출발지 → 첫 구간 시작, 구간 끝 → 다음 구간 시작(환승 걷기), 마지막 구간 끝 →
+/// 도착지. 좌표가 없는 구간(순수 도보 연결)은 건너뛴다. 그리는 쪽과 보행 경로를
+/// 조회하는 쪽이 이 한 함수를 같이 써서, 둘이 서로 다른 연결선을 보는 일이 없게
+/// 한다.
+List<TransitConnector> transitConnectors(
+  MapCoordinate origin,
+  MapCoordinate destination,
+  List<TransitRouteLeg> legs,
+) {
+  final result = <TransitConnector>[];
+  var cursor = origin;
+  for (var i = 0; i < legs.length; i++) {
+    final geometry = legs[i].geometry;
+    if (geometry.isEmpty) continue;
+    result.add((
+      id: 'connector_$i',
+      from: cursor,
+      to: MapCoordinate(geometry.first[0], geometry.first[1]),
+    ));
+    cursor = MapCoordinate(geometry.last[0], geometry.last[1]);
+  }
+  result.add((id: 'connector_end', from: cursor, to: destination));
+  return result;
+}
+
 class TransitRouteMapScreen extends StatefulWidget {
   const TransitRouteMapScreen({super.key, required this.args});
 
@@ -45,47 +76,88 @@ class _TransitRouteMapScreenState extends State<TransitRouteMapScreen> {
         TransitLegType.walk => AppColors.neutralScale[300]!,
       };
 
-  /// 지도가 준비되면 가진 좌표(정류장 직선)로 바로 그리고, 실제 노선 좌표를
-  /// 받으면 그 모양으로 다시 그린다.
+  /// 이보다 짧은 연결선은 보행 경로를 부르지 않고 직선으로 둔다. 같은 역 안
+  /// 환승처럼 짧은 걷기는 엔진이 역 밖으로 돌아가는 선을 낼 수 있다.
+  /// 30m 는 짐작한 값이다 — 실제 경로로 확인한 뒤 조정한다.
+  static const _minWalkPathMeters = 30.0;
+
+  MapCoordinate get _origin =>
+      MapCoordinate(widget.args.originLat, widget.args.originLng);
+  MapCoordinate get _destination =>
+      MapCoordinate(widget.args.destinationLat, widget.args.destinationLng);
+
+  /// 지도가 준비되면 가진 좌표(정류장 직선)로 바로 그리고, 실제 노선 좌표와
+  /// 도보 연결선의 보행 경로를 받는 대로 차례로 다시 그린다.
   ///
-  /// 받을 때까지 기다렸다 한 번에 그리지 않는 이유: 노선 좌표는 부가 정보라
-  /// 서버가 늦거나 못 줘도 지도가 비어 있으면 안 된다. 못 받으면 직선이 그대로
-  /// 남는다.
+  /// 받을 때까지 기다렸다 한 번에 그리지 않는 이유: 둘 다 부가 정보라 서버가
+  /// 늦거나 못 줘도 지도가 비어 있으면 안 된다. 못 받은 것은 직선이 그대로
+  /// 남는다. 다시 그릴 때는 카메라를 맞추지 않는다 — 같은 경로라 범위가 거의
+  /// 같고, 그사이 사용자가 지도를 움직였다면 그 위치를 빼앗게 된다.
   Future<void> _onMapReady(AppMapController controller) async {
-    await _drawRoute(controller, widget.args.option.legs, fitCamera: true);
-    final roadLegs = await TransitRouteOptionsService.instance
-        .fetchLaneLegs(widget.args.option);
-    if (roadLegs == null || !mounted) return;
-    // 카메라는 다시 맞추지 않는다. 같은 경로라 범위가 거의 같고, 그사이
-    // 사용자가 지도를 움직였다면 그 위치를 빼앗게 된다.
-    await _drawRoute(controller, roadLegs, fitCamera: false);
+    final option = widget.args.option;
+    var legs = option.legs;
+    await _drawRoute(controller, legs, fitCamera: true);
+
+    final roadLegs =
+        await TransitRouteOptionsService.instance.fetchLaneLegs(option);
+    if (!mounted) return;
+    if (roadLegs != null) {
+      legs = roadLegs;
+      await _drawRoute(controller, legs, fitCamera: false);
+    }
+
+    // 도보 연결선은 노선 좌표 조회가 끝난 뒤에 부른다 — 연결선 끝점이 지금
+    // 그려진 구간 끝과 맞아야 한다.
+    final connectors = transitConnectors(_origin, _destination, legs)
+        .where((c) =>
+            Geolocator.distanceBetween(c.from.latitude, c.from.longitude,
+                c.to.latitude, c.to.longitude) >=
+            _minWalkPathMeters)
+        .toList();
+    if (connectors.isEmpty) return;
+    final paths = await TransitRouteOptionsService.instance.fetchWalkPaths([
+      for (final c in connectors)
+        ([c.from.latitude, c.from.longitude], [c.to.latitude, c.to.longitude]),
+    ]);
+    if (paths == null || !mounted) return;
+    // 엔진 경로는 도로에 붙은 점에서 시작·끝나므로 양 끝을 원래 점에 잇는다.
+    final walkPaths = <String, List<MapCoordinate>>{
+      for (var i = 0; i < connectors.length; i++)
+        if (paths[i] != null)
+          connectors[i].id: [
+            connectors[i].from,
+            ...paths[i]!.map((p) => MapCoordinate(p[0], p[1])),
+            connectors[i].to,
+          ],
+    };
+    await _drawRoute(controller, legs, fitCamera: false, walkPaths: walkPaths);
   }
 
+  /// [walkPaths] 는 연결선 id → 보행 경로. 없는 연결선은 회색 직선으로 그린다.
   Future<void> _drawRoute(
     AppMapController controller,
     List<TransitRouteLeg> legs, {
     required bool fitCamera,
+    Map<String, List<MapCoordinate>> walkPaths = const {},
   }) async {
     await controller.clearOverlays();
 
-    final args = widget.args;
-    final points = <MapCoordinate>[MapCoordinate(args.originLat, args.originLng)];
-    MapCoordinate cursor = points.first;
+    // 연결선을 먼저 그려 구간 선이 그 위에 오게 한다.
+    for (final c in transitConnectors(_origin, _destination, legs)) {
+      await controller.addOverlay(MapPathOverlay(
+        id: c.id,
+        coords: walkPaths[c.id] ?? [c.from, c.to],
+        color: AppColors.neutralScale[300]!,
+        width: 3,
+      ));
+    }
 
+    final points = <MapCoordinate>[_origin];
     for (var i = 0; i < legs.length; i++) {
       final leg = legs[i];
       if (leg.geometry.isEmpty) continue; // 좌표 없는 도보 연결 구간
       final legCoords =
           leg.geometry.map((p) => MapCoordinate(p[0], p[1])).toList();
-
-      // 이전 구간 끝(또는 출발지)과 이 구간 시작 사이는 좌표가 없어 잇는
-      // 회색 연결선이다 — 실제 도보 경로가 아니라 근사 직선이다.
-      await controller.addOverlay(MapPathOverlay(
-        id: 'connector_$i',
-        coords: [cursor, legCoords.first],
-        color: AppColors.neutralScale[300]!,
-        width: 3,
-      ));
       await controller.addOverlay(MapPathOverlay(
         id: 'leg_$i',
         coords: legCoords,
@@ -94,17 +166,10 @@ class _TransitRouteMapScreenState extends State<TransitRouteMapScreen> {
         outlineColor: Colors.white,
         outlineWidth: 2,
       ));
-      cursor = legCoords.last;
       points.addAll(legCoords);
     }
 
-    final destination = MapCoordinate(args.destinationLat, args.destinationLng);
-    await controller.addOverlay(MapPathOverlay(
-      id: 'connector_end',
-      coords: [cursor, destination],
-      color: AppColors.neutralScale[300]!,
-      width: 3,
-    ));
+    final destination = _destination;
     points.add(destination);
 
     await controller.addOverlay(

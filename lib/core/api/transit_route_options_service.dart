@@ -287,15 +287,8 @@ class TransitRouteOptionsService {
     var replaced = false;
     final result = <TransitRouteLeg>[];
     for (var i = 0; i < legs.length; i++) {
-      final slot = raw[i];
-      final points = slot is List
-          ? slot
-              .whereType<List<dynamic>>()
-              .where((p) => p.length >= 2 && p.every((v) => v is num))
-              .map((p) => p.map((v) => (v as num).toDouble()).toList())
-              .toList()
-          : const <List<double>>[];
-      if (points.length >= 2) {
+      final points = _points(raw[i]);
+      if (points != null) {
         result.add(legs[i].withGeometry(points));
         replaced = true;
       } else {
@@ -303,5 +296,57 @@ class TransitRouteOptionsService {
       }
     }
     return replaced ? result : null;
+  }
+
+  /// 경로 지도의 도보 연결선(구간 사이 회색 직선)을 실제 보행 경로로 받는다.
+  ///
+  /// [segments] 는 (시작 [lat,lng], 끝 [lat,lng]) 목록이다. 돌려주는 목록은
+  /// 같은 길이·순서이고, 서버가 못 준 자리는 null 이라 그 연결선만 직선으로
+  /// 둔다. 조회 자체를 못 하면 null — 화면은 회색 직선을 그대로 둔다.
+  ///
+  /// 좌표라서 본문으로 보낸다. 서버는 한 번에 20개까지 받는다(한 경로의
+  /// 연결선은 많아야 대여섯 개라 넘을 일이 없다).
+  Future<List<List<List<double>>?>?> fetchWalkPaths(
+    List<(List<double>, List<double>)> segments,
+  ) async {
+    if (segments.isEmpty || segments.length > 20) return null;
+    final Map<String, dynamic> body;
+    try {
+      body = await ApiClient.instance.post(
+        '/api/v1/transit/routes/walk',
+        body: {
+          'segments': [
+            for (final (start, end) in segments)
+              {
+                'start_lat': start[0],
+                'start_lng': start[1],
+                'end_lat': end[0],
+                'end_lng': end[1],
+              },
+          ],
+        },
+        // 노선 좌표 조회와 같은 이유로 짧게 둔다.
+        timeout: const Duration(seconds: 8),
+      );
+    } on ApiException {
+      return null;
+    }
+    if (body['status'] != 'ok') return null;
+    final raw = body['paths'];
+    if (raw is! List || raw.length != segments.length) return null;
+    final result = [for (final slot in raw) _points(slot)];
+    return result.any((p) => p != null) ? result : null;
+  }
+
+  /// 응답 한 자리를 [lat,lng] 좌표열로 읽는다. 두 점이 안 되면 null —
+  /// 한 점으로는 선을 그릴 수 없다.
+  static List<List<double>>? _points(Object? slot) {
+    if (slot is! List) return null;
+    final points = slot
+        .whereType<List<dynamic>>()
+        .where((p) => p.length >= 2 && p.every((v) => v is num))
+        .map((p) => p.map((v) => (v as num).toDouble()).toList())
+        .toList();
+    return points.length >= 2 ? points : null;
   }
 }
