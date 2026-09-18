@@ -51,7 +51,15 @@ class BlogReviewPage {
   /// 때문이다.
   final bool hasMore;
 
-  const BlogReviewPage({required this.reviews, required this.hasMore});
+  /// 조회 자체가 실패했는지. 실패해도 빈 묶음을 돌려주는 것은 그대로지만,
+  /// 화면이 '후기가 없다'와 '못 가져왔다'를 다르게 말할 수 있어야 한다.
+  final bool failed;
+
+  const BlogReviewPage({
+    required this.reviews,
+    required this.hasMore,
+    this.failed = false,
+  });
 }
 
 /// 장소 상세의 블로그 후기와 요약을 가져오는 통로.
@@ -96,7 +104,7 @@ class ReviewApiService {
           : <BlogReview>[];
       return BlogReviewPage(reviews: items, hasMore: items.length >= display);
     } catch (_) {
-      return const BlogReviewPage(reviews: [], hasMore: false);
+      return const BlogReviewPage(reviews: [], hasMore: false, failed: true);
     }
   }
 

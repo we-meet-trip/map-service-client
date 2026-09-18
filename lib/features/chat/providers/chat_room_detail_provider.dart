@@ -42,10 +42,13 @@ class ChatRoomDetailProvider extends ChangeNotifier {
   Timer? _retry;
   bool _disposed = false;
   bool _flushing = false;
+  bool _reloading = false;
   Future<void>? _restoring;
   final List<PendingChatMessage> _outbox = [];
   static const _maxOutbox = 20;
   int _sendSeq = 0;
+  /// 서버에 이미 올린 읽음 위치. 같은 자리를 다시 올리지 않기 위한 값이다.
+  int _lastAckedSeq = 0;
   List<ChatMessage> _messages = [];
   bool isLoading = false;
   String? realtimeNotice;
@@ -173,20 +176,26 @@ class ChatRoomDetailProvider extends ChangeNotifier {
       _messages = [...bySeq.values, ..._outbox.map(_optimistic)]
         ..sort((a, b) => a.sentAt.compareTo(b.sentAt));
       final latest = loaded.fold<int>(0, (seq, m) => m.seq > seq ? m.seq : seq);
-      if (latest > 0 && !isReadOnly) {
-        await _chatRepository.markAsRead(roomId, latest);
-      }
+      await _acknowledge(latest);
     } finally {
       isLoading = false;
       _notify();
     }
   }
 
+  /// 이미 조회가 도는 중이면 겹쳐 부르지 않는다.
+  ///
+  /// 한 사람이 말하면 방에 있는 사람 수만큼 읽음 알림이 잇따라 온다. 그때마다 따로
+  /// 조회하면 같은 것을 여러 번 받아 온다. 한 번 받아 오면 그 사이 것까지 담긴다.
   Future<void> _reload() async {
+    if (_reloading) return;
+    _reloading = true;
     try {
       await loadMessages();
     } catch (_) {
       /* 다음 재연결에서 다시 조회한다. */
+    } finally {
+      _reloading = false;
     }
   }
 
@@ -226,6 +235,10 @@ class ChatRoomDetailProvider extends ChangeNotifier {
           unawaited(_persistAcknowledged());
         }
       case ChatEventKind.read:
+        // 내가 올린 읽음이 방송으로 되돌아온 것이라면 다시 조회하지 않는다. 그대로 두면
+        // 조회가 읽음을 올리고 그 읽음이 다시 조회를 불러 끝나지 않는다.
+        final reader = event.data?['user_id'];
+        if (reader is int && reader == _userId) break;
         unawaited(_reload());
       case ChatEventKind.roomClosed:
         isReadOnly = true;
@@ -266,6 +279,22 @@ class ChatRoomDetailProvider extends ChangeNotifier {
       saved,
     ]..sort((a, b) => a.sentAt.compareTo(b.sentAt));
     _notify();
+    // 방을 열어 둔 채 오가는 말은 조회를 거치지 않으므로 여기서 읽음을 올린다.
+    // 올리지 않으면 상대 화면의 안 읽은 인원수가 줄지 않는다.
+    if (!saved.isMe) unawaited(_acknowledge(saved.seq));
+  }
+
+  /// 읽음 위치를 서버에 올린다. 앞으로 갈 때만 부르고, 성공한 뒤에 기록한다.
+  ///
+  /// 보낸 사람의 위치는 서버가 저장하면서 이미 옮겨 두므로 자기 메시지로는 부르지 않는다.
+  Future<void> _acknowledge(int seq) async {
+    if (seq <= _lastAckedSeq || isReadOnly || !_active) return;
+    try {
+      await _chatRepository.markAsRead(roomId, seq);
+      if (_active) _lastAckedSeq = seq;
+    } catch (_) {
+      /* 다음 조회나 재연결에서 다시 올린다. */
+    }
   }
 
   String? consumeSendError() {
