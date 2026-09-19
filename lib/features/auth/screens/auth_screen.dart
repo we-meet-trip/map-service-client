@@ -10,6 +10,7 @@ import '../../../common/utils/support_mail.dart';
 import '../../../common/widgets/starry_background.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/kakao_login.dart';
+import '../widgets/auth_button_metrics.dart';
 import '../widgets/kakao_login_button.dart';
 import '../widgets/email_login_button.dart';
 
@@ -144,9 +145,16 @@ class _AuthScreenState extends State<AuthScreen> {
                       const SizedBox(height: 12),
                       IgnorePointer(
                         ignoring: _kakaoBusy,
+                        // 모서리만 위아래 두 버튼에 맞춘다. 높이는 패키지
+                        // 기본값(44)을 그대로 둔다 — 이 위젯은 글자 크기를
+                        // 높이에서 뽑아 쓰므로(height x 0.43), 높이를 52 로
+                        // 올리면 글자가 22pt 가 되어 15pt 인 두 버튼과 더
+                        // 크게 어긋난다.
                         child: SignInWithAppleButton(
                           onPressed: _appleLogin,
                           text: 'Apple로 로그인',
+                          borderRadius:
+                              BorderRadius.circular(kAuthButtonRadius),
                         ),
                       ),
                     ],
