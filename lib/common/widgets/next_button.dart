@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_text_styles.dart';
 
 final _kGradStart    = AppColors.secondaryScale[900]!;
 final _kGradEnd      = AppColors.secondaryScale[500]!;
 final _kShadowColor  = AppColors.gradientScale[0]!.withAlpha(0x40);
 final _kDisabledBg   = AppColors.neutralScale[100]!;
-final _kDisabledText = AppColors.neutralScale[0]!;
+// 비활성 글자는 연회색 배경(neutralScale[100]) 위에 놓인다. 흰색을 쓰면
+// 대비가 1.3:1 로 떨어져 '다음 단계로' 가 화면에서 거의 보이지 않았다.
+final _kDisabledText = AppColors.neutralScale[400]!;
 
 class NextButton extends StatelessWidget {
   final VoidCallback? onPressed;
@@ -77,9 +80,7 @@ class NextButton extends StatelessWidget {
                 )
               : Text(
                   label,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
+                  style: AppTextStyles.body2.copyWith(
                     color: _enabled ? Colors.white : _kDisabledText,
                   ),
                 ),

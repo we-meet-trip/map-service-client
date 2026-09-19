@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_text_styles.dart';
 
 /// 성별 선택 등에 쓰는 선택형 칩. [emoji]가 있으면 이모지+라벨 세로 배치,
 /// 없으면 라벨만 표시한다.
@@ -50,10 +51,8 @@ class GenderChoiceChip extends StatelessWidget {
                   const SizedBox(height: 6),
                   Text(
                     label,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: selected ? AppColors.neutralScale[600] : AppColors.neutralScale[400],
+                    style: AppTextStyles.body4.copyWith(
+                      color: selected ? null : AppColors.neutralScale[400],
                     ),
                   ),
                 ],

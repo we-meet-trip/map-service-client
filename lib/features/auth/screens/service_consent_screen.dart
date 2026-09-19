@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../../common/theme/app_colors.dart';
+import '../../../common/theme/app_text_styles.dart';
+import '../../../common/widgets/app_loading_indicator.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/auth_api_service.dart';
@@ -223,20 +226,22 @@ class _ServiceConsentScreenState extends State<ServiceConsentScreen> {
               Wrap(
                 spacing: 8,
                 children: [
-                  TextButton(
+                  TextButton.icon(
                     onPressed: () => _openPolicy('terms'),
-                    child: const Text('이용약관 읽기'),
+                    icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                    label: const Text('이용약관 읽기'),
                   ),
-                  TextButton(
+                  TextButton.icon(
                     onPressed: () => _openPolicy('privacy'),
-                    child: const Text('개인정보처리방침 읽기'),
+                    icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                    label: const Text('개인정보처리방침 읽기'),
                   ),
                 ],
               ),
               if (_acting || store.loading)
                 const Padding(
                   padding: EdgeInsets.all(16),
-                  child: Center(child: CircularProgressIndicator()),
+                  child: Center(child: AppLoadingIndicator()),
                 ),
               if (_error != null)
                 Text(
@@ -292,7 +297,7 @@ class _ServiceConsentScreenState extends State<ServiceConsentScreen> {
                   onChanged: _acting
                       ? null
                       : (v) => setState(() => _terms = v == true),
-                  title: Text('이용약관에 동의합니다 (필수 · ${status.termsVersion})'),
+                  title: const Text('이용약관에 동의합니다 (필수)'),
                   controlAffinity: ListTileControlAffinity.leading,
                 ),
                 CheckboxListTile(
@@ -301,11 +306,10 @@ class _ServiceConsentScreenState extends State<ServiceConsentScreen> {
                   onChanged: _acting
                       ? null
                       : (v) => setState(() => _privacy = v == true),
-                  title: Text(
-                    '개인정보처리방침을 확인하고 동의합니다 (필수 · ${status.privacyVersion})',
-                  ),
+                  title: const Text('개인정보처리방침을 확인하고 동의합니다 (필수)'),
                   controlAffinity: ListTileControlAffinity.leading,
                 ),
+                const SizedBox(height: 8),
                 FilledButton(
                   onPressed: !_acting && _adult && _terms && _privacy
                       ? _accept
@@ -313,20 +317,28 @@ class _ServiceConsentScreenState extends State<ServiceConsentScreen> {
                   child: const Text('동의하고 계속'),
                 ),
               ],
-              const Divider(height: 32),
-              TextButton(
-                onPressed: _acting
-                    ? null
-                    : () => context.go('/service-consent/profile'),
-                child: const Text('생년월일 정정 · 계정 탈퇴'),
-              ),
+              Divider(height: 32, color: AppColors.neutralScale[100]),
               TextButton(
                 onPressed: _acting ? null : () => openModerationCenter(context),
                 child: const Text('신고 처리 상태 · 차단 관리'),
               ),
-              TextButton(
+              // 아래 둘은 계정을 떠나거나 지우는 동작이다. 위의 읽기·조회
+              // 링크와 같은 모양이면 무엇이 되돌릴 수 없는지 알 수 없다.
+              TextButton.icon(
+                onPressed: _acting
+                    ? null
+                    : () => context.go('/service-consent/profile'),
+                icon: Icon(Icons.warning_amber_rounded,
+                    size: 18, color: AppColors.error),
+                label: Text('생년월일 정정 · 계정 탈퇴',
+                    style: AppTextStyles.body5.copyWith(color: AppColors.error)),
+              ),
+              TextButton.icon(
                 onPressed: _acting ? null : _logout,
-                child: const Text('로그아웃'),
+                icon: Icon(Icons.logout_rounded,
+                    size: 18, color: AppColors.neutralScale[400]),
+                label: Text('로그아웃',
+                    style: AppTextStyles.body5Gray),
               ),
             ],
           ),

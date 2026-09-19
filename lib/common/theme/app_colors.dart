@@ -100,8 +100,21 @@ class AppColors {
   static const mypageAvatarAccent = Color(0xFF984CFF); // 프로필 아바타 배경/아이콘 색
   static const mypageDivider = Color(0xFFF2F2F3); // 마이페이지 섹션 구분 띠
 
+  /// 같은 사람에게는 늘 같은 색을 준다.
+  ///
+  /// String.hashCode 를 쓰면 안 된다 — Dart 는 실행마다 문자열 해시 시드를
+  /// 새로 뽑으므로, 같은 계정인데 앱을 다시 켤 때마다 아바타 색이 바뀐다.
+  /// 문자 코드를 직접 누적해 실행과 무관하게 같은 값이 나오게 한다.
   static Color avatarColorOf(String id) =>
-      avatarColors[id.hashCode.abs() % avatarColors.length];
+      avatarColors[_stableHash(id) % avatarColors.length];
+
+  static int _stableHash(String value) {
+    var hash = 0;
+    for (final unit in value.codeUnits) {
+      hash = (hash * 31 + unit) & 0x1FFFFFFF;
+    }
+    return hash;
+  }
 
   static const List<Color> avatarColors = [
     Color(0xFFDDC5FB), // soft lavender
