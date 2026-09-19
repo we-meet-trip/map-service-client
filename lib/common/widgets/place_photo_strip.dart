@@ -289,7 +289,9 @@ class _PhotoViewerState extends State<_PhotoViewer> {
   /// 빈 여백만 남는다.
   Widget _buildAttribution(PlacePhoto photo) {
     final names = photo.attributions;
-    if (names.isEmpty && photo.googleMapsUri == null) {
+    if (names.isEmpty &&
+        photo.googleMapsUri == null &&
+        photo.flagContentUri == null) {
       return const SizedBox.shrink();
     }
     return Padding(
@@ -339,6 +341,30 @@ class _PhotoViewerState extends State<_PhotoViewer> {
                           decorationColor: Colors.white)),
                   SizedBox(width: 4),
                   Icon(Icons.open_in_new_rounded, size: 13, color: Colors.white),
+                ],
+              ),
+            ),
+          ],
+          // 남이 올린 사진이므로 문제를 알릴 자리를 함께 둔다. 발급처가 신고
+          // 주소를 주지 않은 사진에는 걸 곳이 없어 접는다.
+          if (photo.flagContentUri != null) ...[
+            const SizedBox(height: 8),
+            GestureDetector(
+              onTap: () => _openLink(photo.flagContentUri!),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.flag_outlined, size: 13, color: Colors.white70),
+                  SizedBox(width: 4),
+                  // 이 Row 는 const 라 copyWith 를 쓸 수 없다. 값은
+                  // AppTextStyles.body8(12/w600)과 같게 유지한다.
+                  Text('이 사진 신고',
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.white70,
+                          fontWeight: FontWeight.w600,
+                          decoration: TextDecoration.underline,
+                          decorationColor: Colors.white70)),
                 ],
               ),
             ),

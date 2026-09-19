@@ -4,6 +4,7 @@ import '../../../common/theme/app_colors.dart';
 import '../../../common/widgets/back_header.dart';
 import '../../../common/widgets/app_loading_indicator.dart';
 import '../../../core/api/transit_route_options_service.dart';
+import '../widgets/route_data_attribution.dart';
 import 'subway_route_screen.dart' show SubwayRouteArgs;
 import 'transit_route_map_screen.dart';
 
@@ -105,8 +106,10 @@ class _TransitRouteOptionsScreenState
                   }
                   if (snapshot.hasError) {
                     return Center(
+                      // 예외 원문은 사용자가 할 수 있는 일을 알려 주지 않고,
+                      // 서버 구조를 그대로 드러낸다.
                       child: Text(
-                        '경로를 불러오지 못했어요.\n${snapshot.error}',
+                        '경로를 불러오지 못했어요.\n잠시 후 다시 시도해 주세요.',
                         textAlign: TextAlign.center,
                         style: TextStyle(color: AppColors.neutralScale[400]),
                       ),
@@ -136,6 +139,15 @@ class _TransitRouteOptionsScreenState
                     ),
                   );
                 },
+              ),
+            ),
+            // 노선·시각은 지도 경로선과 다른 발급처에서 온다. 쓰는 화면마다
+            // 밝혀야 표기가 성립한다.
+            const Padding(
+              padding: EdgeInsets.only(left: 12, bottom: 4),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: RouteDataAttribution.transit(),
               ),
             ),
           ],

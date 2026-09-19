@@ -152,6 +152,13 @@ class ModerationReport {
     'RESOLVE' => '처리가 완료됐어요.',
     _ => null,
   };
+  /// 목록에 거는 짧은 접수 번호.
+  ///
+  /// 접수 번호는 36자 UUID 다. 그대로 걸면 제목 한 줄을 전부 먹고, 사용자에게
+  /// 읽히지도 않는다. 앞자리만으로도 문의할 때 건을 특정할 수 있다.
+  String get shortReportId =>
+      reportId.length <= 8 ? reportId : reportId.substring(0, 8);
+
   String get statusLabel => switch (status) {
     'OPEN' => '접수됨',
     'IN_REVIEW' => '검토 중',

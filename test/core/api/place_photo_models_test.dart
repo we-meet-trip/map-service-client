@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:map_service_client/core/api/place_photo_api_service.dart';
 
 void main() {
+  _flagContentUriTests();
   group('PlacePhoto.fromJson', () {
     test('서버가 준 값을 그대로 옮긴다', () {
       final photo = PlacePhoto.fromJson({
@@ -78,6 +79,32 @@ void main() {
       final photo = PlacePhoto.fromJson({'width_px': 100});
 
       expect(photo.photoUri, isEmpty);
+    });
+  });
+}
+
+// ── 사진 신고 진입점 ────────────────────────────────────────────────────────
+//
+// 사진은 남이 올린 것이라 보는 사람이 문제를 알릴 자리가 있어야 한다. 서버는
+// 이 주소를 이미 내려 주고 있었는데 앱이 받는 자리에서 버리고 있었다. 다시
+// 버려지면 화면에서 신고 진입점이 조용히 사라지므로 여기서 붙잡는다.
+void _flagContentUriTests() {
+  group('PlacePhoto.flagContentUri', () {
+    test('서버가 준 신고 주소를 버리지 않는다', () {
+      final photo = PlacePhoto.fromJson(const {
+        'photo_uri': 'https://img.example/1.jpg',
+        'flag_content_uri': 'https://maps.example/f/1',
+      });
+
+      expect(photo.flagContentUri, 'https://maps.example/f/1');
+    });
+
+    test('신고 주소가 없는 사진은 null 로 둔다', () {
+      final photo = PlacePhoto.fromJson(const {
+        'photo_uri': 'https://img.example/1.jpg',
+      });
+
+      expect(photo.flagContentUri, isNull);
     });
   });
 }

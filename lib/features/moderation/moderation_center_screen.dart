@@ -168,7 +168,7 @@ class _ModerationCenterScreenState extends State<ModerationCenterScreen> {
         for (final report in _reports ?? <ModerationReport>[])
           ListTile(
             contentPadding: EdgeInsets.zero,
-            title: Text('신고 ${report.reportId} · ${report.statusLabel}'),
+            title: Text('신고 ${report.shortReportId} · ${report.statusLabel}'),
             subtitle: Text(
               '${_formatDate(report.createdAt)}${report.resolutionLabel == null ? '' : '\n${report.resolutionLabel}'}',
             ),

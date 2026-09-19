@@ -2,8 +2,9 @@
 //
 // 서버는 필드 이름을 밑줄로 끊어 준다(station_id, parking_bike_total 등).
 // 이름이 하나만 어긋나도 값이 조용히 비고, 대여소는 이름 없는 점으로 지도에
-// 남는다. 조회가 실패하는 쪽은 예외를 내지 않고 빈 목록으로 내려앉는다 —
-// 지도는 그대로 두고 마커만 비우려는 것이라, 이 성질도 함께 붙잡아 둔다.
+// 남는다. 조회가 실패하는 쪽은 예외를 내지 않고 null 로 내려앉는다 — 빈 목록은
+// "물어봤는데 없다"이고 null 은 "못 물어봤다"라서, 화면이 둘을 다른 문구로
+// 보여 줄 수 있어야 한다. 이 구분도 함께 붙잡아 둔다.
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -27,7 +28,7 @@ http.Response _raw(String body, {int status = 200}) => http.Response(
 );
 
 /// 통신만 가짜로 바꿔 실제 조회 절차를 그대로 태운다.
-Future<List<DdallengiStation>> _call(
+Future<List<DdallengiStation>?> _call(
   Future<http.Response> Function(http.Request request) handler, {
   double latitude = 37.5665,
   double longitude = 126.9780,
@@ -179,7 +180,7 @@ void main() {
       });
 
       expect(stations, hasLength(2));
-      expect(stations.first.stationId, 'ST-1');
+      expect(stations!.first.stationId, 'ST-1');
       expect(stations.first.stationName, '시청역 3번출구');
       expect(stations.first.parkingBikeTotCnt, 4);
       expect(stations.last.stationName, '을지로입구역 4번출구');
@@ -194,7 +195,7 @@ void main() {
         });
       });
 
-      expect(stations.single.stationName, '뚝섬유원지역 1번출구 앞');
+      expect(stations!.single.stationName, '뚝섬유원지역 1번출구 앞');
     });
 
     test('목록 안의 객체 아닌 항목은 버린다', () async {
@@ -210,7 +211,7 @@ void main() {
       });
 
       expect(stations, hasLength(1));
-      expect(stations.single.stationId, 'ST-1');
+      expect(stations!.single.stationId, 'ST-1');
     });
 
     test('서비스 지역 밖이면 빈 목록이 온다', () async {
@@ -224,25 +225,27 @@ void main() {
     });
   });
 
-  group('fetchStations — 실패해도 지도를 막지 않는다', () {
-    test('200 이 아니면 예외 없이 빈 목록이다', () async {
-      expect(await _call((_) async => _json(const {}, status: 500)), isEmpty);
-      expect(await _call((_) async => _json(const {}, status: 404)), isEmpty);
+  group('fetchStations — 실패는 빈 목록과 구분된다', () {
+    // 실패를 빈 목록으로 내려놓으면 화면이 발급처 장애를 "주변에 대여소가
+    // 없다"로 보여 준다. 사용자는 자리를 옮겨 가며 같은 빈 지도를 계속 본다.
+    test('200 이 아니면 예외 없이 null 이다', () async {
+      expect(await _call((_) async => _json(const {}, status: 500)), isNull);
+      expect(await _call((_) async => _json(const {}, status: 404)), isNull);
     });
 
-    test('통신이 끊겨도 예외를 밖으로 내지 않는다', () async {
+    test('통신이 끊겨도 예외를 밖으로 내지 않고 null 이다', () async {
       expect(
         await _call((_) async => throw http.ClientException('연결 끊김')),
-        isEmpty,
+        isNull,
       );
     });
 
-    test('본문이 JSON 이 아니어도 빈 목록이다', () async {
-      expect(await _call((_) async => _raw('<html>502</html>')), isEmpty);
+    test('본문이 JSON 이 아니면 null 이다', () async {
+      expect(await _call((_) async => _raw('<html>502</html>')), isNull);
     });
 
-    test('본문이 객체가 아니라 배열로 와도 빈 목록이다', () async {
-      expect(await _call((_) async => _raw('[]')), isEmpty);
+    test('본문이 객체가 아니라 배열로 와도 null 이다', () async {
+      expect(await _call((_) async => _raw('[]')), isNull);
     });
 
     test('숫자 자리에 문자열이 섞여 오면 그 대여소만 빠지고 나머지는 남는다', () async {
@@ -258,16 +261,22 @@ void main() {
         });
       });
 
-      expect(stations.map((s) => s.stationId), ['ST-1', 'ST-3']);
+      expect(stations!.map((s) => s.stationId), ['ST-1', 'ST-3']);
     });
 
-    test('stations 가 없거나 목록이 아니면 빈 목록이다', () async {
-      expect(await _call((_) async => _json(const {})), isEmpty);
+    test('stations 가 없거나 목록이 아니면 null 이다', () async {
+      expect(await _call((_) async => _json(const {})), isNull);
       expect(
         await _call((_) async => _json(const {'stations': 'not-a-list'})),
-        isEmpty,
+        isNull,
       );
-      expect(await _call((_) async => _json(const {'stations': null})), isEmpty);
+      expect(await _call((_) async => _json(const {'stations': null})), isNull);
+    });
+
+    test('서비스 지역 밖의 빈 목록은 실패와 다르다', () async {
+      // 같은 "마커 0개"라도 이쪽은 물어본 결과다. null 과 갈라져야 화면이
+      // 다른 문구를 고를 수 있다.
+      expect(await _call((_) async => _json(const {'stations': []})), isEmpty);
     });
   });
 

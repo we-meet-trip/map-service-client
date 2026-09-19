@@ -38,12 +38,19 @@ class PlacePhoto {
   /// 원본 사진을 여는 지도 주소. 없을 수 있다.
   final String? googleMapsUri;
 
+  /// 이 사진을 부적절하다고 알리는 주소. 발급처가 주는 값이라 없을 수 있다.
+  ///
+  /// 사진은 우리가 만든 것이 아니라 남이 올린 것이다. 그런 것을 걸어 두면
+  /// 보는 사람이 문제를 알릴 자리가 함께 있어야 한다.
+  final String? flagContentUri;
+
   const PlacePhoto({
     required this.photoUri,
     required this.attributions,
     this.widthPx,
     this.heightPx,
     this.googleMapsUri,
+    this.flagContentUri,
   });
 
   factory PlacePhoto.fromJson(Map<String, dynamic> json) {
@@ -60,6 +67,7 @@ class PlacePhoto {
               .toList()
           : const [],
       googleMapsUri: json['google_maps_uri'] as String?,
+      flagContentUri: json['flag_content_uri'] as String?,
     );
   }
 }

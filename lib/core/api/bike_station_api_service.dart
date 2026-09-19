@@ -68,7 +68,10 @@ class BikeStationApiService {
   ///
   /// 공통 통로로 보낸다. 이 경로는 서버에서 인증을 요구하는 쪽에 묶여 있어,
   /// 직접 보내면 토큰이 실리지 않아 인증이 켜지는 순간 조회가 통째로 막힌다.
-  Future<List<DdallengiStation>> fetchStations({
+  /// 실패하면 null 을 돌려준다. 빈 목록은 "물어봤는데 주변에 없다"이고
+  /// null 은 "물어보지 못했다"이다. 둘을 같은 값으로 주면 화면이 발급처
+  /// 장애를 대여소가 없는 것으로 보여 준다.
+  Future<List<DdallengiStation>?> fetchStations({
     required double latitude,
     required double longitude,
     int radiusMeters = defaultRadiusMeters,
@@ -84,7 +87,7 @@ class BikeStationApiService {
         timeout: _timeout,
       );
       final raw = body['stations'];
-      if (raw is! List) return const [];
+      if (raw is! List) return null;
       // 대여소는 하나씩 읽는다. 통째로 변환하면 한 곳의 값 하나만 형태가
       // 어긋나도 그 오류가 목록 전체를 삼켜, 멀쩡한 나머지까지 함께 사라진다.
       // 지도가 통째로 비는 것보다 못 읽은 한 곳만 빠지는 편이 낫다.
@@ -99,7 +102,7 @@ class BikeStationApiService {
       }
       return stations;
     } catch (_) {
-      return const [];
+      return null;
     }
   }
 }
