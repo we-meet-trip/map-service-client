@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_text_styles.dart';
 import '../theme/app_icons.dart';
 
 const _kErrorColor = AppColors.error;
@@ -87,17 +88,16 @@ class _AppTextFieldState extends State<AppTextField> {
               inputFormatters: widget.maxLength != null
                   ? [LengthLimitingTextInputFormatter(widget.maxLength)]
                   : null,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w500,
-                color: AppColors.neutralScale[600],
-              ),
+              style: AppTextStyles.body3,
               decoration: InputDecoration(
                 hintText: widget.hintText,
+                // neutralScale[300] 은 밝은 배경에서 대비가 3.0:1 이라
+                // 힌트가 잘 읽히지 않았다. 입력값(w500)보다 얇은 굵기로
+                // 힌트임을 구분하고 색은 읽히는 값으로 올린다.
                 hintStyle: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w400,
-                  color: AppColors.neutralScale[300],
+                  color: AppColors.neutralScale[400],
                 ),
                 filled: false,
                 contentPadding: const EdgeInsets.symmetric(vertical: 12),
