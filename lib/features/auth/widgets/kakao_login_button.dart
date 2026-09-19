@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../common/theme/app_colors.dart';
+import 'auth_button_metrics.dart';
 
 class KakaoLoginButton extends StatelessWidget {
   const KakaoLoginButton({super.key, this.onPressed});
@@ -11,7 +12,7 @@ class KakaoLoginButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,
-      height: 52,
+      height: kAuthButtonHeight,
       child: ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
@@ -20,7 +21,7 @@ class KakaoLoginButton extends StatelessWidget {
           elevation: 0,
           shadowColor: Colors.transparent,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(50),
+            borderRadius: BorderRadius.circular(kAuthButtonRadius),
           ),
         ),
         child: Row(
