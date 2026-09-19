@@ -121,6 +121,13 @@ final ThemeData appTheme = ThemeData(
     surfaceTintColor: Colors.transparent,
     elevation: 0,
   ),
+  // 색을 주지 않은 Card 는 시드에서 파생된 표면색으로 칠해진다. 외부 AI
+  // 동의 설정 화면의 카드가 혼자 연보라로 보인 것이 그 때문이다.
+  cardTheme: CardThemeData(
+    color: AppColors.neutralScale[0],
+    surfaceTintColor: Colors.transparent,
+    elevation: 0,
+  ),
   dialogTheme: DialogThemeData(
     backgroundColor: AppColors.neutralScale[0],
     surfaceTintColor: Colors.transparent,
@@ -142,6 +149,22 @@ final ThemeData appTheme = ThemeData(
     actionTextColor: AppColors.primaryScale[200],
   ),
 
+  // 기본 FilledButton 의 비활성 상태는 표면색 위에 흐린 글자라 대비가 낮다.
+  // 관문의 '동의하고 계속' 이 회색 위 흰 글자로 거의 읽히지 않았다.
+  filledButtonTheme: FilledButtonThemeData(
+    style: ButtonStyle(
+      backgroundColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.disabled)
+            ? AppColors.neutralScale[100]
+            : AppColors.primaryScale[500],
+      ),
+      foregroundColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.disabled)
+            ? AppColors.neutralScale[400]
+            : AppColors.neutralScale[0],
+      ),
+    ),
+  ),
   progressIndicatorTheme: ProgressIndicatorThemeData(
     color: AppColors.primaryScale[500],
     linearTrackColor: AppColors.primaryScale[0],

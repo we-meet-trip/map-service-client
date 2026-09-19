@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../../common/theme/app_colors.dart';
+import '../../../common/theme/app_text_styles.dart';
+import '../../../common/theme/app_icons.dart';
+import '../../../common/widgets/app_confirm_dialog.dart';
+import '../../../common/widgets/app_loading_indicator.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/auth_api_service.dart';
 import '../../../core/api/service_consent_api_service.dart';
@@ -78,21 +83,24 @@ class _PolicyAccountScreenState extends State<PolicyAccountScreen> {
     if (_busy || !_current) return;
     final yes = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('계정을 탈퇴할까요?'),
-        content: const Text(
-          '계정·프로필·본인 일정과 추천 결과·본인이 작성한 채팅 내용이 삭제됩니다. 다른 참여자가 작성한 메시지는 보존되고, 본인 소유 채팅방은 종료됩니다. 정책에 정한 보존 항목은 해당 기간 보존되며, 탈퇴는 되돌릴 수 없습니다.',
+      builder: (context) => AppConfirmDialog(
+        confirmLabel: '탈퇴하기',
+        onCancel: () => Navigator.pop(context, false),
+        onConfirm: () => Navigator.pop(context, true),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('계정을 탈퇴할까요?', style: AppTextStyles.body2),
+            const SizedBox(height: 12),
+            Text(
+              '계정·프로필·본인 일정과 추천 결과·본인이 작성한 채팅 내용이 삭제됩니다. '
+              '다른 참여자가 작성한 메시지는 보존되고, 본인 소유 채팅방은 종료됩니다. '
+              '정책에 정한 보존 항목은 해당 기간 보존되며, 탈퇴는 되돌릴 수 없습니다.',
+              style: AppTextStyles.body7Gray,
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('취소'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('탈퇴하기'),
-          ),
-        ],
       ),
     );
     if (yes != true || !_current) return;
@@ -113,10 +121,12 @@ class _PolicyAccountScreenState extends State<PolicyAccountScreen> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: const Text('계정 정정 · 탈퇴'),
+      // 이 화면으로 들어오는 링크가 '생년월일 정정 · 계정 탈퇴' 라 이름을 맞춘다.
+      title: Text('생년월일 정정 · 계정 탈퇴', style: AppTextStyles.body4),
       leading: IconButton(
         onPressed: () => context.go('/service-consent'),
-        icon: const Icon(Icons.arrow_back),
+        // 앱의 다른 화면은 전부 쉐브론을 쓴다. 여기만 화살표였다.
+        icon: AppIcon(SvgIcons.chevronLeft, size: 20),
       ),
     ),
     body: SafeArea(
@@ -131,7 +141,10 @@ class _PolicyAccountScreenState extends State<PolicyAccountScreen> {
                 : '생년월일: ${_birth!.year}.${_birth!.month.toString().padLeft(2, '0')}.${_birth!.day.toString().padLeft(2, '0')}',
           ),
           const Text('이용 제한을 피하기 위한 허위 입력은 허용되지 않습니다.'),
-          if (_busy) const Center(child: CircularProgressIndicator()),
+          if (_busy) const Center(child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: AppLoadingIndicator(),
+          )),
           if (_message != null) Text(_message!),
           TextButton(
             onPressed: _busy ? null : _correctBirth,
@@ -144,12 +157,19 @@ class _PolicyAccountScreenState extends State<PolicyAccountScreen> {
                     setState(() => _busy = true);
                     _load();
                   },
-            child: const Text('서버 정보 다시 조회'),
+            child: const Text('내 정보 다시 불러오기'),
           ),
-          const Divider(),
-          TextButton(
+          const SizedBox(height: 8),
+          Divider(color: AppColors.neutralScale[100]),
+          const SizedBox(height: 8),
+          // 되돌릴 수 없는 동작이다. 위의 조회·정정과 같은 모양이면
+          // 무엇이 위험한 버튼인지 화면에서 알 수 없다.
+          TextButton.icon(
             onPressed: _busy ? null : _withdraw,
-            child: const Text('계정 탈퇴'),
+            icon: Icon(Icons.warning_amber_rounded,
+                size: 18, color: AppColors.error),
+            label: Text('계정 탈퇴',
+                style: AppTextStyles.body4.copyWith(color: AppColors.error)),
           ),
           TextButton(
             onPressed: _busy ? null : () => context.go('/service-consent'),
