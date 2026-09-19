@@ -159,12 +159,17 @@ class _BikeScooterLocationScreenState extends State<BikeScooterLocationScreen> {
 
   /// 주변 킥보드 상태를 한 줄 문구로. 그릴 것이 없으면 null.
   ///
-  /// "없다"와 "알 수 없다"를 다른 문구로 쓴다. 발급처가 아직 이 지역 자료를
-  /// 내주지 않는 동안 "0대"라고만 하면 사용자는 앱이 틀렸다고 여긴다.
+  /// 세 상태를 다른 문구로 쓴다.
+  ///
+  /// 빈 목록을 "주변에 없다"로 적으면 안 된다. 발급처가 지금 전국 어디서도
+  /// 기기를 한 대도 내주지 않아, 사용자가 어디서 열어도 같은 문구를 본다.
+  /// 그러면 "이 근처에만 없다"로 읽혀 자리를 옮겨 다니며 같은 화면을 반복해
+  /// 보게 되고, 기기가 없는 것과 기능이 아직 없는 것도 구별되지 않는다.
+  /// 아직 내주지 않는다는 사실 그대로를 적는다.
   String? get _pmStatusLabel {
     final list = _pmVehicles;
     if (list == null) return '킥보드 정보를 불러오지 못했어요';
-    if (list.isEmpty) return '주변에 이용 가능한 킥보드가 없어요';
+    if (list.isEmpty) return '킥보드는 준비 중이에요';
     return '주변 킥보드 ${list.length}대';
   }
 
