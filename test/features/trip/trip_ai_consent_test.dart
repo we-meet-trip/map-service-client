@@ -507,11 +507,20 @@ void main() {
           expect(find.byType(ExternalAiConsentDialog), findsNothing);
           expect(find.textContaining('외부 AI 전송에 동의하면'), findsNothing);
         } else {
+          // 재탐색은 유료다. 화면에 들어온 것만으로는 대화상자도 요청도 없다.
+          await tester.pumpAndSettle();
+          expect(http.paths, isEmpty);
+          expect(find.byType(ExternalAiConsentDialog), findsNothing);
+          expect(find.byType(AppLoadingScreen), findsNothing);
+
+          // 눌러야 동의를 묻고, 거절하면 아무것도 나가지 않는다.
+          await tester.tap(find.text('AI 추천 다시 받기'));
           await _decision(tester, false);
           await tester.pumpAndSettle();
           expect(http.paths, isEmpty);
-          expect(find.byType(AppLoadingScreen), findsNothing);
-          await tester.tap(find.text('동의 확인하고 일정 만들기'));
+
+          // 다시 눌러 동의해야 비로소 나간다.
+          await tester.tap(find.text('AI 추천 다시 받기'));
           await _decision(tester, true);
           await tester.pump();
         }
