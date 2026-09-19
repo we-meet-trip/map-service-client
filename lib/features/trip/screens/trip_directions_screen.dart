@@ -134,9 +134,9 @@ class _TripDirectionsScreenState extends State<TripDirectionsScreen> {
         final placemarks = await placemarkFromCoordinates(pos.latitude, pos.longitude);
         if (placemarks.isEmpty || !mounted) return;
         final p = placemarks.first;
-        final address = [p.administrativeArea, p.locality, p.subLocality, p.thoroughfare]
-            .where((s) => s != null && s.isNotEmpty)
-            .join(' ');
+        final address = joinAddressParts(
+          [p.administrativeArea, p.locality, p.subLocality, p.thoroughfare],
+        );
         if (address.isNotEmpty) {
           setState(() => _currentLocationAddress = address);
         }
@@ -147,9 +147,10 @@ class _TripDirectionsScreenState extends State<TripDirectionsScreen> {
       if (!mounted) return;
       setState(() {
         _currentPosition = null;
+        // 예외 원문을 그대로 보여주면 'Exception: ...' 같은 개발자 문구가 화면에 뜬다.
         _currentLocationAddress = e is TimeoutException
             ? '위치 확인이 시간 초과됐어요. 다시 시도해주세요.'
-            : e.toString().replaceFirst('Exception: ', '');
+            : '현재 위치를 확인하지 못했어요. 다시 시도해주세요.';
         _loadingLocation = false;
       });
     }
@@ -357,7 +358,6 @@ class _TripDirectionsScreenState extends State<TripDirectionsScreen> {
                     Expanded(
                       child: _buildSmallCard(
                         title: '기차',
-                        subtitle: '편리‧간편한 예매',
                         image: 'assets/images/transport/train2.png',
                         imageSize: 48,
                       ),
@@ -366,7 +366,6 @@ class _TripDirectionsScreenState extends State<TripDirectionsScreen> {
                     Expanded(
                       child: _buildSmallCard(
                         title: '자전거‧킥보드',
-                        subtitle: '가까운 단거리 이동',
                         image: 'assets/images/transport/bicycle_scooter.png',
                         imageSize: 48,
                       ),
@@ -380,7 +379,6 @@ class _TripDirectionsScreenState extends State<TripDirectionsScreen> {
                     Expanded(
                       child: _buildSmallCard(
                         title: '시외버스',
-                        subtitle: '먼 곳까지 편하게',
                         image: 'assets/images/transport/intercity_bus.png',
                         imageSize: 47,
                       ),
@@ -389,7 +387,6 @@ class _TripDirectionsScreenState extends State<TripDirectionsScreen> {
                     Expanded(
                       child: _buildSmallCard(
                         title: '항공',
-                        subtitle: '가성비 좋은 항공권',
                         image: 'assets/images/transport/plane.png',
                         imageSize: 46,
                       ),
@@ -486,16 +483,17 @@ class _TripDirectionsScreenState extends State<TripDirectionsScreen> {
       ),
       child: Row(
         children: [
+          // 이 상자는 아직 동작하지 않는다. 입력칸처럼 보이면 눌러 보게 된다.
           Text(
-            '검색',
+            '준비 중',
             style: TextStyle(
-              fontSize: 16,
+              fontSize: 14,
               fontWeight: FontWeight.w500,
-              color: AppColors.savedBadgeFar,
+              color: AppColors.neutralScale[300],
             ),
           ),
           const Spacer(),
-          Icon(Icons.search, size: 17, color: AppColors.savedBadgeFar),
+          Icon(Icons.search, size: 17, color: AppColors.neutralScale[200]),
         ],
       ),
     );
@@ -530,7 +528,10 @@ class _TripDirectionsScreenState extends State<TripDirectionsScreen> {
             Positioned(
               right: imageRight,
               top: 15,
-              child: Image.asset(image, width: imageSize, height: imageSize, fit: BoxFit.contain),
+              child: Opacity(
+                opacity: 0.35,
+                child: Image.asset(image, width: imageSize, height: imageSize, fit: BoxFit.contain),
+              ),
             ),
             Positioned(
               right: 16,
@@ -548,16 +549,23 @@ class _TripDirectionsScreenState extends State<TripDirectionsScreen> {
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.neutralScale[600],
+                      color: AppColors.neutralScale[400],
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.savedBadgeFar,
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.neutralScale[100],
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '준비 중',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.neutralScale[400],
+                      ),
                     ),
                   ),
                 ],
@@ -570,9 +578,13 @@ class _TripDirectionsScreenState extends State<TripDirectionsScreen> {
     return onTap == null ? card : GestureDetector(onTap: onTap, child: card);
   }
 
+  /// 아직 연결되지 않은 수단을 그린다.
+  ///
+  /// 지하철·버스(큰 카드)는 실제로 화면이 열리지만 이 네 장은 열리지 않는다.
+  /// 그런데 배경·모서리·그림자·높이가 큰 카드와 같아 눌리는 것처럼 보인다.
+  /// 눌러도 아무 일이 없는 카드는 동작하는 카드와 눈으로 구분돼야 한다.
   Widget _buildSmallCard({
     required String title,
-    required String subtitle,
     required String image,
     required double imageSize,
   }) {
@@ -596,7 +608,10 @@ class _TripDirectionsScreenState extends State<TripDirectionsScreen> {
             Positioned(
               right: 16,
               top: (81 - imageSize) / 2,
-              child: Image.asset(image, width: imageSize, height: imageSize, fit: BoxFit.contain),
+              child: Opacity(
+                opacity: 0.35,
+                child: Image.asset(image, width: imageSize, height: imageSize, fit: BoxFit.contain),
+              ),
             ),
             Positioned(
               right: 11,
@@ -614,16 +629,23 @@ class _TripDirectionsScreenState extends State<TripDirectionsScreen> {
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.neutralScale[600],
+                      color: AppColors.neutralScale[400],
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.savedBadgeFar,
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.neutralScale[100],
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '준비 중',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.neutralScale[400],
+                      ),
                     ),
                   ),
                 ],
@@ -654,4 +676,20 @@ class _TripDirectionsScreenState extends State<TripDirectionsScreen> {
       ),
     );
   }
+}
+
+/// 행정구역 조각을 사람이 읽는 주소 한 줄로 잇는다.
+///
+/// 서울은 administrativeArea 와 locality 가 둘 다 '서울특별시' 로 오므로
+/// 그대로 이으면 시도명이 두 번 찍힌다. 붙어 있는 같은 값만 걷어낸다 —
+/// 같은 값을 전부 지우면 '경기도 광주시 광주' 처럼 떨어져 있는 반복까지
+/// 사라져 다른 지역의 주소가 뭉개진다.
+String joinAddressParts(List<String?> pieces) {
+  final parts = <String>[];
+  for (final piece in pieces) {
+    if (piece == null || piece.isEmpty) continue;
+    if (parts.isNotEmpty && parts.last == piece) continue;
+    parts.add(piece);
+  }
+  return parts.join(' ');
 }
