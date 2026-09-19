@@ -1,6 +1,3 @@
-import 'dart:async';
-import 'dart:convert';
-import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -12,7 +9,7 @@ import '../../../common/theme/app_colors.dart';
 import '../../../common/utils/support_mail.dart';
 import '../../../common/widgets/starry_background.dart';
 import '../../../core/api/api_client.dart';
-import '../../../core/api/kakao_login_flow.dart';
+import '../../../core/api/kakao_login.dart';
 import '../widgets/kakao_login_button.dart';
 import '../widgets/email_login_button.dart';
 
@@ -23,75 +20,26 @@ class AuthScreen extends StatefulWidget {
   State<AuthScreen> createState() => _AuthScreenState();
 }
 
-class _AuthScreenState extends State<AuthScreen>
-    with WidgetsBindingObserver {
+class _AuthScreenState extends State<AuthScreen> {
   bool _kakaoBusy = false;
-
-  /// 브라우저에서 돌아온 뒤 콜백을 기다려 주는 시간.
-  ///
-  /// 성공해서 돌아온 경우에도 딥링크가 화면 복귀보다 조금 늦게 도착한다.
-  /// 그 순서를 견딜 만큼만 기다리고, 그래도 오지 않으면 기다림을 끝낸다.
-  static const _returnGrace = Duration(seconds: 5);
-  Timer? _returnTimer;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-  }
-
-  @override
-  void dispose() {
-    _returnTimer?.cancel();
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    // 카카오는 앱 밖의 브라우저에서 진행한다. 사용자가 거기서 그냥 돌아오면
-    // 되돌아오는 주소가 없어 제한 시간까지 로그인 선택이 잠긴 채로 남는다.
-    if (state != AppLifecycleState.resumed || !_kakaoBusy) return;
-    _returnTimer?.cancel();
-    _returnTimer = Timer(_returnGrace, () {
-      if (_kakaoBusy) KakaoLoginFlow.instance.cancel();
-    });
-  }
-
-  void _endKakaoWait() {
-    _returnTimer?.cancel();
-    _returnTimer = null;
-  }
-
-  /// 이번 카카오 요청을 가리키는 값. 되돌아온 주소가 이 값을 그대로 달고
-  /// 와야 내가 시작한 로그인으로 인정한다.
-  String _newState() {
-    final random = Random.secure();
-    return base64UrlEncode(
-      List.generate(32, (_) => random.nextInt(256)),
-    ).replaceAll('=', '');
-  }
 
   Future<void> _kakaoLogin() async {
     if (_kakaoBusy) return;
     setState(() => _kakaoBusy = true);
     try {
-      await KakaoLoginFlow.instance.run(_newState());
+      await KakaoLogin.instance.run();
+      // 카카오로 처음 들어온 사용자는 취향을 고르는 단계를 거치지 않는다.
+      // 그 자리를 한 번 채우게 하고, 이미 고른 사용자는 곧장 넘긴다.
+      if (mounted) context.go('/signup/interests');
     } on ApiException catch (e) {
-      _endKakaoWait();
-      if (!mounted) return;
-      setState(() => _kakaoBusy = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(e.message)));
-      return;
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.message)));
+      }
+    } finally {
+      if (mounted) setState(() => _kakaoBusy = false);
     }
-    _endKakaoWait();
-    if (!mounted) return;
-    setState(() => _kakaoBusy = false);
-    // 카카오로 처음 들어온 사용자는 취향을 고르는 단계를 거치지 않는다.
-    // 그 자리를 한 번 채우게 하고, 이미 고른 사용자는 곧장 넘긴다.
-    context.go('/signup/interests');
   }
 
   Future<void> _appleLogin() async {
@@ -191,18 +139,6 @@ class _AuthScreenState extends State<AuthScreen>
                     KakaoLoginButton(
                       onPressed: _kakaoBusy ? () {} : _kakaoLogin,
                     ),
-                    if (_kakaoBusy)
-                      TextButton(
-                        onPressed: () => KakaoLoginFlow.instance.cancel(),
-                        child: Text(
-                          '로그인 취소',
-                          style: TextStyle(
-                            color: AppColors.background,
-                            fontWeight: FontWeight.w400,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
                     if (!kIsWeb &&
                         defaultTargetPlatform == TargetPlatform.iOS) ...[
                       const SizedBox(height: 12),

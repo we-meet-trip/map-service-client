@@ -45,9 +45,15 @@ val appEnvironment = dartDefines["APP_ENV"] ?: "test"
 require(appEnvironment in setOf("test", "prod")) { "APP_ENV must be test or prod" }
 val nativeApplicationId = if (appEnvironment == "test") "kr.mapservice.client.test" else "kr.mapservice.client"
 val inviteScheme = if (appEnvironment == "test") "mapservice-test" else "mapservice"
-val kakaoScheme = if (appEnvironment == "test") "mapauth-test" else "mapauth"
-mapOf("NATIVE_APPLICATION_ID" to nativeApplicationId, "INVITE_URL_SCHEME" to inviteScheme,
-    "KAKAO_CALLBACK_SCHEME" to kakaoScheme).forEach { (name, expected) ->
+// 카카오 SDK 가 쓰는 커스텀 스킴(kakao{키}://oauth)에 그대로 실리는 공개 값이다.
+// 비면 복귀 주소가 'kakao://oauth' 가 되어 카카오 로그인만 조용히 동작하지 않는다.
+// 출시 빌드에서 그 상태가 통과하지 않도록 여기서 막는다.
+val kakaoNativeAppKey = dartDefines["KAKAO_NATIVE_APP_KEY"] ?: ""
+require(appEnvironment != "prod" || kakaoNativeAppKey.isNotEmpty()) {
+    "KAKAO_NATIVE_APP_KEY is required for a production build"
+}
+mapOf("NATIVE_APPLICATION_ID" to nativeApplicationId,
+    "INVITE_URL_SCHEME" to inviteScheme).forEach { (name, expected) ->
     require(dartDefines[name] == null || dartDefines[name] == expected) { "$name does not match APP_ENV" }
 }
 val inviteOrigin = dartDefines["INVITE_LINK_ORIGIN"]
@@ -91,7 +97,7 @@ android {
         // 열린다(그렇지 않으면 브라우저로만 열린다).
         manifestPlaceholders["deepLinkHost"] = inviteUri.host
         manifestPlaceholders["inviteScheme"] = inviteScheme
-        manifestPlaceholders["kakaoScheme"] = kakaoScheme
+        manifestPlaceholders["kakaoNativeAppKey"] = kakaoNativeAppKey
         manifestPlaceholders["appLabel"] = if (appEnvironment == "test") "MAP Test" else "MAP"
     }
 
