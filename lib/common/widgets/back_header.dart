@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_text_styles.dart';
 
 /// 뒤로가기 버튼 + 가운데 정렬 타이틀로 구성된 화면 상단 헤더.
 class BackHeader extends StatelessWidget {
@@ -23,11 +24,7 @@ class BackHeader extends StatelessWidget {
             child: Text(
               title,
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: AppColors.neutralScale[600],
-              ),
+              style: AppTextStyles.body4,
             ),
           ),
           const SizedBox(width: 48),

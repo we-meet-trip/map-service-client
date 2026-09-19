@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_text_styles.dart';
 import '../../core/api/place_photo_api_service.dart';
 
 /// 장소 사진 가로 목록. 누르면 크게 본다.
@@ -309,10 +310,8 @@ class _PhotoViewerState extends State<_PhotoViewer> {
                     onTap: a.uri == null ? null : () => _openLink(a.uri!),
                     child: Text(
                       a.displayName,
-                      style: TextStyle(
-                        fontSize: 12,
+                      style: AppTextStyles.body8.copyWith(
                         color: Colors.white,
-                        fontWeight: FontWeight.w600,
                         decoration: a.uri == null
                             ? TextDecoration.none
                             : TextDecoration.underline,
@@ -329,6 +328,8 @@ class _PhotoViewerState extends State<_PhotoViewer> {
               child: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // 이 Row 는 const 라 copyWith 를 쓸 수 없다. 값은
+                  // AppTextStyles.body8(12/w600)과 같게 유지한다.
                   Text('Google 지도에서 보기',
                       style: TextStyle(
                           fontSize: 12,
