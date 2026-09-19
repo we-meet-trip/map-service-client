@@ -7,6 +7,7 @@ import '../../../common/theme/app_colors.dart';
 import '../../../common/widgets/back_header.dart';
 import '../../../core/api/transit_route_options_service.dart';
 import '../../../core/maps/map_adapter.dart';
+import '../widgets/route_data_attribution.dart';
 
 class TransitRouteMapArgs {
   final String originLabel;
@@ -260,6 +261,11 @@ class _TransitRouteMapScreenState extends State<TransitRouteMapScreen> {
                   for (var i = 0; i < option.legs.length; i++)
                     _LegTile(
                         leg: option.legs[i], isLast: i == option.legs.length - 1),
+                  // 노선·시각의 발급처를 이 화면에서도 밝힌다.
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: RouteDataAttribution.transit(),
+                  ),
                 ],
               ),
             ),
