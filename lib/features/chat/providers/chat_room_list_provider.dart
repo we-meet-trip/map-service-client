@@ -12,6 +12,9 @@ class ChatRoomListProvider extends ChangeNotifier {
   List<ChatRoom> _rooms = [];
   bool isLoading = false;
 
+  /// 불러오기에 실패했는지. 빈 목록과 실패를 화면에서 구분하려면 필요하다.
+  bool loadFailed = false;
+
   ChatRoomFilter get filter => _filter;
 
   List<ChatRoom> get filteredRooms {
@@ -39,9 +42,14 @@ class ChatRoomListProvider extends ChangeNotifier {
 
   Future<void> loadRooms() async {
     isLoading = true;
+    loadFailed = false;
     notifyListeners();
     try {
       _rooms = await _repository.getChatRooms();
+    } catch (_) {
+      // 삼키면 '방이 없어요' 와 구분되지 않는다. 화면이 다시 시도를 권할 수
+      // 있도록 실패했다는 사실만 남긴다.
+      loadFailed = true;
     } finally {
       isLoading = false;
       notifyListeners();

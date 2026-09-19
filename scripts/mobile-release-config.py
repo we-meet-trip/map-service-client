@@ -35,7 +35,6 @@ def native_identity(environment):
     return {
         "NATIVE_APPLICATION_ID": "kr.mapservice.client" + suffix,
         "INVITE_URL_SCHEME": "mapservice" + scheme_suffix,
-        "KAKAO_CALLBACK_SCHEME": "mapauth" + scheme_suffix,
     }
 
 
@@ -118,6 +117,15 @@ def make_config(environment, platform, signed, environ):
         raise ConfigError(f"{key_name}: invalid client key format")
     if signed and not key:
         raise ConfigError(f"{key_name}: required for a signed release")
+    # 카카오 SDK 의 복귀 스킴(kakao{키}://oauth)에 그대로 실리는 값이다. 환경에서
+    # 유도할 수 없고 콘솔에서 발급되므로 다른 클라이언트 키와 같은 자리에서 받는다.
+    kakao_key = environ.get("KAKAO_NATIVE_APP_KEY", "").strip()
+    if kakao_key and (not re.fullmatch(r"[A-Za-z0-9]+", kakao_key)
+                      or kakao_key.lower().startswith(("replace-", "your_"))):
+        raise ConfigError("KAKAO_NATIVE_APP_KEY: invalid client key format")
+    # 웹은 카카오 네이티브 로그인을 쓰지 않으므로 이 키가 필요 없다.
+    if signed and platform != "web" and not kakao_key:
+        raise ConfigError("KAKAO_NATIVE_APP_KEY: required for a signed release")
     config = {
         "APP_ENV": environment,
         "API_ALLOWED_ORIGINS": ",".join(origins),
@@ -130,6 +138,8 @@ def make_config(environment, platform, signed, environ):
         raise ConfigError("prod configuration must use the approved mapservice.app URLs")
     if key:
         config[key_name] = key
+    if kakao_key:
+        config["KAKAO_NATIVE_APP_KEY"] = kakao_key
     return config
 
 
@@ -139,7 +149,7 @@ def ios_xcconfig(config):
         "MAP_APP_ENV": config["APP_ENV"],
         "MAP_APPLICATION_ID": config["NATIVE_APPLICATION_ID"],
         "MAP_INVITE_SCHEME": config["INVITE_URL_SCHEME"],
-        "MAP_KAKAO_SCHEME": config["KAKAO_CALLBACK_SCHEME"],
+        "MAP_KAKAO_NATIVE_KEY": config.get("KAKAO_NATIVE_APP_KEY", ""),
         "MAP_INVITE_HOST": urlsplit(config["INVITE_LINK_ORIGIN"]).hostname,
         "MAP_DISPLAY_NAME": "MAP Test" if config["APP_ENV"] == "test" else "MAP",
     }

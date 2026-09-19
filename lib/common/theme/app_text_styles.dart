@@ -28,6 +28,20 @@ class AppTextStyles {
   // ─── Detail ──────────────────────────────────────────────────────────────────
   static const detail = TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: black);
 
+  // ── 정본이 아직 덮지 못하는 값 ────────────────────────────────────────────
+  //
+  // lib/common/widgets 의 인라인 TextStyle 25건 중 위 정본과 크기·굵기가
+  // 정확히 맞는 것은 6건뿐이다. 나머지가 쓰는 값은 아래와 같고, 이것이
+  // 화면들이 정본을 지나쳐 인라인으로 쓰는 이유다.
+  //
+  //   정본에 없는 크기 : 11 · 15 · 17 · 22
+  //   정본에 없는 굵기 : w700
+  //   크기는 있으나 굵기 조합이 없는 것 : 14/w500 · 18/w400
+  //
+  // 이 값들을 정본에 넣을지, 아니면 화면을 가까운 정본 값으로 옮길지는
+  // 디자인 시스템 결정이다. 화면을 옮기면 글자 크기가 1~2px 움직여 좁은
+  // 카드에서 줄바꿈과 말줄임이 생기므로 임의로 정하지 않는다.
+
   // ─── Gray variants ───────────────────────────────────────────────────────────
   static const body5Gray = TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: gray);
   static const body6Gray = TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: gray);

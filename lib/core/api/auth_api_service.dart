@@ -78,20 +78,13 @@ class AuthApiService {
     _syncProfile();
   }
 
-  /// 카카오 인가 화면 주소를 받는다.
+  /// 카카오 SDK 가 받아 온 액세스 토큰을 우리 세션으로 바꾼다.
   ///
-  /// state 는 요청과 복귀를 짝지어 확인하는 값이다. 이 값이 되돌아온 것과
-  /// 다르면 내가 시작하지 않은 로그인이므로 버려야 한다.
-  Future<String> kakaoAuthorizeUrl(String state) async {
-    final json = await _api.get('/api/v1/auth/kakao', query: {'state': state});
-    return json['authorizeUrl'] as String;
-  }
-
-  /// 카카오가 돌려준 인가 코드를 토큰으로 바꾼다.
-  Future<void> kakaoLogin(String code) async {
+  /// 서버가 이 토큰이 우리 앱에 발급된 것인지 확인한 뒤에만 계정을 연결한다.
+  Future<void> kakaoLogin(String accessToken) async {
     final json = await _api.post(
       '/api/v1/auth/kakao/callback',
-      body: {'code': code},
+      body: {'accessToken': accessToken},
     );
     await _acceptLogin(AuthTokens.fromJson(json));
     _syncProfile();

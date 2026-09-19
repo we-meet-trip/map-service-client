@@ -2,6 +2,6 @@
 MAP_APP_ENV = test
 MAP_APPLICATION_ID = kr.mapservice.client.test
 MAP_INVITE_SCHEME = mapservice-test
-MAP_KAKAO_SCHEME = mapauth-test
+MAP_KAKAO_NATIVE_KEY = 
 MAP_INVITE_HOST = mapcenter-b59ca.web.app
 MAP_DISPLAY_NAME = MAP Test

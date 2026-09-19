@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../common/widgets/app_empty_state.dart';
 import '../../../data/models/weather_alert.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../common/theme/app_icons.dart';
@@ -502,16 +503,10 @@ class _SavedScreenState extends State<SavedScreen> {
   }
 
   Widget _buildEmpty(String message) {
-    return Center(
-      child: Text(
-        message,
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          fontSize: 14,
-          color: AppColors.neutralScale[300],
-          height: 1.6,
-        ),
-      ),
+    // 글자 한 줄만 두면 화면 아래 절반이 그냥 빈 흰 여백으로 남는다.
+    return AppEmptyState(
+      icon: Icons.bookmark_border_rounded,
+      message: message,
     );
   }
 

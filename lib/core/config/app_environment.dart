@@ -8,7 +8,9 @@ class AppEnvironment {
       ? 'kr.mapservice.client.test'
       : 'kr.mapservice.client';
   static const inviteScheme = name == 'test' ? 'mapservice-test' : 'mapservice';
-  static const kakaoScheme = name == 'test' ? 'mapauth-test' : 'mapauth';
+  /// 카카오 SDK 가 쓰는 네이티브 앱 키. 커스텀 스킴(kakao{키}://oauth)에 그대로
+  /// 실리는 공개 값이라 앱에 들어간다. 카카오는 이 키를 번들 ID 에 묶어 통제한다.
+  static const kakaoNativeAppKey = String.fromEnvironment('KAKAO_NATIVE_APP_KEY');
   static const inviteOrigin = String.fromEnvironment(
     'INVITE_LINK_ORIGIN',
     defaultValue: name == 'test' ? 'https://mapcenter-b59ca.web.app' : '',

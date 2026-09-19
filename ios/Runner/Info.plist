@@ -40,10 +40,18 @@
 	<key>CFBundleSignature</key>
 	<string>????</string>
 	<!-- 앱 전용 주소. 이 목록에 없는 주소로는 앱이 열리지 않는다.
-	     mapauth  : 외부 로그인 창에서 앱으로 돌아올 때 쓴다.
+	     kakao{키} : 카카오 로그인 결과가 앱으로 돌아올 때 쓴다.
 	     mapservice: 대화방 초대 링크가 앱을 직접 가리킬 때 쓴다.
 	     웹 주소로 온 초대 링크는 별도 절차(도메인 소유 확인)가 필요해
 	     여기가 아니라 계정이 정해진 뒤에 붙인다. -->
+	<!-- 카카오톡이 깔려 있는지 확인하려면 그 스킴을 미리 밝혀 두어야 한다.
+	     적지 않으면 canOpenURL 이 무조건 거짓을 돌려주어, 설치돼 있어도
+	     브라우저로 로그인하게 된다. -->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>kakaokompassauth</string>
+		<string>kakaolink</string>
+	</array>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -53,7 +61,7 @@
 			<string>$(PRODUCT_BUNDLE_IDENTIFIER).auth</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>$(MAP_KAKAO_SCHEME)</string>
+				<string>kakao$(MAP_KAKAO_NATIVE_KEY)</string>
 			</array>
 		</dict>
 		<dict>

@@ -1,5 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import '../../../common/widgets/app_loading_indicator.dart';
+import '../../../common/widgets/app_empty_state.dart';
 import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
@@ -105,9 +107,22 @@ class _ChatRoomListScreenState extends State<ChatRoomListScreen> {
               child: Consumer<ChatRoomListProvider>(
                 builder: (context, provider, _) {
                   if (provider.isLoading) {
-                    return const Center(child: CircularProgressIndicator());
+                    return const Center(child: AppLoadingIndicator());
+                  }
+                  if (provider.loadFailed) {
+                    return AppEmptyState(
+                      icon: Icons.cloud_off_rounded,
+                      message: '대화방을 불러오지 못했어요.\n연결을 확인하고 다시 시도해주세요.',
+                      onRetry: provider.loadRooms,
+                    );
                   }
                   final rooms = provider.filteredRooms;
+                  if (rooms.isEmpty) {
+                    return const AppEmptyState(
+                      icon: Icons.forum_outlined,
+                      message: '아직 참여 중인 대화방이 없어요.\n여행 일정을 만들면 동행과 이야기할 수 있어요.',
+                    );
+                  }
                   return ListView.separated(
                     padding: EdgeInsets.zero,
                     itemCount: rooms.length,

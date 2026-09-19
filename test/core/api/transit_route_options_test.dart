@@ -296,4 +296,56 @@ void main() {
       expect(option.modes, [TransitLegType.express, TransitLegType.intercity]);
     });
   });
+
+  group('map_obj (실제 노선 좌표 조회 토큰)', () {
+    test('경로 후보 단위 값을 그대로 싣는다', () {
+      final option = TransitRouteOption.fromJson({
+        ...optionJson(),
+        'map_obj': '18:2:132:136@204:2:917:915',
+      });
+
+      expect(option.mapObj, '18:2:132:136@204:2:917:915');
+    });
+
+    test('없으면 null — 시외·고속버스 후보나 이전 서버 응답', () {
+      expect(TransitRouteOption.fromJson(optionJson()).mapObj, isNull);
+    });
+
+    test('문자열이 아니면 버린다', () {
+      final option = TransitRouteOption.fromJson({
+        ...optionJson(),
+        'map_obj': 1234,
+      });
+
+      expect(option.mapObj, isNull);
+    });
+  });
+
+  group('TransitRouteLeg.withGeometry', () {
+    test('좌표만 바꾸고 나머지는 그대로 둔다', () {
+      final leg = TransitRouteLeg.fromJson(
+        {...legJson(), 'distance_m': 2000},
+      );
+      final road = [
+        [37.5665, 126.9780],
+        [37.5600, 126.9700],
+        [37.5228, 126.9227],
+      ];
+
+      final replaced = leg.withGeometry(road);
+
+      expect(replaced.geometry, road);
+      expect(replaced.type, leg.type);
+      expect(replaced.lineName, leg.lineName);
+      expect(replaced.startName, leg.startName);
+      expect(replaced.endName, leg.endName);
+      expect(replaced.sectionTimeMinutes, leg.sectionTimeMinutes);
+      expect(replaced.stationCount, leg.stationCount);
+      expect(replaced.distanceMeters, 2000);
+      // 경유 정류장 목록은 좌표와 별개라 그대로 남아야 한다.
+      expect(replaced.stopNames, leg.stopNames);
+      // 원본은 바뀌지 않는다.
+      expect(leg.geometry, hasLength(2));
+    });
+  });
 }

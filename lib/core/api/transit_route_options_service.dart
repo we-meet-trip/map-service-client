@@ -90,6 +90,19 @@ class TransitRouteLeg {
       stopNames: rawStops is List ? rawStops.whereType<String>().toList() : const [],
     );
   }
+
+  /// 좌표만 바꾼 사본. 실제 노선 좌표를 받았을 때 정류장 직선을 갈아 끼운다.
+  TransitRouteLeg withGeometry(List<List<double>> geometry) => TransitRouteLeg(
+        type: type,
+        lineName: lineName,
+        startName: startName,
+        endName: endName,
+        sectionTimeMinutes: sectionTimeMinutes,
+        stationCount: stationCount,
+        distanceMeters: distanceMeters,
+        geometry: geometry,
+        stopNames: stopNames,
+      );
 }
 
 /// 통합 길찾기 경로 후보 한 건. 지하철 단독으로 거르지 않은 후보다.
@@ -111,6 +124,13 @@ class TransitRouteOption {
 
   final List<TransitRouteLeg> legs;
 
+  /// 실제 노선 좌표를 따로 조회할 때 서버에 그대로 되돌려 줄 토큰.
+  ///
+  /// 구간이 아니라 경로 후보 단위 값이다. 발급처가 주지 않는 후보(시외·고속
+  /// 버스 등)나 이 필드가 생기기 전 서버의 응답에서는 null 이고, 그때는
+  /// 조회하지 않고 정류장 직선을 그대로 그린다.
+  final String? mapObj;
+
   const TransitRouteOption({
     required this.totalTimeMinutes,
     required this.fare,
@@ -121,6 +141,7 @@ class TransitRouteOption {
     this.subwayDistanceMeters = 0,
     this.busDistanceMeters = 0,
     this.busDistanceRatio = 0.0,
+    this.mapObj,
   });
 
   factory TransitRouteOption.fromJson(Map<String, dynamic> json) {
@@ -153,6 +174,9 @@ class TransitRouteOption {
               .map(TransitRouteLeg.fromJson)
               .toList()
           : const [],
+      // 문자열이 아닌 값은 버린다 — 서버에 되돌려 줄 때 형식 검사에 걸려
+      // 어차피 쓸 수 없다.
+      mapObj: json['map_obj'] is String ? json['map_obj'] as String : null,
     );
   }
 }
@@ -214,5 +238,115 @@ class TransitRouteOptionsService {
       default:
         throw Exception('지금은 경로를 알아볼 수 없어요. 잠시 후 다시 시도해 주세요.');
     }
+  }
+
+  /// 경로 후보 한 건의 구간 좌표를 실제 노선 모양으로 갈아 끼운 구간 목록.
+  ///
+  /// 목록 조회의 구간 좌표는 지나는 정류장을 직선으로 이은 것이다. 지도를 열
+  /// 때 이 후보 하나에 대해서만 부른다 — 후보마다 부르면 서버의 하루 호출
+  /// 상한을 금방 쓴다.
+  ///
+  /// 조회하지 못하면 null 을 돌려준다(예외를 올리지 않는다). 화면은 그때 이미
+  /// 가진 정류장 직선을 그대로 두면 되므로 오류 문구를 띄울 일이 아니다.
+  /// mapObj 가 없는 후보(시외·고속버스 등)는 서버를 부르지 않는다.
+  Future<List<TransitRouteLeg>?> fetchLaneLegs(TransitRouteOption option) async {
+    final mapObj = option.mapObj;
+    if (mapObj == null || option.legs.isEmpty) return null;
+    final Map<String, dynamic> body;
+    try {
+      body = await ApiClient.instance.post(
+        '/api/v1/transit/routes/lane',
+        body: {
+          'map_obj': mapObj,
+          // 서버가 돌려줄 좌표 목록이 이 순서와 1:1 로 맞춰진다.
+          'types': [for (final leg in option.legs) leg.type.name],
+        },
+        // 부가 정보라 오래 붙들지 않는다. 서버 쪽 조회 제한(4초)에 BFF 를
+        // 거치는 몫을 더한 값이다.
+        timeout: const Duration(seconds: 8),
+      );
+    } on ApiException {
+      // 시간 초과·연결 실패·서버 오류 모두 여기로 온다(ApiClient 가 바꿔 준다).
+      return null;
+    }
+    return _applyLane(option.legs, body);
+  }
+
+  /// 응답 geometries 를 같은 순서의 구간에 입힌다.
+  ///
+  /// 빈 자리(도보 구간 등)와 두 점이 안 되는 자리는 원래 좌표를 둔다 — 한
+  /// 점으로는 선을 그릴 수 없다. 모양이 어긋나거나 바뀐 구간이 하나도 없으면
+  /// null 이라, 화면은 다시 그릴 필요가 없다.
+  static List<TransitRouteLeg>? _applyLane(
+    List<TransitRouteLeg> legs,
+    Map<String, dynamic> body,
+  ) {
+    if (body['status'] != 'ok') return null;
+    final raw = body['geometries'];
+    if (raw is! List || raw.length != legs.length) return null;
+    var replaced = false;
+    final result = <TransitRouteLeg>[];
+    for (var i = 0; i < legs.length; i++) {
+      final points = _points(raw[i]);
+      if (points != null) {
+        result.add(legs[i].withGeometry(points));
+        replaced = true;
+      } else {
+        result.add(legs[i]);
+      }
+    }
+    return replaced ? result : null;
+  }
+
+  /// 경로 지도의 도보 연결선(구간 사이 회색 직선)을 실제 보행 경로로 받는다.
+  ///
+  /// [segments] 는 (시작 [lat,lng], 끝 [lat,lng]) 목록이다. 돌려주는 목록은
+  /// 같은 길이·순서이고, 서버가 못 준 자리는 null 이라 그 연결선만 직선으로
+  /// 둔다. 조회 자체를 못 하면 null — 화면은 회색 직선을 그대로 둔다.
+  ///
+  /// 좌표라서 본문으로 보낸다. 서버는 한 번에 20개까지 받는다(한 경로의
+  /// 연결선은 많아야 대여섯 개라 넘을 일이 없다).
+  Future<List<List<List<double>>?>?> fetchWalkPaths(
+    List<(List<double>, List<double>)> segments,
+  ) async {
+    if (segments.isEmpty || segments.length > 20) return null;
+    final Map<String, dynamic> body;
+    try {
+      body = await ApiClient.instance.post(
+        '/api/v1/transit/routes/walk',
+        body: {
+          'segments': [
+            for (final (start, end) in segments)
+              {
+                'start_lat': start[0],
+                'start_lng': start[1],
+                'end_lat': end[0],
+                'end_lng': end[1],
+              },
+          ],
+        },
+        // 노선 좌표 조회와 같은 이유로 짧게 둔다.
+        timeout: const Duration(seconds: 8),
+      );
+    } on ApiException {
+      return null;
+    }
+    if (body['status'] != 'ok') return null;
+    final raw = body['paths'];
+    if (raw is! List || raw.length != segments.length) return null;
+    final result = [for (final slot in raw) _points(slot)];
+    return result.any((p) => p != null) ? result : null;
+  }
+
+  /// 응답 한 자리를 [lat,lng] 좌표열로 읽는다. 두 점이 안 되면 null —
+  /// 한 점으로는 선을 그릴 수 없다.
+  static List<List<double>>? _points(Object? slot) {
+    if (slot is! List) return null;
+    final points = slot
+        .whereType<List<dynamic>>()
+        .where((p) => p.length >= 2 && p.every((v) => v is num))
+        .map((p) => p.map((v) => (v as num).toDouble()).toList())
+        .toList();
+    return points.length >= 2 ? points : null;
   }
 }

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../../common/theme/app_text_styles.dart';
+import '../../../common/widgets/app_confirm_dialog.dart';
 import '../../../common/widgets/external_ai_consent.dart';
 import '../../../core/state/auth_store.dart';
 
@@ -78,21 +80,23 @@ class ExternalAiSettingsScreen extends StatelessWidget {
     final session = AuthStore.instance.sessionVersion;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('외부 AI 전송 동의를 철회할까요?'),
-        content: const Text(
-          '앞으로 이 기능에서 새로 전송하지 않으며, 진행 중인 응답도 표시하지 않습니다. 이미 전송된 정보의 삭제를 뜻하지는 않습니다.',
+      builder: (context) => AppConfirmDialog(
+        confirmLabel: '철회하기',
+        onCancel: () => Navigator.pop(context, false),
+        onConfirm: () => Navigator.pop(context, true),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('외부 AI 전송 동의를 철회할까요?', style: AppTextStyles.body2),
+            const SizedBox(height: 12),
+            Text(
+              '앞으로 이 기능에서 새로 전송하지 않으며, 진행 중인 응답도 '
+              '표시하지 않습니다. 이미 전송된 정보의 삭제를 뜻하지는 않습니다.',
+              style: AppTextStyles.body7Gray,
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('취소'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('철회하기'),
-          ),
-        ],
       ),
     );
     if (confirmed != true ||

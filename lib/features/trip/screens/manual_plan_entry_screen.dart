@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../../common/widgets/app_empty_state.dart';
 import 'package:go_router/go_router.dart';
-import '../../../common/theme/app_colors.dart';
 import '../../../common/widgets/prev_button.dart';
 import '../../../core/api/trip_api_service.dart';
 import '../../../core/state/trip_repository.dart';
@@ -93,25 +93,12 @@ class _ManualPlanEntryScreenState extends State<ManualPlanEntryScreen> {
     );
   }
 
-  Widget _buildBlocked() => Padding(
-    padding: const EdgeInsets.all(24),
-    child: Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(Icons.tune_rounded, size: 48, color: AppColors.neutralScale[200]),
-        const SizedBox(height: 16),
-        Text(
-          '고칠 일정을 찾지 못했어요.\n일정을 먼저 만들어 주세요.',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 14,
-            color: AppColors.neutralScale[400],
-            height: 1.5,
-          ),
-        ),
-        const SizedBox(height: 24),
-        PrevButton(onPressed: () => context.go('/trip'), label: '← 여행 계획으로'),
-      ],
+  Widget _buildBlocked() => AppEmptyState(
+    icon: Icons.tune_rounded,
+    message: '고칠 일정을 찾지 못했어요.\n일정을 먼저 만들어 주세요.',
+    action: PrevButton(
+      onPressed: () => context.go('/trip'),
+      label: '← 여행 계획으로',
     ),
   );
 }
