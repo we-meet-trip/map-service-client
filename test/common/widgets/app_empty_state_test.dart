@@ -42,4 +42,23 @@ void main() {
     ));
     expect(find.text('일정 만들기'), findsNothing);
   });
+
+  testWidgets('부모가 start 정렬이어도 가운데에 놓인다', (tester) async {
+    // 대화방 목록의 부모 Column 이 crossAxisAlignment.start 라 왼쪽으로
+    // 치우쳐 보였다. 호출부가 Center 로 감싸지 않아도 가운데여야 한다.
+    await tester.pumpWidget(const MaterialApp(
+      home: Scaffold(
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: AppEmptyState(icon: Icons.forum_outlined, message: '비었어요'),
+            ),
+          ],
+        ),
+      ),
+    ));
+    final screen = tester.getSize(find.byType(Scaffold)).width;
+    expect(tester.getCenter(find.text('비었어요')).dx, closeTo(screen / 2, 1));
+  });
 }

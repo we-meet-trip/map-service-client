@@ -31,7 +31,12 @@ class AppEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    // 폭을 채우지 않으면 부모가 start 정렬일 때 내용이 제 너비만 차지해
+    // 화면 왼쪽으로 치우친다. 호출부가 Center 로 감싸는 것을 잊어도
+    // 가운데 오도록 여기서 폭을 채운다.
+    return Container(
+      width: double.infinity,
+      alignment: Alignment.center,
       padding: const EdgeInsets.all(24),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,

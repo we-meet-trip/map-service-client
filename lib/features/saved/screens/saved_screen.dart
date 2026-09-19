@@ -504,11 +504,9 @@ class _SavedScreenState extends State<SavedScreen> {
 
   Widget _buildEmpty(String message) {
     // 글자 한 줄만 두면 화면 아래 절반이 그냥 빈 흰 여백으로 남는다.
-    return Center(
-      child: AppEmptyState(
-        icon: Icons.bookmark_border_rounded,
-        message: message,
-      ),
+    return AppEmptyState(
+      icon: Icons.bookmark_border_rounded,
+      message: message,
     );
   }
 
