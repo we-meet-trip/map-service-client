@@ -18,6 +18,7 @@ void main() {
   });
 
   test('선언이 없으면 기본 팔레트로 떨어지는 표면들이 전부 지정돼 있다', () {
+    expect(theme.cardTheme.color, AppColors.neutralScale[0]);
     expect(theme.dialogTheme.backgroundColor, AppColors.neutralScale[0]);
     expect(theme.bottomSheetTheme.backgroundColor, AppColors.neutralScale[0]);
     expect(theme.popupMenuTheme.color, AppColors.neutralScale[0]);
@@ -28,8 +29,17 @@ void main() {
 
   test('표면 틴트를 꺼 흰 카드에 보라가 덧칠되지 않는다', () {
     expect(theme.appBarTheme.surfaceTintColor, Colors.transparent);
+    expect(theme.cardTheme.surfaceTintColor, Colors.transparent);
     expect(theme.dialogTheme.surfaceTintColor, Colors.transparent);
     expect(theme.bottomSheetTheme.surfaceTintColor, Colors.transparent);
+  });
+
+  test('비활성 버튼 글자가 배경 위에서 읽힌다', () {
+    // 기본값은 표면색 위 흐린 글자라 '동의하고 계속' 이 거의 안 보였다.
+    final fg = theme.filledButtonTheme.style!.foregroundColor!;
+    expect(fg.resolve({WidgetState.disabled}), AppColors.neutralScale[400]);
+    final bg = theme.filledButtonTheme.style!.backgroundColor!;
+    expect(bg.resolve({WidgetState.disabled}), AppColors.neutralScale[100]);
   });
 
   test('선택된 체크박스가 브랜드 색으로 칠해진다', () {
