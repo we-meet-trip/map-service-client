@@ -1066,42 +1066,13 @@ class _DdalBottomSheet extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 14),
-
-          // 대여 버튼
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: canRent ? brandColor : const Color(0xFFE0E0E0),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                elevation: 0,
-              ),
-              onPressed: canRent
-                  ? () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            '[따릉이] ${s.stationName} 대여소에서 대여를 시작합니다.',
-                          ),
-                          duration: const Duration(seconds: 2),
-                        ),
-                      );
-                    }
-                  : null,
-              child: Text(
-                canRent ? '대여하기' : '자전거 없음',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-          ),
+          // 대여 버튼을 두지 않는다.
+          //
+          // 이 화면은 대여소가 어디 있는지 보여주는 곳이고, 앱에는 대여로
+          // 이어지는 경로가 없다. 예전에는 '대여하기' 버튼이 '대여를
+          // 시작합니다' 라고 알리고 아무 일도 하지 않았다 — 실제로 하지 않는
+          // 일을 했다고 말하는 문구였다. 위의 거치대 현황(대여 가능 수)만
+          // 남긴다.
         ],
       ),
     );
