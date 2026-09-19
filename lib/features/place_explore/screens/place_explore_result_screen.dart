@@ -81,9 +81,10 @@ class _PlaceExploreResultScreenState extends State<PlaceExploreResultScreen> {
           request,
           canSend: () => _canSend,
         );
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _startRequest();
-        });
+        // 여기서 바로 부르지 않는다. 재탐색은 외부 AI 를 태우고 하루 횟수를
+        // 깎는 요청이라, 화면에 들어온 것만으로 나가면 사용자가 고르지 않은
+        // 비용이 발생한다. 아래 build 가 확인 화면을 띄우고 버튼을 누를 때
+        // _startRequest 가 돈다.
       }
       return;
     }
@@ -213,12 +214,14 @@ class _PlaceExploreResultScreenState extends State<PlaceExploreResultScreen> {
           children: [
             Text(
               _isResearch
-                  ? '외부 AI 전송에 동의하면 일정을 만들어요.\n선택한 장소는 그대로 유지돼요.'
+                  ? '뺀 자리를 새 장소로 채우려면 AI 추천을 다시 받아요.\n'
+                        '선택한 장소는 그대로 유지되고, 하루 재탐색 횟수를 하나 써요.'
                   : '선택한 장소로 동선을 만들어요.',
+              textAlign: TextAlign.center,
             ),
             TextButton(
               onPressed: _askingConsent || !_canServe ? null : _startRequest,
-              child: Text(_isResearch ? '동의 확인하고 일정 만들기' : '동선 다시 만들기'),
+              child: Text(_isResearch ? 'AI 추천 다시 받기' : '동선 다시 만들기'),
             ),
             TextButton(
               onPressed: () => context.canPop()

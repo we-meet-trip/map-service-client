@@ -341,6 +341,13 @@ void main() {
         ));
 
         await pump(tester, {planPlaceId(0)});
+
+        // 화면에 들어온 것만으로는 나가지 않는다. 사용자가 눌러야 한다.
+        await tester.pumpAndSettle();
+        expect(requested, isEmpty, reason: '진입만으로 유료 요청이 나가면 회귀다');
+        await tester.tap(find.text('AI 추천 다시 받기'));
+        await tester.pump();
+
         await acceptConsent(tester);
         await tester.pump(const Duration(milliseconds: 100));
 
@@ -356,6 +363,49 @@ void main() {
         expect(body['exclude'], ['kakao:1', 'kakao:2', 'kakao:3']);
 
         await drainLoadingTimer(tester);
+      },
+      createHttpClient: (_) =>
+          _FakeHttpClient(routeBody(), 200, requested, sentBodies),
+    );
+  });
+
+  testWidgets('재탐색 화면에 들어온 것만으로는 유료 요청이 나가지 않는다', (tester) async {
+    // 재탐색은 외부 AI 를 태우고 하루 횟수를 깎는다. 장소를 뺀 채 화면에
+    // 들어왔다는 것만으로 나가면 사용자가 고르지 않은 비용이 발생한다.
+    await HttpOverrides.runZoned(
+      () async {
+        TripRepository.instance.setLastPlan(TripPlanContext(
+          startDate: DateTime(2026, 5, 1),
+          endDate: DateTime(2026, 5, 1),
+          activeStartHour: 9,
+          activeEndHour: 20,
+          transport: 'walk',
+          province: '강원특별자치도',
+          city: '속초시',
+          stops: [
+            TripStop(
+                order: 1, name: '속초해변', address: '주소', time: '09:00',
+                latitude: 38.19, longitude: 128.60, contentId: 'kakao:1'),
+            TripStop(
+                order: 2, name: '영금정', address: '주소', time: '10:00',
+                latitude: 38.21, longitude: 128.60, contentId: 'kakao:2'),
+          ],
+          tripId: 'job-prev',
+          minBudget: 50000,
+          maxBudget: 150000,
+          themes: const ['food'],
+        ));
+
+        await pump(tester, {planPlaceId(0)});
+        await tester.pumpAndSettle();
+
+        expect(requested, isEmpty, reason: '진입만으로 나가면 회귀다');
+        expect(find.byType(AppLoadingScreen), findsNothing);
+        expect(find.byType(ExternalAiConsentDialog), findsNothing);
+
+        // 대신 무엇을 하려는지 알리고 누를 것을 내놓는다.
+        expect(find.text('AI 추천 다시 받기'), findsOneWidget);
+        expect(find.textContaining('하루 재탐색 횟수'), findsOneWidget);
       },
       createHttpClient: (_) =>
           _FakeHttpClient(routeBody(), 200, requested, sentBodies),
