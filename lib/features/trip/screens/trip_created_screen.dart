@@ -678,14 +678,6 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
                   ),
                 ),
               ),
-              // 지역을 모르는 옛 일정은 동선을 새로 짤 수 없어 입구를 감춘다.
-              if (saved != null && saved.canEdit)
-                TextButton.icon(
-                  onPressed: () =>
-                      context.push('/saved/trip/edit', extra: saved),
-                  icon: const Icon(Icons.tune_rounded, size: 16),
-                  label: const Text('일정 편집'),
-                ),
             ],
           ),
           if (dateStr.isNotEmpty) ...[
@@ -754,6 +746,22 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
                 _fmtDate(saved.tripStartDate),
                 style: TextStyle(fontSize: 14, color: AppColors.savedBadgeFar),
               ),
+              // 지역을 모르는 옛 일정은 동선을 새로 짤 수 없어 입구를 감춘다.
+              if (saved.canEdit)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: TextButton.icon(
+                    onPressed: () =>
+                        context.push('/saved/trip/edit', extra: saved),
+                    icon: const Icon(Icons.tune_rounded, size: 16),
+                    label: const Text('일정 편집'),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      minimumSize: const Size(0, 32),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                ),
             ],
           ),
         ),

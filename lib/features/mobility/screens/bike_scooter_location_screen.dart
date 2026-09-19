@@ -35,6 +35,11 @@ class _BikeScooterLocationScreenState extends State<BikeScooterLocationScreen> {
   List<DdallengiStation> _allStations = [];
   DdallengiStation? _selected;
 
+  // 조회 자체가 실패했는가. 빈 목록과 갈라 둔다 — 둘을 묶으면 발급처가 멈춘
+  // 것이 "주변에 대여소가 없다"로 보여, 사용자가 앱을 탓하지 않고 자리를
+  // 옮겨 다니며 같은 빈 지도를 계속 본다.
+  bool _stationsFailed = false;
+
   // 공유 킥보드 데이터.
   //
   // null 은 "아직 못 물어봤거나 조회에 실패했다"이고, 빈 목록은 "물어봤는데
@@ -133,8 +138,10 @@ class _BikeScooterLocationScreenState extends State<BikeScooterLocationScreen> {
         ),
       ]);
       if (!mounted) return;
+      final stations = results[0] as List<DdallengiStation>?;
       setState(() {
-        _allStations = results[0] as List<DdallengiStation>;
+        _stationsFailed = stations == null;
+        _allStations = stations ?? const [];
         _pmVehicles = results[1] as List<PmVehicle>?;
       });
     }
@@ -142,6 +149,13 @@ class _BikeScooterLocationScreenState extends State<BikeScooterLocationScreen> {
     setState(() => _loading = false);
     await _renderMarkers();
   }
+
+  /// 따릉이 조회가 실패했을 때만 한 줄 문구를 낸다.
+  ///
+  /// 성공했을 때는 지도의 마커가 곧 답이라 따로 말할 것이 없다. 실패는
+  /// 마커가 없다는 사실과 구별되지 않으므로 말로 밝혀야 한다.
+  String? get _bikeStatusLabel =>
+      _stationsFailed ? '대여소 정보를 불러오지 못했어요' : null;
 
   /// 주변 킥보드 상태를 한 줄 문구로. 그릴 것이 없으면 null.
   ///
@@ -152,6 +166,39 @@ class _BikeScooterLocationScreenState extends State<BikeScooterLocationScreen> {
     if (list == null) return '킥보드 정보를 불러오지 못했어요';
     if (list.isEmpty) return '주변에 이용 가능한 킥보드가 없어요';
     return '주변 킥보드 ${list.length}대';
+  }
+
+  /// 지도 위에 띄우는 한 줄 상태 알약.
+  Widget _statusPill(String emoji, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withAlpha(235),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(20),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 12)),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AppColors.neutralScale[500],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // ── 마커 렌더링 (중심 5km 이내 + 필터 적용) ─────────────────────────────────
@@ -427,46 +474,28 @@ class _BikeScooterLocationScreenState extends State<BikeScooterLocationScreen> {
             ),
           ),
 
-          // ── 킥보드 상태 한 줄 ──
+          // ── 이동수단 상태 줄 ──
           //
-          // 이 화면의 이름과 진입 배너가 "자전거·킥보드"인데 지금까지 지도에는
-          // 따릉이만 올라갔다. 킥보드 쪽이 어떤 상태인지 한 줄로 밝혀,
-          // 사용자가 "킥보드는 왜 안 보이지"를 묻지 않게 한다.
-          if (_pmStatusLabel != null && !_loading)
+          // 이 화면의 이름과 진입 배너가 "자전거·킥보드"인데 지도에 올라가는
+          // 것은 따릉이 대여소뿐이다. 각 발급처가 지금 어떤 상태인지 한 줄로
+          // 밝혀, 빈 지도가 "없음"인지 "못 불러옴"인지 알 수 있게 한다.
+          if (!_loading &&
+              (_bikeStatusLabel != null || _pmStatusLabel != null))
             SafeArea(
               child: Align(
                 alignment: Alignment.topCenter,
                 child: Padding(
                   padding: const EdgeInsets.only(top: 58),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withAlpha(235),
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withAlpha(20),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text('🛴', style: TextStyle(fontSize: 12)),
-                        const SizedBox(width: 5),
-                        Text(
-                          _pmStatusLabel!,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.neutralScale[500],
-                          ),
-                        ),
-                      ],
-                    ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_bikeStatusLabel != null)
+                        _statusPill('🚲', _bikeStatusLabel!),
+                      if (_bikeStatusLabel != null && _pmStatusLabel != null)
+                        const SizedBox(height: 6),
+                      if (_pmStatusLabel != null)
+                        _statusPill('🛴', _pmStatusLabel!),
+                    ],
                   ),
                 ),
               ),
