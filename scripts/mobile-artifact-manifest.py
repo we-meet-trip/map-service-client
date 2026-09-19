@@ -33,7 +33,7 @@ def main():
     if args.kind.startswith('ios-') and not args.app_directory:
         raise SystemExit('iOS artifact inventory requires the built app for the vendor privacy gate')
     source = json.loads(Path(args.config).read_text())
-    fields = ['APP_ENV', 'NATIVE_APPLICATION_ID', 'INVITE_URL_SCHEME', 'KAKAO_CALLBACK_SCHEME',
+    fields = ['APP_ENV', 'NATIVE_APPLICATION_ID', 'INVITE_URL_SCHEME',
               'INVITE_LINK_ORIGIN', 'APP_CONFIG_URL', 'API_ALLOWED_ORIGINS', 'PUBLIC_SITE_ORIGIN']
     result = {
         'schema_version': 1, 'recorded_utc': datetime.now(timezone.utc).isoformat(),
@@ -60,7 +60,9 @@ def main():
         if info.get('CFBundleIdentifier') != source['NATIVE_APPLICATION_ID']:
             raise SystemExit('Built iOS bundle identifier mismatch')
         schemes = [scheme for entry in info.get('CFBundleURLTypes', []) for scheme in entry.get('CFBundleURLSchemes', [])]
-        if sorted(schemes) != sorted([source['INVITE_URL_SCHEME'], source['KAKAO_CALLBACK_SCHEME']]):
+        # 카카오 복귀 스킴은 앱 키에서 만들어진다. 키가 빠지면 'kakao' 만 남아 어긋난다.
+        if sorted(schemes) != sorted([source['INVITE_URL_SCHEME'],
+                                      'kakao' + source.get('KAKAO_NATIVE_APP_KEY', '')]):
             raise SystemExit('Built iOS URL scheme mismatch')
         if info.get('UIDeviceFamily') != [1]:
             raise SystemExit('Built iOS app must target iPhone only')

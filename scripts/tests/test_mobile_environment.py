@@ -48,7 +48,7 @@ class MobileEnvironmentTest(unittest.TestCase):
                                          for k, v in values.items())
         ios.verify(native)
         for key in ['MAP_APP_ENV', 'MAP_APPLICATION_ID', 'PRODUCT_BUNDLE_IDENTIFIER',
-                    'MAP_INVITE_SCHEME', 'MAP_KAKAO_SCHEME', 'MAP_INVITE_HOST']:
+                    'MAP_INVITE_SCHEME', 'MAP_KAKAO_NATIVE_KEY', 'MAP_INVITE_HOST']:
             with self.subTest(key=key), self.assertRaises(ValueError):
                 ios.verify({**native, key: 'stale-test-value'})
         with self.assertRaises(ValueError):
@@ -101,10 +101,12 @@ class MobileEnvironmentTest(unittest.TestCase):
     def test_native_sources_consume_generated_identity(self):
         manifest = (ROOT / 'android/app/src/main/AndroidManifest.xml').read_text()
         self.assertIn('android:scheme="${inviteScheme}"', manifest)
-        self.assertIn('android:scheme="${kakaoScheme}"', manifest)
+        self.assertIn('android:scheme="kakao${kakaoNativeAppKey}"', manifest)
         info = plistlib.loads((ROOT / 'ios/Runner/Info.plist').read_bytes())
         self.assertEqual([entry['CFBundleURLSchemes'][0] for entry in info['CFBundleURLTypes']],
-                         ['$(MAP_KAKAO_SCHEME)', '$(MAP_INVITE_SCHEME)'])
+                         ['kakao$(MAP_KAKAO_NATIVE_KEY)', '$(MAP_INVITE_SCHEME)'])
+        # 카카오톡 설치 확인은 미리 밝힌 스킴만 조회할 수 있다.
+        self.assertIn('kakaokompassauth', info['LSApplicationQueriesSchemes'])
         entitlements = plistlib.loads((ROOT / 'ios/Runner/Runner.entitlements').read_bytes())
         self.assertEqual(entitlements['com.apple.developer.associated-domains'],
                          ['applinks:$(MAP_INVITE_HOST)'])

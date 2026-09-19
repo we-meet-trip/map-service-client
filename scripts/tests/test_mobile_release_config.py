@@ -53,14 +53,25 @@ class MobileReleaseConfigTest(unittest.TestCase):
         for platform in config.PLATFORM_KEYS:
             others = {key: 'other-client-key' for name, key in config.PLATFORM_KEYS.items()
                       if name != platform}
+            kakao = {} if platform == 'web' else {'KAKAO_NATIVE_APP_KEY': 'nativeappkey'}
             with self.subTest(platform=platform), self.assertRaises(config.ConfigError):
-                config.make_config('prod', platform, True, self.production(**others))
-            values = self.production(**others, **{config.PLATFORM_KEYS[platform]: 'platform-client-key'})
+                config.make_config('prod', platform, True, self.production(**others, **kakao))
+            values = self.production(**others, **kakao,
+                                     **{config.PLATFORM_KEYS[platform]: 'platform-client-key'})
             actual = config.make_config('prod', platform, True, values)
             self.assertEqual(set(actual), {
                 'APP_ENV', 'API_ALLOWED_ORIGINS', 'APP_CONFIG_URL', 'INVITE_LINK_ORIGIN', 'PUBLIC_SITE_ORIGIN',
-                *config.native_identity('prod'), config.PLATFORM_KEYS[platform],
+                *config.native_identity('prod'), config.PLATFORM_KEYS[platform], *kakao,
             })
+
+    def test_signed_native_release_requires_the_kakao_application_key(self):
+        # 이 키가 비면 복귀 주소가 'kakao://oauth' 가 되어 카카오 로그인만 조용히 죽는다.
+        for platform in ('android', 'ios'):
+            values = self.production(**{config.PLATFORM_KEYS[platform]: 'platform-client-key'})
+            with self.subTest(platform=platform), self.assertRaises(config.ConfigError):
+                config.make_config('prod', platform, True, values)
+        web = self.production(**{config.PLATFORM_KEYS['web']: 'platform-client-key'})
+        self.assertNotIn('KAKAO_NATIVE_APP_KEY', config.make_config('prod', 'web', True, web))
 
     def test_input_secrets_cannot_enter_dart_defines(self):
         values = {
@@ -146,6 +157,7 @@ class MobileReleaseConfigTest(unittest.TestCase):
                 'GITHUB_REF': 'refs/heads/develop', 'GITHUB_OUTPUT': str(github_output),
                 'GOOGLE_MAPS_ANDROID_API_KEY': 'android-restricted-key',
                 'GOOGLE_MAPS_IOS_API_KEY': 'ios-must-not-ship',
+                'KAKAO_NATIVE_APP_KEY': 'nativeappkey',
                 'APP_DOTENV_B64': 'server-secret-must-not-ship',
             }
             with patch.dict(os.environ, environment, clear=True), contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):

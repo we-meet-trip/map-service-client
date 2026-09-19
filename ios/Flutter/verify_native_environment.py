@@ -31,7 +31,7 @@ def verify(environ):
         'MAP_APPLICATION_ID': config['NATIVE_APPLICATION_ID'],
         'PRODUCT_BUNDLE_IDENTIFIER': config['NATIVE_APPLICATION_ID'],
         'MAP_INVITE_SCHEME': config['INVITE_URL_SCHEME'],
-        'MAP_KAKAO_SCHEME': config['KAKAO_CALLBACK_SCHEME'],
+        'MAP_KAKAO_NATIVE_KEY': config.get('KAKAO_NATIVE_APP_KEY', ''),
         'MAP_INVITE_HOST': urlsplit(config['INVITE_LINK_ORIGIN']).hostname,
     }
     for field, value in expected.items():

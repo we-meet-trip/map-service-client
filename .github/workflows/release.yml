@@ -96,6 +96,7 @@ jobs:
           INVITE_LINK_ORIGIN: ${{ vars.INVITE_LINK_ORIGIN }}
           PUBLIC_SITE_ORIGIN: ${{ vars.PUBLIC_SITE_ORIGIN }}
           GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.GOOGLE_MAPS_ANDROID_API_KEY }}
+          KAKAO_NATIVE_APP_KEY: ${{ secrets.KAKAO_NATIVE_APP_KEY }}
         run: |
           set -euo pipefail
           args=(--environment "$APP_ENV" --platform android --output "$RUNNER_TEMP/mobile-android.json")
@@ -278,6 +279,7 @@ jobs:
           INVITE_LINK_ORIGIN: ${{ vars.INVITE_LINK_ORIGIN }}
           PUBLIC_SITE_ORIGIN: ${{ vars.PUBLIC_SITE_ORIGIN }}
           GOOGLE_MAPS_IOS_API_KEY: ${{ secrets.GOOGLE_MAPS_IOS_API_KEY }}
+          KAKAO_NATIVE_APP_KEY: ${{ secrets.KAKAO_NATIVE_APP_KEY }}
         run: |
           set -euo pipefail
           args=(--environment "$APP_ENV" --platform ios --output "$RUNNER_TEMP/mobile-ios.json"

@@ -16,12 +16,12 @@ Prepared 2026-09-07 for session D. The filename retains the 2026-09-06 work-star
 | Android applicationId / iOS bundle ID | `kr.mapservice.client.test` | `kr.mapservice.client` |
 | Display name | MAP Test | MAP |
 | Invite custom URL | `mapservice-test://invite/TOKEN` | `mapservice://invite/TOKEN` |
-| Kakao app callback | `mapauth-test://kakao` | `mapauth://kakao` |
+| Kakao login scheme | `kakao{NATIVE_APP_KEY}://oauth` (same key for both) | `kakao{NATIVE_APP_KEY}://oauth` |
 | API allowlist / remote config / invite / policy origin | Existing test defaults; explicit overrides allowed | All four explicit; known test hosts rejected |
 
 Android namespace and MainActivity source remain `kr.mapservice.client`. The installed application ID determines sandbox and platform registration. iOS RunnerTests remains a development test target and is not a store application identity.
 
-`scripts/mobile-release-config.py` generates Dart defines. Native identity fields are derived from `APP_ENV`, not customizable application IDs. It emits only the selected platform's public Maps key. It never imports a server dotenv, Kakao REST secret, location master key, or Apple private key into the app.
+`scripts/mobile-release-config.py` generates Dart defines. Native identity fields are derived from `APP_ENV`, not customizable application IDs. It emits only the selected platform's public Maps key, plus the Kakao native application key for native platforms. It never imports a server dotenv, Kakao REST secret, location master key, or Apple private key into the app.
 
 For iOS, also pass `--ios-xcconfig ios/Flutter/NativeEnvironment.xcconfig`. Xcode reads this ignored generated file after safe test defaults. Before the Flutter build phase, `ios/Flutter/verify_native_environment.py` rejects any mismatch between Dart and native bundle ID, app environment, URL schemes or invite host. The generator rejects non-DNS syntax that could expand Xcode variables; native invite links require a DNS hostname and default HTTPS port.
 
@@ -29,15 +29,36 @@ For iOS, also pass `--ios-xcconfig ios/Flutter/NativeEnvironment.xcconfig`. Xcod
 
 ## Root integration requests: live changes are not performed here
 
-### Kakao callback and Apple audience
+### Kakao login and Apple audience
 
-The Client contract stays `GET /api/v1/auth/kakao?state=...`, server HTTPS provider callback, app callback with the same `state`, then `POST /api/v1/auth/kakao/callback` carrying only the authorization code. No user-controlled arbitrary callback URL is added.
+**Superseded 2026-09-17.** The redirect contract described here no longer exists. The app now signs in
+through `kakao_flutter_sdk_user`: it switches straight to the KakaoTalk app and receives the
+authorization result on `kakao{NATIVE_APP_KEY}://oauth`. No browser takes part, which is the point —
+Kakao binds a login to the caller's public IP and refuses it when that IP changes mid-flow, and a
+browser leg can leave on a different route than the native app (iCloud Private Relay proxies Safari
+traffic but not an app's HTTPS). The client sends the resulting access token to
+`POST /api/v1/auth/kakao/callback`; the server checks the token's `app_id` against `KAKAO_APP_ID`
+before linking an account, because Kakao member numbers are per-application.
 
-The test User deployment must return `mapauth-test://kakao?state=...&code=...` or the same origin with its error result. The production deployment keeps `mapauth://kakao`. The misleadingly named `KAKAO_APP_CALLBACK_SCHEME` holds the complete callback URI: test `mapauth-test://kakao`, prod `mapauth://kakao`. Do not change the OAuth HTTPS redirect registration by substituting a custom URL. The configured `KAKAO_OAUTH_REDIRECT_URI` must remain the exact HTTPS URI registered for the relevant Kakao application and server environment.
+Removed from the contract: `GET /api/v1/auth/kakao`, the server's HTTPS provider callback and its
+302 bounce to a custom scheme, `KAKAO_APP_CALLBACK_SCHEME`, `KAKAO_OAUTH_REDIRECT_URI`,
+`KAKAO_OAUTH_CLIENT_ID`/`_SECRET`, and the client-generated `state`. Kakao's REST key
+(`KAKAO_REST_API_KEY`) is unrelated to login — it serves Local address and place search and stays.
 
-Root verified the deployed R3 User source (`1d4f394b...`): `src/main/resources/application.yml:343`, `global/config/KakaoProperties.java:20`, `domain/auth/service/KakaoOAuthService.java:79` (`buildAppCallbackLocation`) and `controller/AuthController.java` (`GET /kakao/callback`). The service's error branch currently omits `state`, causing the Client's correct state check to ignore provider cancellation until timeout. Required User patch: preserve the validated incoming state in both success and error redirects; keep proper URI query encoding; retain the configured complete callback URI. Add isolated success/cancellation/state regression coverage. Do not weaken Client state validation.
+Two console entries are required and cannot be derived from `APP_ENV`: the native application key,
+and an iOS platform registration for each bundle ID that ships (`kr.mapservice.client` and
+`kr.mapservice.client.test`). `KAKAO_NATIVE_APP_KEY` is a public value that appears in the custom
+scheme itself, so it belongs in the build like a restricted Maps key; a signed native release fails
+without it. iOS additionally needs `LSApplicationQueriesSchemes` to contain `kakaokompassauth` —
+without it `canOpenURL` always answers false, KakaoTalk is treated as absent, and every user falls
+back to the browser path this change exists to avoid.
 
-The Client now ignores callbacks for the other environment, callback userinfo/ports/fragments, and duplicate state/code/error parameters. Existing state and session-epoch checks remain. Root must test successful login, provider cancellation, stale callback and logout against each environment after server changes. Until the test server's scheme is integrated, the candidate test app's Kakao flow cannot be accepted as working.
+When KakaoTalk is not installed the SDK falls back to `loginWithKakaoAccount`, which uses
+`ASWebAuthenticationSession` against the same Kakao authorize endpoint. Kakao has confirmed that its
+account login path is also IP-checked, so that fallback keeps the original exposure with a shorter
+window. Whether `ASWebAuthenticationSession` traffic is proxied by Private Relay is unknown — Apple
+has documented it for `SFSafariViewController` but never for this API. The client therefore reports a
+fallback failure with the one action a user can take: turn Private Relay off.
 
 Apple token verification and revocation need an audience for the actual native bundle ID and the matching Apple developer team/key configuration. A test app with `.test` must not be verified against only the production audience. Root's deployed-source check identified `domain/auth/apple/AppleSettings.java:11` and `AppleProviderClient.java:67` (audience), `:108` (client-secret JWT subject), `:156` (code-exchange client ID), so each environment must use its exact registered client ID consistently across those operations. The User owner must confirm environment-specific authorized audiences, server revoke credentials and the retained provider token/revoke flow; no provider private key belongs in Client configuration. Root's read-only `native-auth-server-readiness-20260906.json` captures current runtime readiness, separately from this source contract.
 
