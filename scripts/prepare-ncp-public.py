@@ -11,6 +11,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
+LANDING = ROOT / 'web-landing'
 
 
 def module(name, filename):
@@ -87,10 +88,19 @@ def prepare(output, policy_directory, certificates, apple_prefix, review, *, rel
         if not release:
             body = body.replace(b'<main>', ('<main>\n' + DRAFT_NOTICE).encode(), 1)
         artifacts['legal/' + name + '.html'] = body
-    links = ''.join(f'<li><a href="/legal/{name}.html">{title}</a></li>' for name, title in content.PAGES.items())
-    artifacts['index.html'] = ('<!doctype html><html lang="ko"><meta charset="utf-8">'
-        '<meta name="viewport" content="width=device-width, initial-scale=1"><title>MAP 지원</title>'
-        '<main><h1>MAP</h1>' + ('' if release else DRAFT_NOTICE) + '<ul>' + links + '</ul></main></html>\n').encode()
+    landing = read_file(LANDING / 'index.html')
+    if not release:
+        landing = landing.replace(b'<main>', ('<main>\n' + DRAFT_NOTICE).encode(), 1)
+    artifacts['index.html'] = landing
+    # 이 디렉터리의 파일은 이름 그대로 공개된다. 맥이 만들어 두는 점파일은 건너뛰고,
+    # 그 밖에 형식이 다른 것이 섞이면 멈춘다. 응답에 nosniff 가 걸려 있어 형식을
+    # 못 맞추면 브라우저가 렌더를 거부하므로, 조용히 빠뜨리는 쪽이 더 나쁘다.
+    for path in sorted((LANDING / 'assets').glob('*')):
+        if path.name.startswith('.'):
+            continue
+        if path.suffix not in ('.webp', '.svg'):
+            raise ValueError('publishable asset must be .webp or .svg: ' + path.name)
+        artifacts['assets/' + path.name] = read_file(path)
     public = output / 'public'
     public.mkdir(parents=True)
     for name, body in artifacts.items():

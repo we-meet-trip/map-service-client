@@ -92,6 +92,28 @@ class NcpPublicTest(unittest.TestCase):
             pages['privacy'] += b'<p>changed after review</p>'
             self.assertIn('reviewed_policy_hash_mismatch', public.policy_blockers(pages, review))
 
+    def test_landing_page_and_its_assets_are_published_and_manifested(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            policy = root / 'policies'; policy.mkdir()
+            pages, _ = self.reviewed(policy)
+            landing = root / 'landing'; (landing / 'assets').mkdir(parents=True)
+            (landing / 'index.html').write_text('<main><h1>MAP</h1></main>')
+            (landing / 'assets/shot.webp').write_bytes(b'webp bytes')
+            (landing / 'assets/.DS_Store').write_bytes(b'noise')
+            with patch.object(public, 'LANDING', landing):
+                result = public.prepare(root / 'bundle', policy, [CERT], PREFIX, None)
+                directory = root / 'bundle/public'
+                self.assertIn('assets/shot.webp', result['files'])
+                self.assertNotIn('assets/.DS_Store', result['files'])
+                self.assertEqual((directory / 'assets/shot.webp').read_bytes(), b'webp bytes')
+                # 초안 표시는 산출물에만 붙고 원본은 그대로여야 한다.
+                self.assertIn('운영 준비 초안', (directory / 'index.html').read_text())
+                self.assertNotIn('운영 준비 초안', (landing / 'index.html').read_text())
+                (landing / 'assets/notes.txt').write_bytes(b'not publishable')
+                with self.assertRaises(ValueError):
+                    public.prepare(root / 'other', policy, [CERT], PREFIX, None)
+
     def test_placeholder_address_and_unreviewed_text_cannot_pass(self):
         with tempfile.TemporaryDirectory() as temporary:
             pages, review = self.reviewed(Path(temporary))
