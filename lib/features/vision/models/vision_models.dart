@@ -1,24 +1,17 @@
+import '../../../common/utils/korea_bounds.dart';
+
 class VisionLocation {
   final double lat;
   final double lng;
   const VisionLocation({required this.lat, required this.lng});
 
-  // 장소 인식 서비스가 받아 주는 좌표 범위. 밖의 값을 실으면 요청 전체가
-  // 거절되어 사진 자체가 처리되지 않으므로, 실을지 말지를 여기서 가른다.
-  static const double _minLat = 33;
-  static const double _maxLat = 43;
-  static const double _minLng = 124;
-  static const double _maxLng = 132;
-
   /// 서비스 범위 안이면 좌표를, 밖이면 null 을 준다.
   ///
-  /// 국외에서 위치를 켠 사용자도 위치 없이 사진 인식은 그대로 쓸 수 있다.
-  static VisionLocation? inServiceArea(double lat, double lng) {
-    if (lat < _minLat || lat > _maxLat || lng < _minLng || lng > _maxLng) {
-      return null;
-    }
-    return VisionLocation(lat: lat, lng: lng);
-  }
+  /// 밖의 값을 실으면 요청 전체가 거절되어 사진 자체가 처리되지 않으므로,
+  /// 실을지 말지를 여기서 가른다. 국외에서 위치를 켠 사용자도 위치 없이
+  /// 사진 인식은 그대로 쓸 수 있다.
+  static VisionLocation? inServiceArea(double lat, double lng) =>
+      KoreaBounds.contains(lat, lng) ? VisionLocation(lat: lat, lng: lng) : null;
 
   Map<String, dynamic> toJson() => {'lat': lat, 'lng': lng};
 }

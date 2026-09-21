@@ -5,6 +5,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../common/theme/app_colors.dart';
+import '../../../common/utils/korea_bounds.dart';
 import '../../../core/api/bike_station_api_service.dart';
 import '../../../core/api/pm_vehicle_api_service.dart';
 // 지도 패키지를 직접 부르지 않는다. 그 패키지는 안드로이드·iOS 만 지원해서,
@@ -27,8 +28,9 @@ class BikeScooterLocationScreen extends StatefulWidget {
 class _BikeScooterLocationScreenState extends State<BikeScooterLocationScreen> {
   // 지도
   AppMapController? _mapCtrl;
-  double _centerLat = 37.5665; // 서울 시청 (따릉이 서비스 지역)
-  double _centerLng = 126.9780;
+  // 서울 시청 (따릉이 서비스 지역). 범위 밖 갈음 지점과 같은 값을 쓴다.
+  double _centerLat = KoreaBounds.fallbackLat;
+  double _centerLng = KoreaBounds.fallbackLng;
 
   // 따릉이 데이터
   final List<MapMarker> _markers = [];
@@ -39,6 +41,9 @@ class _BikeScooterLocationScreenState extends State<BikeScooterLocationScreen> {
   // 것이 "주변에 대여소가 없다"로 보여, 사용자가 앱을 탓하지 않고 자리를
   // 옮겨 다니며 같은 빈 지도를 계속 본다.
   bool _stationsFailed = false;
+
+  // 기기가 서비스 범위 밖에 있어 대표 지점으로 갈음했는가.
+  bool _outsideServiceArea = false;
 
   // 공유 킥보드 데이터.
   //
@@ -59,6 +64,19 @@ class _BikeScooterLocationScreenState extends State<BikeScooterLocationScreen> {
     _initLocation();
   }
 
+  /// 지도 중심으로 쓸 좌표를 정한다. setState 안에서 부른다.
+  ///
+  /// 발급처가 국내 자료만 내주고 서버도 범위 밖 좌표를 거절한다. 기기 좌표를
+  /// 그대로 물으면 조회 실패로 처리돼 "불러오지 못했어요" 가 뜨는데 그것은
+  /// 사실이 아니다 — 물어볼 수 없는 자리인 것이다. 대표 지점으로 갈음하고
+  /// 그 사실을 화면이 한 줄로 밝힌다.
+  void _setCenter(double lat, double lng) {
+    final (nextLat, nextLng, outside) = KoreaBounds.clampToService(lat, lng);
+    _centerLat = nextLat;
+    _centerLng = nextLng;
+    _outsideServiceArea = outside;
+  }
+
   // ── 초기 위치 ────────────────────────────────────────────────────────────────
   Future<void> _initLocation() async {
     try {
@@ -72,10 +90,7 @@ class _BikeScooterLocationScreenState extends State<BikeScooterLocationScreen> {
       }
       final pos = await Geolocator.getCurrentPosition();
       if (!mounted) return;
-      setState(() {
-        _centerLat = pos.latitude;
-        _centerLng = pos.longitude;
-      });
+      setState(() => _setCenter(pos.latitude, pos.longitude));
       // 위치를 받는 데는 시간이 걸려서 지도가 먼저 준비되기도 한다. 그러면
       // 대여소 목록은 기본 좌표 주변으로 이미 받아 둔 것인데, 화면은 새 중심
       // 기준으로 5km 를 걸러 내므로 하나도 남지 않는다. 목록을 비워 지금
@@ -154,8 +169,10 @@ class _BikeScooterLocationScreenState extends State<BikeScooterLocationScreen> {
   ///
   /// 성공했을 때는 지도의 마커가 곧 답이라 따로 말할 것이 없다. 실패는
   /// 마커가 없다는 사실과 구별되지 않으므로 말로 밝혀야 한다.
-  String? get _bikeStatusLabel =>
-      _stationsFailed ? '대여소 정보를 불러오지 못했어요' : null;
+  String? get _bikeStatusLabel {
+    if (_outsideServiceArea) return '대한민국 밖에서는 서울 기준으로 보여드려요';
+    return _stationsFailed ? '대여소 정보를 불러오지 못했어요' : null;
+  }
 
   /// 주변 킥보드 상태를 한 줄 문구로. 그릴 것이 없으면 null.
   ///
@@ -167,6 +184,8 @@ class _BikeScooterLocationScreenState extends State<BikeScooterLocationScreen> {
   /// 보게 되고, 기기가 없는 것과 기능이 아직 없는 것도 구별되지 않는다.
   /// 아직 내주지 않는다는 사실 그대로를 적는다.
   String? get _pmStatusLabel {
+    // 범위 밖 안내가 이미 사정을 말한다. 두 줄로 나누면 같은 말이 겹친다.
+    if (_outsideServiceArea) return null;
     final list = _pmVehicles;
     if (list == null) return '킥보드 정보를 불러오지 못했어요';
     if (list.isEmpty) return '킥보드는 준비 중이에요';
@@ -333,15 +352,18 @@ class _BikeScooterLocationScreenState extends State<BikeScooterLocationScreen> {
     if (ctrl == null) return;
     final cam = await ctrl.getCameraPosition();
     setState(() {
-      _centerLat = cam.target.latitude;
-      _centerLng = cam.target.longitude;
+      _setCenter(cam.target.latitude, cam.target.longitude);
       _selected = null;
-    });
-    // 대여소·킥보드 모두 새 자리 기준으로 다시 받는다.
-    setState(() {
+      // 대여소·킥보드 모두 새 자리 기준으로 다시 받는다.
       _allStations = [];
       _pmVehicles = null;
     });
+    // 범위 밖을 보고 있었다면 중심만 옮겨서는 마커가 화면 밖에 그려진다.
+    // 갈음한 자리로 지도를 함께 데려간다.
+    if (_outsideServiceArea) {
+      await _recenterTo(_centerLat, _centerLng);
+      return;
+    }
     await _loadStations();
   }
 
@@ -359,8 +381,7 @@ class _BikeScooterLocationScreenState extends State<BikeScooterLocationScreen> {
       final pos = await Geolocator.getCurrentPosition();
       if (!mounted) return;
       setState(() {
-        _centerLat = pos.latitude;
-        _centerLng = pos.longitude;
+        _setCenter(pos.latitude, pos.longitude);
         _selected = null;
       });
       await _recenterTo(_centerLat, _centerLng);
