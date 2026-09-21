@@ -23,6 +23,12 @@
 	<false/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<!-- 화면과 권한 고지 문구가 전부 한국어다. 이 선언이 없으면 번들의 유일한
+	     언어 신호가 개발 지역뿐이라, 스토어가 앱 언어를 영어로 표시한다. -->
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>ko</string>
+	</array>
 	<key>CFBundleDisplayName</key>
 	<string>$(MAP_DISPLAY_NAME)</string>
 	<key>CFBundleExecutable</key>
