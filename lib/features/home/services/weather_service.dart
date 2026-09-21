@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 
+import '../../../common/utils/korea_bounds.dart';
 import '../../../core/api/api_client.dart';
 import '../models/weather_data.dart';
 
@@ -15,16 +16,19 @@ class WeatherService {
   /// 갱신이라 이보다 자주 물어도 대체로 같은 값이 온다.
   static const _cacheDuration = Duration(minutes: 30);
 
-  /// 위치를 못 얻었을 때 대신 쓰는 좌표(서울 시청). 카드가 통째로 비는 것보다
-  /// 대표 지점이라도 보여 주는 편이 낫다.
-  static const _fallbackLat = 37.5665;
-  static const _fallbackLng = 126.9780;
-
   static WeatherData? _cache;
   static DateTime? _cacheTime;
 
   /// 담아 둔 값이 대표 지점 기준인지. 정확한 위치로 다시 물을 때는 쓰지 않는다.
   static bool _cacheApproximate = false;
+
+  /// 마지막으로 돌려준 값이 대표 지점 기준인지.
+  ///
+  /// 위 [_cacheApproximate] 와 다르다 — 그쪽은 담아 둔 값을 다시 써도 되는지를
+  /// 가리고, 이쪽은 화면이 '대략적인 위치 기준' 이라고 알릴지를 가린다. 위치를
+  /// 거부한 경우뿐 아니라 국내 범위 밖이어서 갈음한 경우에도 참이 된다.
+  static bool _resultApproximate = false;
+  static bool get resultApproximate => _resultApproximate;
 
   /// [useApproximateLocation] 이 참이면 기기 위치를 묻지 않고 대표 좌표로
   /// 조회한다. 위치 제공을 미룬 사용자에게 카드를 통째로 비우는 대신
@@ -42,8 +46,8 @@ class WeatherService {
       return cached;
     }
 
-    final position = useApproximateLocation
-        ? (_fallbackLat, _fallbackLng)
+    final (lat, lng, approximated) = useApproximateLocation
+        ? (KoreaBounds.fallbackLat, KoreaBounds.fallbackLng, true)
         : await _resolvePosition();
     // 공통 통로로 보낸다. 직접 보내면 토큰이 실리지 않아, 서버에서 인증을
     // 켜는 순간 홈 화면 첫 진입의 날씨 카드가 곧바로 막힌다.
@@ -52,8 +56,8 @@ class WeatherService {
       body = await ApiClient.instance.get(
         '/api/v1/weather/home',
         query: {
-          'lat': position.$1.toString(),
-          'lng': position.$2.toString(),
+          'lat': lat.toString(),
+          'lng': lng.toString(),
         },
         timeout: const Duration(seconds: 15),
       );
@@ -62,9 +66,14 @@ class WeatherService {
     }
     final data = WeatherData.fromJson(body);
 
-    _cache = data;
-    _cacheTime = now;
-    _cacheApproximate = useApproximateLocation;
+    // 그릴 것이 하나도 없는 응답은 담아 두지 않는다. 담으면 화면의 '다시 시도'
+    // 가 캐시 기간 내내 같은 빈 값을 되돌려 받아 버튼이 죽는다.
+    if (data.hasAnything) {
+      _cache = data;
+      _cacheTime = now;
+      _cacheApproximate = useApproximateLocation;
+    }
+    _resultApproximate = approximated;
     return data;
   }
 
@@ -73,21 +82,18 @@ class WeatherService {
   /// 위치를 못 얻거나 국내 범위를 벗어나면 대표 좌표로 갈음한다. 서버가 국내
   /// 밖 좌표를 거절하므로, 해외에서 앱을 열었을 때 카드가 오류로 비는 대신
   /// 서울 날씨라도 보이게 한다.
-  Future<(double, double)> _resolvePosition() async {
+  /// 세 번째 값은 대표 지점으로 갈음했는지다. 화면이 그 사실을 알린다.
+  Future<(double, double, bool)> _resolvePosition() async {
     try {
       final pos = await _location();
-      if (_inKorea(pos.latitude, pos.longitude)) {
-        return (pos.latitude, pos.longitude);
-      }
+      final resolved = KoreaBounds.clampToService(pos.latitude, pos.longitude);
+      if (!resolved.$3) return resolved;
       debugPrint('[Weather] 국내 범위 밖 위치 → 기본 좌표 사용');
     } catch (_) {
       debugPrint('[Weather] 위치 확인 실패 → 기본 좌표 사용');
     }
-    return (_fallbackLat, _fallbackLng);
+    return (KoreaBounds.fallbackLat, KoreaBounds.fallbackLng, true);
   }
-
-  static bool _inKorea(double lat, double lng) =>
-      lat >= 33.0 && lat <= 43.0 && lng >= 124.0 && lng <= 132.0;
 
   Future<Position> _location() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();

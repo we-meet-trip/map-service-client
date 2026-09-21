@@ -114,7 +114,9 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         setState(() {
           _weather = data;
-          _weatherApproximate = approximate;
+          // 미루기를 골랐을 때뿐 아니라 위치를 못 얻었거나 국내 범위 밖이어서
+          // 대표 지점으로 갈음한 경우에도 그 사실을 알려야 한다.
+          _weatherApproximate = WeatherService.resultApproximate;
           _weatherLoading = false;
         });
       }
@@ -796,7 +798,9 @@ class _WeatherCard extends StatelessWidget {
       );
     }
 
-    if (error != null || weather == null) {
+    // 전부 비어 있는 응답은 카드를 그리면 구름 그림 하나와 출처 줄만 남아
+    // 고장으로 보인다. 설명과 다시 시도가 있는 자리로 보낸다.
+    if (error != null || weather == null || !weather!.hasAnything) {
       return TripCard(
         child: SizedBox(
           height: 120,
