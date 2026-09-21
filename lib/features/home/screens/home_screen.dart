@@ -11,6 +11,7 @@ import '../../../common/widgets/app_loading_indicator.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/schedule_api_service.dart';
 import '../../../core/router/app_router.dart';
+import '../../../core/state/trip_repository.dart';
 import '../../../core/state/user_repository.dart';
 import '../../saved/utils/open_schedule.dart';
 import '../../trip/widgets/trip_card.dart';
@@ -42,12 +43,17 @@ class _HomeScreenState extends State<HomeScreen> {
     // 홈은 하단 탭의 한 칸이라 로그인하고 돌아와도 다시 만들어지지 않는다.
     // 로그인 여부를 직접 듣고 그때 다시 받는다.
     isAuthenticated.addListener(_loadUpcomingTrip);
+    // 홈도 저장 탭과 같은 이유로 다시 만들어지지 않는다. 다른 탭에서 일정을
+    // 저장하거나 지워도 여기 카드가 그대로 남아, 방금 저장한 사람이 홈에서
+    // '예정된 일정이 없어요' 를 본다.
+    TripRepository.instance.savedRevision.addListener(_loadUpcomingTrip);
     _loadUpcomingTrip();
   }
 
   @override
   void dispose() {
     isAuthenticated.removeListener(_loadUpcomingTrip);
+    TripRepository.instance.savedRevision.removeListener(_loadUpcomingTrip);
     super.dispose();
   }
 

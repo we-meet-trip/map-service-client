@@ -16,6 +16,15 @@ class TripRepository {
 
   void markSavedChanged() => savedRevision.value++;
 
+  /// 저장을 마친 사용자가 새 일정을 처음부터 만들겠다는 요청.
+  ///
+  /// 여행 계획 탭은 만들기 마법사를 화면 상태로 들고 있어, 다 만든 뒤에는 그
+  /// 완성 화면에 머문다. 탭을 한 번 더 누르면 처음으로 돌아가지만 그것은 숨은
+  /// 조작이라, 완성 화면이 이 신호로 직접 되돌릴 수 있어야 한다.
+  final ValueNotifier<int> newPlanRequested = ValueNotifier(0);
+
+  void requestNewPlan() => newPlanRequested.value++;
+
   void clearAccount() {
     pendingTrip = null;
     autoSaveOnNext = false;
