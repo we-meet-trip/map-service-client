@@ -327,8 +327,6 @@ class _TripDirectionsScreenState extends State<TripDirectionsScreen> {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        _buildSearchBox(),
                       ],
                     );
                   },
@@ -350,48 +348,6 @@ class _TripDirectionsScreenState extends State<TripDirectionsScreen> {
                   imageSize: 74,
                   imageRight: 20,
                   onTap: () => _onTransitTap('bus'),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: _buildSmallCard(
-                        title: '기차',
-                        image: 'assets/images/transport/train2.png',
-                        imageSize: 48,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildSmallCard(
-                        title: '자전거‧킥보드',
-                        image: 'assets/images/transport/bicycle_scooter.png',
-                        imageSize: 48,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: _buildSmallCard(
-                        title: '시외버스',
-                        image: 'assets/images/transport/intercity_bus.png',
-                        imageSize: 47,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildSmallCard(
-                        title: '항공',
-                        image: 'assets/images/transport/plane.png',
-                        imageSize: 46,
-                      ),
-                    ),
-                  ],
                 ),
               ],
             ),
@@ -465,40 +421,6 @@ class _TripDirectionsScreenState extends State<TripDirectionsScreen> {
     );
   }
 
-  Widget _buildSearchBox() {
-    return Container(
-      width: 101,
-      height: 44,
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      decoration: BoxDecoration(
-        color: AppColors.neutralScale[0]!.withAlpha(204),
-        borderRadius: BorderRadius.circular(41),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.secondaryScale[900]!.withAlpha(15),
-            blurRadius: 10,
-            offset: const Offset(0, 1),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          // 이 상자는 아직 동작하지 않는다. 입력칸처럼 보이면 눌러 보게 된다.
-          Text(
-            '준비 중',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: AppColors.neutralScale[300],
-            ),
-          ),
-          const Spacer(),
-          Icon(Icons.search, size: 17, color: AppColors.neutralScale[200]),
-        ],
-      ),
-    );
-  }
-
   Widget _buildBigCard({
     required String title,
     required String subtitle,
@@ -553,19 +475,12 @@ class _TripDirectionsScreenState extends State<TripDirectionsScreen> {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppColors.neutralScale[100],
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      '준비 중',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.neutralScale[400],
-                      ),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.neutralScale[300],
                     ),
                   ),
                 ],
@@ -576,85 +491,6 @@ class _TripDirectionsScreenState extends State<TripDirectionsScreen> {
       ),
     );
     return onTap == null ? card : GestureDetector(onTap: onTap, child: card);
-  }
-
-  /// 아직 연결되지 않은 수단을 그린다.
-  ///
-  /// 지하철·버스(큰 카드)는 실제로 화면이 열리지만 이 네 장은 열리지 않는다.
-  /// 그런데 배경·모서리·그림자·높이가 큰 카드와 같아 눌리는 것처럼 보인다.
-  /// 눌러도 아무 일이 없는 카드는 동작하는 카드와 눈으로 구분돼야 한다.
-  Widget _buildSmallCard({
-    required String title,
-    required String image,
-    required double imageSize,
-  }) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        height: 81,
-        decoration: BoxDecoration(
-          color: AppColors.neutralScale[0],
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.secondaryScale[900]!.withAlpha(15),
-              blurRadius: 10,
-              offset: const Offset(0, 1),
-            ),
-          ],
-        ),
-        child: Stack(
-          children: [
-            Positioned(
-              right: 16,
-              top: (81 - imageSize) / 2,
-              child: Opacity(
-                opacity: 0.35,
-                child: Image.asset(image, width: imageSize, height: imageSize, fit: BoxFit.contain),
-              ),
-            ),
-            Positioned(
-              right: 11,
-              top: 13,
-              child: _buildFadeOverlay(width: 37, height: 62),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 60, 14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.neutralScale[400],
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppColors.neutralScale[100],
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      '준비 중',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.neutralScale[400],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   Widget _buildFadeOverlay({required double width, required double height}) {
