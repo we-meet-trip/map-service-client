@@ -39,6 +39,8 @@ class _TripRegenerateScreenState extends State<TripRegenerateScreen> {
     super.initState();
     tripScreenResetNotifier.addListener(_onTabReset);
     tripRetrialNotifier.addListener(_onRetrial);
+    // 완성 화면의 '새 일정 만들기' 도 재탐색과 같은 자리로 돌아간다.
+    TripRepository.instance.newPlanRequested.addListener(_onRetrial);
     // 로그인/회원가입 후 복귀 시 임시 저장된 일정 복원
     final pending = TripRepository.instance.pendingTrip;
     if (pending != null) {
@@ -52,6 +54,7 @@ class _TripRegenerateScreenState extends State<TripRegenerateScreen> {
   void dispose() {
     tripScreenResetNotifier.removeListener(_onTabReset);
     tripRetrialNotifier.removeListener(_onRetrial);
+    TripRepository.instance.newPlanRequested.removeListener(_onRetrial);
     super.dispose();
   }
 

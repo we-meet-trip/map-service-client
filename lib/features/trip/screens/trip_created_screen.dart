@@ -1154,6 +1154,17 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
         // 일정을 시작하려면 저장 탭으로 돌아가 다시 열어야 했다.
         else if (_startTarget != null)
           _buildStartButton(context),
+        // 저장을 마쳤으면 이 자리에서 새 일정을 시작할 수 있어야 한다. 없으면
+        // 남는 길이 '재탐색' 뿐인데 그 경로는 다시 이 화면으로 돌아와, 탭을 한
+        // 번 더 누르는 숨은 조작을 알기 전에는 빠져나올 수 없다.
+        if (_isSaved)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 4),
+            child: PrevButton(
+              onPressed: TripRepository.instance.requestNewPlan,
+              label: '새 일정 만들기',
+            ),
+          ),
         Padding(
           padding: const EdgeInsets.only(bottom: 20),
           child: PrevButton(
