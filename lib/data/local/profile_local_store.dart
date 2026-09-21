@@ -1,4 +1,6 @@
 import 'package:hive_flutter/hive_flutter.dart';
+
+import 'local_box.dart';
 import '../../core/state/user_repository.dart';
 import '../../core/state/auth_store.dart';
 import '../../core/config/app_config.dart';
@@ -13,7 +15,7 @@ class ProfileLocalStore {
   static Box? _box;
 
   static Future<void> init() async {
-    _box = await Hive.openBox(_boxName);
+    _box = await openLocalBox(_boxName);
   }
 
   UserProfile? load() {

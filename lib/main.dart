@@ -14,7 +14,13 @@ import 'app.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Hive.initFlutter();
+  // 저장소 준비가 첫 화면을 막아서는 안 된다. 여기서 던지면 runApp 에 닿지
+  // 못해 시작 화면에 붙잡힌 앱이 된다. 상자 열기는 그 안에서 따로 버틴다.
+  try {
+    await Hive.initFlutter();
+  } catch (error) {
+    debugPrint('[Boot] 기기 저장소 준비 실패 → 저장 없이 진행: $error');
+  }
   await PermissionNoticeStore.init();
   await ProfileLocalStore.init();
   // 서버 주소를 먼저 확정한다. 아래 토큰 되살리기가 갱신 요청을 보낼 수
