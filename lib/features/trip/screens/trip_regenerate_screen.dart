@@ -41,6 +41,7 @@ class _TripRegenerateScreenState extends State<TripRegenerateScreen> {
     tripRetrialNotifier.addListener(_onRetrial);
     // 완성 화면의 '새 일정 만들기' 도 재탐색과 같은 자리로 돌아간다.
     TripRepository.instance.newPlanRequested.addListener(_onRetrial);
+    TripRepository.instance.tripTabEntered.addListener(_onTabEntered);
     // 로그인/회원가입 후 복귀 시 임시 저장된 일정 복원
     final pending = TripRepository.instance.pendingTrip;
     if (pending != null) {
@@ -55,6 +56,7 @@ class _TripRegenerateScreenState extends State<TripRegenerateScreen> {
     tripScreenResetNotifier.removeListener(_onTabReset);
     tripRetrialNotifier.removeListener(_onRetrial);
     TripRepository.instance.newPlanRequested.removeListener(_onRetrial);
+    TripRepository.instance.tripTabEntered.removeListener(_onTabEntered);
     super.dispose();
   }
 
@@ -64,23 +66,42 @@ class _TripRegenerateScreenState extends State<TripRegenerateScreen> {
     setState(() => _currentStep = 0);
   }
 
-  /// 재탐색: step 1로 + 전체 리셋
+  /// 만들기 입력을 처음 상태로 되돌린다. setState 안에서 부른다.
+  void _clearInputs() {
+    _startDate = null;
+    _endDate = null;
+    _startHour = 0;
+    _endHour = 0;
+    _minBudget = 0;
+    _maxBudget = 0;
+    _selectedThemes = {};
+    _selectedTransport = null;
+    _selectedProvince = '선택';
+    _selectedCity = '선택';
+    _tripResponse = null;
+    _generateFuture = null;
+    TripRepository.instance.wizardPlanSaved = false;
+  }
+
+  /// 재탐색·새 일정 만들기: 입력을 비우고 첫 입력 단계로.
   void _onRetrial() {
     if (!mounted) return;
     setState(() {
+      _clearInputs();
       _currentStep = 1;
-      _startDate = null;
-      _endDate = null;
-      _startHour = 0;
-      _endHour = 0;
-      _minBudget = 0;
-      _maxBudget = 0;
-      _selectedThemes = {};
-      _selectedTransport = null;
-      _selectedProvince = '선택';
-      _selectedCity = '선택';
-      _tripResponse = null;
-      _generateFuture = null;
+    });
+  }
+
+  /// 다른 탭에서 여행 계획 탭으로 돌아왔을 때.
+  ///
+  /// 저장을 마친 판만 되돌린다. 저장하지 않은 생성 결과까지 지우면 사용자가
+  /// 만든 것을 말없이 버리는 셈이고, 다시 만들려면 유료 호출을 또 써야 한다.
+  void _onTabEntered() {
+    if (!mounted) return;
+    if (!TripRepository.instance.wizardPlanSaved) return;
+    setState(() {
+      _clearInputs();
+      _currentStep = 0;
     });
   }
 

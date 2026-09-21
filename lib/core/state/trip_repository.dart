@@ -25,6 +25,18 @@ class TripRepository {
 
   void requestNewPlan() => newPlanRequested.value++;
 
+  /// 여행 계획 탭을 다시 열었다는 신호.
+  final ValueNotifier<int> tripTabEntered = ValueNotifier(0);
+
+  void markTripTabEntered() => tripTabEntered.value++;
+
+  /// 만들기 마법사가 보여 주는 일정이 저장을 마쳤는지.
+  ///
+  /// 저장한 판은 저장 탭에 남으므로 탭을 다시 열 때 처음 화면으로 되돌려도
+  /// 잃는 것이 없다. 저장하지 않은 생성 결과는 되돌리면 사라지고 다시
+  /// 만들려면 유료 호출을 또 써야 하므로, 이 표시가 참일 때만 되돌린다.
+  bool wizardPlanSaved = false;
+
   void clearAccount() {
     pendingTrip = null;
     autoSaveOnNext = false;

@@ -1506,6 +1506,11 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
             _startTarget = _asSavedTrip(scheduleId, name, start, end);
           });
           TripRepository.instance.markSavedChanged();
+          // 마법사가 보여 주는 판이 저장을 마쳤다. 탭을 다시 열면 스스로
+          // 처음 화면으로 돌아간다 — 저장했으므로 되돌려도 잃는 것이 없다.
+          if (!widget.showBackButton) {
+            TripRepository.instance.wizardPlanSaved = true;
+          }
           _showSavedDialog(this.context, name);
         },
       ),
