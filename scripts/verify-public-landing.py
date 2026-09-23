@@ -20,6 +20,8 @@ IMAGE = 'caddy:2-alpine'
 NAME = 'map-landing-check'
 PORT = 8420
 HOST = 'mapservice.app'
+# 한국 App Store 의 공개 주소. 페이지가 이 주소를 그대로 걸고 있어야 한다.
+APP_STORE_URL = 'https://apps.apple.com/kr/app/m-a-p/id6811266533'
 # ncp-production-serving.py 가 공개 직전에 반드시 있어야 한다고 보는 경로들.
 REQUIRED = {'index.html', 'app_config.json', 'invite-environment.json', 'invite/index.html',
             '.well-known/apple-app-site-association', '.well-known/assetlinks.json',
@@ -212,11 +214,13 @@ def check_landing(public, failures):
         failures.append('landing carries an app shell')
     if 'AI' in visible and 'AI 추천은 외부 AI 전송 동의 후 이용' not in visible:
         failures.append('AI is mentioned without the consent footnote')
-    if 'aria-disabled="true"' not in body or '준비 중' not in body:
-        failures.append('store placeholders are not disabled')
-    for store in ('play.google.com', 'apps.apple.com', 'onestore.co.kr'):
+    if APP_STORE_URL not in page.hrefs:
+        failures.append('landing does not link the published App Store page')
+    if 'aria-disabled="true"' in body or '준비 중' in body:
+        failures.append('landing still carries a store placeholder')
+    for store in ('play.google.com', 'onestore.co.kr'):
         if store in body:
-            failures.append('landing links a store before release: ' + store)
+            failures.append('landing links a store that has no release: ' + store)
     # 가리키는 자산이 번들에 실제로 있는지. 오타 하나면 그림만 조용히 깨진다.
     for target in sorted(set(re.findall(r'(?:src|href)="/(assets/[^"]+)"', body))):
         if not (public / target).is_file():
