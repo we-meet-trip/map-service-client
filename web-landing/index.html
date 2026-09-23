@@ -139,24 +139,68 @@
   .lede { margin: 12px 0 0; color: var(--muted); font-size: 15px; }
   .note { margin: 10px 0 0; color: var(--muted); font-size: 13px; }
 
-  /* 내려받기 — 심사 중이라 아직 주소가 없다. 자리만 둔다. */
+  /* 내려받기 — 배지는 받아 온 원본을 그대로 내보낸다. 색이나 모양을 여기서 바꾸지
+     않는다. 높이만 정하고 너비는 원본 비율에 맡긴다. img 의 width/height 는 그
+     비율을 미리 알려, 그림이 늦게 도착해도 자리가 밀리지 않게 하는 값이다. */
   .get { background: var(--page-bottom); padding: 60px 0 64px; text-align: center; }
   .get h2 { margin: 0; font-size: 22px; font-weight: 700; }
   .get p { margin: 10px 0 0; color: var(--muted); font-size: 15px; }
-  .stores { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-top: 22px; }
-  .store {
+  .stores { display: flex; justify-content: center; margin-top: 22px; }
+  .badge { display: inline-block; line-height: 0; border-radius: 8px; }
+  .badge img { display: block; width: auto; height: 48px; }
+  .judge-open { display: inline-block; margin-top: 18px; font-size: 14px; }
+
+  /* 심사 안내 — 주소 끝에 #judge-account 가 붙어 있는 동안에만 보인다. 이 페이지는
+     스크립트를 두지 않으므로 여는 것도 닫는 것도 링크가 한다. 닫기와 바깥 덮개는
+     주소를 비우는 링크라, 뒤로 가기로도 닫힌다. */
+  .judge { display: none; }
+  .judge:target { display: block; }
+  .judge-veil { position: fixed; inset: 0; z-index: 1; background: rgba(27, 11, 51, .55); }
+  .judge-panel {
+    position: fixed;
+    z-index: 2;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: min(420px, calc(100vw - 40px));
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+    padding: 26px 24px 22px;
+    border-radius: 18px;
+    background: var(--surface);
+    box-shadow: 0 24px 60px rgba(27, 11, 51, .35);
+    text-align: left;
+  }
+  .judge-panel h2 { margin: 0; font-size: 17px; font-weight: 700; line-height: 1.5; text-wrap: balance; }
+  .callout {
+    margin: 16px 0 0;
+    padding: 14px 16px;
+    border: 1px solid var(--rule);
+    border-left: 4px solid var(--accent);
+    border-radius: 10px;
+    background: var(--page-top);
+  }
+  .callout dt { margin: 0; color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: .06em; }
+  .callout dd {
+    margin: 6px 0 0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 16px;
+    color: var(--ink);
+    overflow-wrap: anywhere;
+    user-select: all;
+  }
+  .judge-pw { margin: 14px 0 0; color: var(--muted); font-size: 14px; }
+  .judge-close {
     display: inline-block;
-    min-width: 200px;
-    padding: 14px 22px;
-    border-radius: 12px;
+    margin-top: 20px;
+    padding: 10px 20px;
+    border-radius: 10px;
     background: var(--ink);
     color: #fff;
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 600;
     text-decoration: none;
   }
-  .store[aria-disabled="true"] { background: #D9D9E0; color: #fff; pointer-events: none; }
-  .store small { display: block; font-size: 12px; font-weight: 500; opacity: .9; }
 
   /* 푸터 */
   footer { background: var(--surface); padding: 40px 0 56px; font-size: 14px; color: var(--muted); }
@@ -438,14 +482,30 @@
   <section class="get">
     <div class="wrap">
       <h2>앱 내려받기</h2>
-      <p>스토어 심사를 준비하고 있습니다. 공개되면 이 자리에서 바로 받을 수 있습니다.</p>
+      <p>App Store 에서 바로 받을 수 있습니다.</p>
       <div class="stores">
-        <a class="store" href="#" aria-disabled="true">App Store<small>준비 중</small></a>
-        <a class="store" href="#" aria-disabled="true">원스토어<small>준비 중</small></a>
+        <a class="badge" href="https://apps.apple.com/kr/app/m-a-p/id6811266533"><img
+          src="/assets/app-store-badge-ko.svg" width="130" height="40"
+          alt="App Store 에서 다운로드"></a>
       </div>
+      <a class="judge-open" href="#judge-account">한국관광공사 심사용 계정 안내</a>
       <p>문의는 <a href="mailto:mapadmin26@gmail.com">mapadmin26@gmail.com</a> 으로 보내 주세요.</p>
     </div>
   </section>
+
+  <div class="judge" id="judge-account" role="dialog" aria-modal="true"
+    aria-labelledby="judge-account-title" tabindex="-1">
+    <a class="judge-veil" href="#" aria-label="안내 닫기"></a>
+    <div class="judge-panel">
+      <h2 id="judge-account-title">한국관광공사 웹·앱 개발 부문 심사용 계정</h2>
+      <dl class="callout">
+        <dt>ID</dt>
+        <dd>openapi@mapservice.app</dd>
+      </dl>
+      <p class="judge-pw">비밀번호는 그대로 사용해주세요.</p>
+      <a class="judge-close" href="#">닫기</a>
+    </div>
+  </div>
 </main>
 
 <footer>
