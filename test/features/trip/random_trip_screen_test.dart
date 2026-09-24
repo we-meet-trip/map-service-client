@@ -6,6 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:map_service_client/common/constants/korea_regions.dart';
 import 'package:map_service_client/common/constants/random_missions.dart';
+import 'package:map_service_client/common/widgets/next_button.dart';
+import 'package:map_service_client/common/widgets/prev_button.dart';
+import 'package:map_service_client/core/api/places_api_service.dart';
+import 'package:map_service_client/features/trip/screens/plan_map_screen.dart';
 import 'package:map_service_client/features/trip/screens/random_trip_screen.dart';
 
 /// 정해 둔 순서대로 값을 내는 난수.
@@ -22,12 +26,14 @@ class _Scripted implements math.Random {
   bool nextBool() => false;
 }
 
-Widget _host(math.Random random) => MaterialApp(
+Widget _host(math.Random random, {PlaceSearch? placesApi}) => MaterialApp(
       home: Builder(
         builder: (context) => MediaQuery(
           // 돌아가는 모습 없이 바로 결과를 본다.
           data: MediaQuery.of(context).copyWith(disableAnimations: true),
-          child: Scaffold(body: RandomTripScreen(random: random)),
+          child: Scaffold(
+            body: RandomTripScreen(random: random, placesApi: placesApi),
+          ),
         ),
       ),
     );
@@ -118,5 +124,46 @@ void main() {
     expect(regionLabel('세종특별자치시', '세종특별자치시'), '세종특별자치시');
     expect(regionLabel('서울특별시', '종로구'), '서울특별시 종로구');
     expect(regionLabel('경기도', null), '경기도');
+  });
+
+  testWidgets('미션을 받으면 일정 없이 그 지역 장소를 둘러보기만 한다', (tester) async {
+    final sejong = kProvinces.indexOf('세종특별자치시');
+    String? searched;
+    await tester.pumpWidget(_host(
+      _Scripted([sejong, 0]),
+      placesApi: ({required province, city, query}) async {
+        searched = query;
+        return [
+          PlaceSearchItem(
+            contentId: 'kakao:1',
+            name: '국립세종도서관',
+            address: '세종 다솜로 250',
+            roadAddress: '',
+            latitude: 36.5,
+            longitude: 127.26,
+            category: '문화시설',
+          ),
+        ];
+      },
+    ));
+    await tester.tap(find.text('돌리기'));
+    await tester.pump();
+    await tester.pump();
+    await tester.tap(find.text('이곳으로 할게요  →'));
+    await tester.pump();
+
+    final mission = kRandomMissions[0];
+    await tester.tap(find.text('주변 장소 둘러보기  →'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.byType(PlanMapScreen), findsOneWidget);
+    expect(find.text(mission.title), findsOneWidget);
+    expect(searched, mission.query);
+    // 담기·다음 단계가 없다. 일정을 만들지 않는 자리다.
+    expect(find.byType(NextButton), findsNothing);
+
+    await tester.tap(find.byType(PrevButton));
+    await tester.pump();
+    expect(find.text('이번 여행의 미션'), findsOneWidget);
   });
 }

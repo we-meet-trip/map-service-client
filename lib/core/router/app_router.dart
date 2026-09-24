@@ -250,15 +250,10 @@ final appRouter = GoRouter(
                   path: 'manual',
                   builder: (context, state) => const ManualPlanEntryScreen(),
                 ),
-                // AI 없이 지도에서 장소를 찾아 일정을 짜는 자리. 랜덤 여행은
-                // 뽑은 지역과 미션을 extra 로 넘긴다.
+                // AI 없이 지도에서 장소를 찾아 일정을 짜는 자리.
                 GoRoute(
                   path: 'plan',
-                  builder: (context, state) => PlanFlowScreen(
-                    preset: state.extra is PlanPreset
-                        ? state.extra as PlanPreset
-                        : null,
-                  ),
+                  builder: (context, state) => const PlanFlowScreen(),
                 ),
                 GoRoute(
                   path: 'random',

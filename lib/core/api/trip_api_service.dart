@@ -110,7 +110,7 @@ class TripRouteRequest {
   final List<SelectedPlace> places;
   final bool optimize;
 
-  /// 이 요청을 시작한 화면(plan_start·random_mission·edit). 서버가 AI 추천
+  /// 이 요청을 시작한 화면(plan_start·edit). 서버가 AI 추천
   /// 대신 이 길을 고른 비율을 세는 데 쓴다.
   final String? entry;
 

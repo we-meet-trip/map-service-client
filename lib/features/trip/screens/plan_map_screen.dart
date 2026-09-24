@@ -31,16 +31,25 @@ bool placeInRegion(PlaceSearchItem item, String province, String? city) {
   );
 }
 
+/// 지역 안 장소 검색. 시험에서 서버 대신 넣는다.
+typedef PlaceSearch =
+    Future<List<PlaceSearchItem>> Function({
+      required String province,
+      String? city,
+      String? query,
+    });
+
 /// 지도에서 장소를 찾아 담는 화면. AI 를 거치지 않는다.
 ///
 /// 장소를 누르면 블로그 후기를 담은 상세 시트가 열리고, 거기서 경로에 담는다.
-/// 담은 장소는 [onNext] 로 넘겨 동선을 짜는 화면으로 간다.
+/// 담은 장소는 [onNext] 로 넘겨 동선을 짜는 화면으로 간다. [onNext] 가 없으면
+/// 담지 않고 둘러보기만 한다(랜덤 미션처럼 일정을 만들지 않는 자리).
 class PlanMapScreen extends StatefulWidget {
   const PlanMapScreen({
     super.key,
     required this.province,
     required this.city,
-    required this.onNext,
+    this.onNext,
     required this.onPrev,
     this.initialQuery,
     this.initialSelection = const [],
@@ -54,7 +63,9 @@ class PlanMapScreen extends StatefulWidget {
 
   /// 시군구. 시도 전체를 고른 경우 없다.
   final String? city;
-  final void Function(List<PlaceSearchItem> selected) onNext;
+  final void Function(List<PlaceSearchItem> selected)? onNext;
+
+  bool get browseOnly => onNext == null;
   final VoidCallback onPrev;
 
   /// 처음 검색할 낱말. 없으면 지역의 대표 장소를 보여 준다.
@@ -65,12 +76,7 @@ class PlanMapScreen extends StatefulWidget {
   /// 앞 단계(날짜·지역)와 이어지는 진행 표시.
   final int step;
   final int totalSteps;
-  final Future<List<PlaceSearchItem>> Function({
-    required String province,
-    String? city,
-    String? query,
-  })?
-  api;
+  final PlaceSearch? api;
 
   @override
   State<PlanMapScreen> createState() => _PlanMapScreenState();
@@ -89,6 +95,12 @@ class _PlanMapScreenState extends State<PlanMapScreen> {
   late final Map<String, PlaceSearchItem> _selected = {
     for (final item in widget.initialSelection) _keyOf(item): item,
   };
+
+  /// 검색을 마치면 포커스가 풀려 가려 둔 안내·단추가 돌아온다.
+  late final FocusNode _searchFocus = FocusNode()
+    ..addListener(() {
+      if (mounted) setState(() {});
+    });
 
   List<PlaceSearchItem> _results = const [];
   bool _loading = false;
@@ -111,6 +123,7 @@ class _PlanMapScreenState extends State<PlanMapScreen> {
   @override
   void dispose() {
     _query.dispose();
+    _searchFocus.dispose();
     super.dispose();
   }
 
@@ -135,7 +148,8 @@ class _PlanMapScreenState extends State<PlanMapScreen> {
         _results = inRegion;
         _loading = false;
         _message = inRegion.isEmpty
-            ? '$_regionLabel 중심 근처에서 찾은 장소가 없어요.\n다른 낱말(예: 카페, 공원)로 찾아보세요.'
+            ? '$_regionLabel 중심 근처에서 찾은 장소가 없어요.\n'
+                  '${widget.browseOnly ? '다른 낱말로 찾거나 미션을 다시 뽑아 보세요.' : '다른 낱말(예: 카페, 공원)로 찾아보세요.'}'
             : null;
       });
       _renderMarkers();
@@ -254,7 +268,7 @@ class _PlanMapScreenState extends State<PlanMapScreen> {
             category: item.category,
           ),
           isAdded: _selected.containsKey(_keyOf(item)),
-          onToggle: () => _toggle(item),
+          onToggle: widget.browseOnly ? null : () => _toggle(item),
           latitude: item.latitude,
           longitude: item.longitude,
           showAiSummary: false,
@@ -368,6 +382,10 @@ class _PlanMapScreenState extends State<PlanMapScreen> {
   Widget build(BuildContext context) {
     final topPad = MediaQuery.paddingOf(context).top;
     final bottomPad = MediaQuery.paddingOf(context).bottom;
+    // 키보드가 올라오면 바깥 탭 화면이 이 화면을 줄여, 가운데 안내·확대 단추가
+    // 위로 밀려 검색창을 덮는다. 검색어를 치는 동안에는 검색창만 남긴다. 키보드
+    // 높이는 바깥 화면이 가져가 여기서 보이지 않으므로 검색창 포커스로 판단한다.
+    final typing = _searchFocus.hasFocus;
     return Scaffold(
       body: Stack(
         children: [
@@ -397,7 +415,7 @@ class _PlanMapScreenState extends State<PlanMapScreen> {
           Positioned(top: 0, left: 0, right: 0, child: _buildHeader(topPad)),
           // 안내 문구가 떠 있을 때는 볼 장소가 없어 확대 단추를 숨긴다. 둘 다
           // 화면 가운데에 놓여 겹치기 때문이다.
-          if (_message == null)
+          if (_message == null && !typing)
             Positioned(
               right: 14,
               top: 0,
@@ -423,7 +441,7 @@ class _PlanMapScreenState extends State<PlanMapScreen> {
                 ),
               ),
             ),
-          if (_message != null)
+          if (_message != null && !typing)
             Positioned(
               left: 24,
               right: 24,
@@ -431,12 +449,13 @@ class _PlanMapScreenState extends State<PlanMapScreen> {
               bottom: 0,
               child: Center(child: _buildNotice(_message!)),
             ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: _buildButtons(bottomPad),
-          ),
+          if (!typing)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: _buildButtons(bottomPad),
+            ),
         ],
       ),
     );
@@ -463,9 +482,11 @@ class _PlanMapScreenState extends State<PlanMapScreen> {
           TripStepHeader(
             step: widget.step,
             totalSteps: widget.totalSteps,
-            isNextEnabled: _selected.isNotEmpty,
+            isNextEnabled: widget.browseOnly || _selected.isNotEmpty,
             title: widget.headline,
-            subtitle: '$_regionLabel · 장소를 눌러 후기를 보고 담아요',
+            subtitle: widget.browseOnly
+                ? '$_regionLabel · 장소를 눌러 후기를 봐요'
+                : '$_regionLabel · 장소를 눌러 후기를 보고 담아요',
           ),
           const SizedBox(height: 16),
           Container(
@@ -482,6 +503,7 @@ class _PlanMapScreenState extends State<PlanMapScreen> {
             ),
             child: TextField(
               controller: _query,
+              focusNode: _searchFocus,
               textInputAction: TextInputAction.search,
               onSubmitted: (_) => _search(),
               style: TextStyle(
@@ -568,15 +590,18 @@ class _PlanMapScreenState extends State<PlanMapScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (_results.isNotEmpty) _buildListChip(),
-          Padding(
-            padding: EdgeInsets.fromLTRB(24, 12, 24, 10 + bottomPad),
-            child: NextButton(
-              onPressed: count > 0
-                  ? () => widget.onNext(_selected.values.toList())
-                  : null,
-              info: count > 0 ? '$count곳 담음' : '장소를 눌러 담아 주세요',
-            ),
-          ),
+          if (widget.onNext case final onNext?)
+            Padding(
+              padding: EdgeInsets.fromLTRB(24, 12, 24, 10 + bottomPad),
+              child: NextButton(
+                onPressed: count > 0
+                    ? () => onNext(_selected.values.toList())
+                    : null,
+                info: count > 0 ? '$count곳 담음' : '장소를 눌러 담아 주세요',
+              ),
+            )
+          else
+            SizedBox(height: 16 + bottomPad),
           Padding(
             padding: const EdgeInsets.only(bottom: 20),
             child: PrevButton(onPressed: widget.onPrev),

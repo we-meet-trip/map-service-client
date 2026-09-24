@@ -12,32 +12,12 @@ import 'trip_created_screen.dart';
 import 'trip_step1_screen.dart';
 import 'trip_step5_screen.dart';
 
-/// 다른 화면에서 지역과 찾을 거리를 정해 두고 들어올 때 쓰는 값.
-///
-/// 랜덤 여행이 돌림판으로 뽑은 지역과 미션을 넘긴다. 지역이 정해져 있으면
-/// 지역 고르기 단계를 건너뛴다.
-class PlanPreset {
-  const PlanPreset({
-    required this.province,
-    required this.city,
-    this.query,
-    this.headline,
-  });
-
-  final String province;
-  final String city;
-  final String? query;
-  final String? headline;
-}
-
 /// '여행 일정 계획하기' — AI 없이 직접 장소를 찾아 일정을 짠다.
 ///
 /// 날짜 → 지역 → 지도에서 장소 담기 → 동선 → 결과. 동선은 서버가 계산하지만
 /// 장소를 고르는 데 AI 를 쓰지 않으므로 외부 AI 동의가 필요 없다.
 class PlanFlowScreen extends StatefulWidget {
-  const PlanFlowScreen({super.key, this.preset});
-
-  final PlanPreset? preset;
+  const PlanFlowScreen({super.key});
 
   @override
   State<PlanFlowScreen> createState() => _PlanFlowScreenState();
@@ -52,16 +32,15 @@ class _PlanFlowScreenState extends State<PlanFlowScreen> {
   DateTime? _endDate;
   double _startHour = 0;
   double _endHour = 0;
-  late String _province = widget.preset?.province ?? '선택';
-  late String _city = widget.preset?.city ?? '선택';
+  String _province = '선택';
+  String _city = '선택';
   List<PlaceSearchItem> _picked = const [];
 
   /// 동선 화면에서 고친 장소·이동수단. 결과를 남길 때 고친 이동수단을 쓴다.
   PlanEditDraft? _draft;
   TripGenerateResponse? _result;
 
-  bool get _hasPreset => widget.preset != null;
-  int get _totalSteps => _hasPreset ? 2 : 3;
+  static const _totalSteps = 3;
 
   /// 시도 전체를 고르면 시군구가 '전체'로 온다. 검색·동선에는 시군구 없이 보낸다.
   String? get _cityOrNull => _city == '전체' || _city == '선택' ? null : _city;
@@ -148,7 +127,7 @@ class _PlanFlowScreenState extends State<PlanFlowScreen> {
           _endHour = e;
         }),
         onPrev: () => context.go('/trip'),
-        onNext: () => _go(_hasPreset ? _Step.map : _Step.region),
+        onNext: () => _go(_Step.region),
       ),
       _Step.region => TripStep5Screen(
         step: 2,
@@ -165,12 +144,10 @@ class _PlanFlowScreenState extends State<PlanFlowScreen> {
       _Step.map => PlanMapScreen(
         province: _province,
         city: _cityOrNull,
-        initialQuery: widget.preset?.query,
-        headline: widget.preset?.headline ?? '가고 싶은 곳을 담아요',
-        step: _hasPreset ? 2 : 3,
+        step: 3,
         totalSteps: _totalSteps,
         initialSelection: _picked,
-        onPrev: () => _go(_hasPreset ? _Step.dates : _Step.region),
+        onPrev: () => _go(_Step.region),
         onNext: (selected) {
           _picked = selected;
           _draft = PlanEditDraft(
@@ -190,7 +167,7 @@ class _PlanFlowScreenState extends State<PlanFlowScreen> {
         transport: _draft!.transport,
         province: _province,
         city: _city,
-        entry: _hasPreset ? 'random_mission' : 'plan_start',
+        entry: 'plan_start',
         title: '동선 짜기',
         subtitle:
             '담은 장소의 날짜와 순서를 정해요.\n'

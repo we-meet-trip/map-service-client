@@ -81,6 +81,60 @@ void main() {
     expect(handedOver?.single.name, '국립고궁박물관');
   });
 
+  testWidgets('검색어를 치는 동안에는 검색창을 가리는 안내·단추를 숨긴다', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: PlanMapScreen(
+          province: '서울특별시',
+          city: '종로구',
+          onPrev: () {},
+          onNext: (_) {},
+          api: ({required province, city, query}) async => const [],
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.textContaining('찾은 장소가 없어요'), findsOneWidget);
+    expect(find.byType(NextButton), findsOneWidget);
+
+    await tester.tap(find.byType(TextField));
+    await tester.pump();
+    expect(find.textContaining('찾은 장소가 없어요'), findsNothing);
+    expect(find.byType(NextButton), findsNothing);
+
+    // 검색을 마치면 포커스가 풀려 다시 보인다.
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pump();
+    await tester.pump();
+    expect(find.textContaining('찾은 장소가 없어요'), findsOneWidget);
+    expect(find.byType(NextButton), findsOneWidget);
+  });
+
+  testWidgets('다음 단계가 없으면 담지 않고 둘러보기만 한다', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: PlanMapScreen(
+          province: '서울특별시',
+          city: '종로구',
+          initialQuery: '박물관',
+          onPrev: () {},
+          api: ({required province, city, query}) async => [
+            _item('국립고궁박물관', '서울 종로구 효자로 12'),
+          ],
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.byType(NextButton), findsNothing);
+
+    await tester.tap(find.text('찾은 장소 목록 (1)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('국립고궁박물관'));
+    await tester.pumpAndSettle();
+    expect(find.byType(PlaceBottomSheet), findsOneWidget);
+    expect(find.text('+ 내 경로에 추가하기'), findsNothing);
+  });
+
   testWidgets('일정 결과의 장소 상세도 AI 요약을 끌 수 있다', (tester) async {
     Widget host(bool showAiSummary) => MaterialApp(
           home: Scaffold(
