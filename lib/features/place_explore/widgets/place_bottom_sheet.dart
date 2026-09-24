@@ -33,6 +33,10 @@ class PlaceBottomSheet extends StatefulWidget {
   /// 목록 위에서는 내용이 바로 보이게 높게 연다.
   final double initialChildSize;
 
+  /// AI 후기 요약 자리를 보여 줄지. AI 없이 일정을 짜는 흐름에서는 끈다 —
+  /// 그 흐름은 장소 정보를 외부 AI 로 보내지 않는다고 약속한 자리다.
+  final bool showAiSummary;
+
   const PlaceBottomSheet({
     super.key,
     required this.detail,
@@ -41,6 +45,7 @@ class PlaceBottomSheet extends StatefulWidget {
     this.latitude,
     this.longitude,
     this.initialChildSize = 0.48,
+    this.showAiSummary = true,
   });
 
   @override
@@ -169,7 +174,8 @@ class _PlaceBottomSheetState extends State<PlaceBottomSheet> {
               SliverToBoxAdapter(child: _buildHeader()),
               SliverToBoxAdapter(child: _buildDivider()),
               SliverToBoxAdapter(child: _buildPhotos()),
-              SliverToBoxAdapter(child: _buildSummary()),
+              if (widget.showAiSummary)
+                SliverToBoxAdapter(child: _buildSummary()),
               SliverToBoxAdapter(child: _buildReviewsHeader()),
               if (_reviewsLoading)
                 SliverToBoxAdapter(child: _buildReviewsLoading())

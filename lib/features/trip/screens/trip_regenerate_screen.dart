@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../../common/widgets/app_loading_screen.dart';
 import '../../../core/api/trip_api_service.dart';
 import '../../../core/state/auth_store.dart';
@@ -39,8 +40,8 @@ class _TripRegenerateScreenState extends State<TripRegenerateScreen> {
     super.initState();
     tripScreenResetNotifier.addListener(_onTabReset);
     tripRetrialNotifier.addListener(_onRetrial);
-    // 완성 화면의 '새 일정 만들기' 도 재탐색과 같은 자리로 돌아간다.
-    TripRepository.instance.newPlanRequested.addListener(_onRetrial);
+    // 완성 화면의 '새 일정 만들기'는 만드는 방법부터 다시 고르게 첫 화면으로 간다.
+    TripRepository.instance.newPlanRequested.addListener(_onNewPlan);
     TripRepository.instance.tripTabEntered.addListener(_onTabEntered);
     // 로그인/회원가입 후 복귀 시 임시 저장된 일정 복원
     final pending = TripRepository.instance.pendingTrip;
@@ -55,7 +56,7 @@ class _TripRegenerateScreenState extends State<TripRegenerateScreen> {
   void dispose() {
     tripScreenResetNotifier.removeListener(_onTabReset);
     tripRetrialNotifier.removeListener(_onRetrial);
-    TripRepository.instance.newPlanRequested.removeListener(_onRetrial);
+    TripRepository.instance.newPlanRequested.removeListener(_onNewPlan);
     TripRepository.instance.tripTabEntered.removeListener(_onTabEntered);
     super.dispose();
   }
@@ -89,6 +90,15 @@ class _TripRegenerateScreenState extends State<TripRegenerateScreen> {
     setState(() {
       _clearInputs();
       _currentStep = 1;
+    });
+  }
+
+  /// 새 일정 만들기: 입력을 비우고 만드는 방법을 고르는 첫 화면으로.
+  void _onNewPlan() {
+    if (!mounted) return;
+    setState(() {
+      _clearInputs();
+      _currentStep = 0;
     });
   }
 
@@ -262,7 +272,11 @@ class _TripRegenerateScreenState extends State<TripRegenerateScreen> {
 
     switch (_currentStep) {
       case 0:
-        return TripStartScreen(onStart: _next);
+        return TripStartScreen(
+          onStart: _next,
+          onPlan: () => context.go('/trip/plan'),
+          onRandom: () => context.go('/trip/random'),
+        );
       case 1:
         return TripStep1Screen(
           onNext: _next,

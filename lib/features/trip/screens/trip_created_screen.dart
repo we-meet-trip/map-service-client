@@ -37,6 +37,7 @@ class TripCreatedScreen extends StatefulWidget {
     this.startDate,
     this.endDate,
     this.savedTrip,
+    this.showAiSummary = true,
   });
 
   final bool showBackButton;
@@ -45,6 +46,10 @@ class TripCreatedScreen extends StatefulWidget {
   final DateTime? startDate;
   final DateTime? endDate;
   final SavedTrip? savedTrip;
+
+  /// 장소 상세에서 AI 후기 요약을 보여 줄지. AI 없이 짠 일정은 저장 전까지
+  /// 장소 정보를 외부 AI 로 보내지 않는다.
+  final bool showAiSummary;
 
   @override
   State<TripCreatedScreen> createState() => _TripCreatedScreenState();
@@ -939,6 +944,7 @@ class _TripCreatedScreenState extends State<TripCreatedScreen> {
                     category: stop.category,
                     latitude: stop.latLng.latitude,
                     longitude: stop.latLng.longitude,
+                    showAiSummary: widget.showAiSummary,
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,

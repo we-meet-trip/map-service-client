@@ -37,6 +37,7 @@ ManualRouteDraft buildManualRouteDraft({
   required String province,
   required String city,
   bool optimize = false,
+  String? entry,
   int minPlaces = 2,
   int maxPlaces = 10,
 }) {
@@ -50,6 +51,7 @@ ManualRouteDraft buildManualRouteDraft({
   return ManualRouteDraft(
     request: TripRouteRequest(
       optimize: optimize,
+      entry: entry,
       startDate: startDate,
       endDate: endDate,
       activeStartHour: activeStartHour,

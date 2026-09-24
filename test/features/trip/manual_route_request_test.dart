@@ -83,4 +83,20 @@ void main() {
     expect(draft.blockedBy, ManualRouteBlock.tooMany);
     expect(draft.request, isNull);
   });
+  test('진입 화면을 주면 싣고, 주지 않으면 키째 뺀다', () {
+    final stops = [stop(order: 1, name: 'A'), stop(order: 2, name: 'B')];
+    ManualRouteDraft build(String? entry) => buildManualRouteDraft(
+          stops: stops,
+          entry: entry,
+          startDate: DateTime(2026, 5, 1),
+          endDate: DateTime(2026, 5, 1),
+          activeStartHour: 9,
+          activeEndHour: 20,
+          transport: 'walk',
+          province: '강원특별자치도',
+          city: '속초시',
+        );
+    expect(build('plan_start').request!.toJson()['entry'], 'plan_start');
+    expect(build(null).request!.toJson().containsKey('entry'), isFalse);
+  });
 }
