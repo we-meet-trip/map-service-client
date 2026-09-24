@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../common/constants/korea_regions.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../common/widgets/app_loading_screen.dart';
 import '../../../common/widgets/next_button.dart';
@@ -699,7 +700,7 @@ class _PlaceSearchSheetState extends State<_PlaceSearchSheet> {
       child: Column(
         children: [
           Text(
-            '${widget.province} ${widget.city}'.trim(),
+            regionLabel(widget.province, widget.city),
             style: TextStyle(fontSize: 12, color: AppColors.neutralScale[400]),
           ),
           const SizedBox(height: 8),

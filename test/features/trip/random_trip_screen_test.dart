@@ -108,4 +108,10 @@ void main() {
       expect(kProvinceShortNames[p], isNotNull, reason: p);
     }
   });
+
+  test('시도와 시군구가 같으면 지역 이름을 한 번만 쓴다', () {
+    expect(regionLabel('세종특별자치시', '세종특별자치시'), '세종특별자치시');
+    expect(regionLabel('서울특별시', '종로구'), '서울특별시 종로구');
+    expect(regionLabel('경기도', null), '경기도');
+  });
 }

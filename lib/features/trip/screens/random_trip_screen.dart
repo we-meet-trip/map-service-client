@@ -159,61 +159,68 @@ class _RandomTripScreenState extends State<RandomTripScreen> {
   Widget build(BuildContext context) {
     final topPad = MediaQuery.paddingOf(context).top;
     final bottomPad = MediaQuery.paddingOf(context).bottom;
-    return Column(
-      children: [
-        Expanded(
-          child: ListView(
-            padding: EdgeInsets.fromLTRB(24, topPad + 24, 24, 24),
-            children: [
-              Text(
-                switch (_stage) {
-                  _Stage.province => '어느 지역으로 떠날까요?',
-                  _Stage.city => '$_province 어디로 갈까요?',
-                  _Stage.mission => '이번 여행의 미션',
-                },
-                style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.neutralScale[600],
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _stage == _Stage.mission
-                    ? '$_province $_city에서 해 볼 일이에요.'
-                    : '돌림판을 돌려 여행지를 정해요.',
-                style: TextStyle(fontSize: 13, color: AppColors.neutralScale[400]),
-              ),
-              const SizedBox(height: 24),
-              if (_stage == _Stage.mission)
-                _buildMissionCard()
-              else ...[
-                // 결과는 돌림판 위에 둔다. 아래에 두면 작은 화면에서 스크롤해야 보인다.
-                _buildResultText(),
-                const SizedBox(height: 12),
-                Center(
-                  child: RouletteWheel(
-                    key: ValueKey(_stage),
-                    labels: _labels,
-                    spin: _spin,
-                    onSettled: _onSettled,
+    // 앞 화면의 어두운 배경이 상태바를 흰 글자로 바꿔 두므로 되돌린다.
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.dark,
+      child: Column(
+        children: [
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.fromLTRB(24, topPad + 24, 24, 24),
+              children: [
+                Text(
+                  switch (_stage) {
+                    _Stage.province => '어느 지역으로 떠날까요?',
+                    _Stage.city => '$_province 어디로 갈까요?',
+                    _Stage.mission => '이번 여행의 미션',
+                  },
+                  style: TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.neutralScale[600],
                   ),
                 ),
+                const SizedBox(height: 8),
+                Text(
+                  _stage == _Stage.mission
+                      ? '${regionLabel(_province!, _city)}에서 해 볼 일이에요.'
+                      : '돌림판을 돌려 여행지를 정해요.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppColors.neutralScale[400],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                if (_stage == _Stage.mission)
+                  _buildMissionCard()
+                else ...[
+                  // 결과는 돌림판 위에 둔다. 아래에 두면 작은 화면에서 스크롤해야 보인다.
+                  _buildResultText(),
+                  const SizedBox(height: 12),
+                  Center(
+                    child: RouletteWheel(
+                      key: ValueKey(_stage),
+                      labels: _labels,
+                      spin: _spin,
+                      onSettled: _onSettled,
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
-        ),
-        Padding(
-          padding: EdgeInsets.fromLTRB(24, 0, 24, 10 + bottomPad),
-          child: _buildPrimaryButton(),
-        ),
-        Padding(
-          padding: const EdgeInsets.only(bottom: 20),
-          child: _stage == _Stage.province && _settled == null
-              ? PrevButton(onPressed: () => context.go('/trip'))
-              : PrevButton(onPressed: _restart, label: '처음부터'),
-        ),
-      ],
+          Padding(
+            padding: EdgeInsets.fromLTRB(24, 0, 24, 10 + bottomPad),
+            child: _buildPrimaryButton(),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 20),
+            child: _stage == _Stage.province && _settled == null
+                ? PrevButton(onPressed: () => context.go('/trip'))
+                : PrevButton(onPressed: _restart, label: '처음부터'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -248,10 +255,7 @@ class _RandomTripScreenState extends State<RandomTripScreen> {
     }
     final left = _rerollsLeft[_stage]!;
     if (_settled == null) {
-      return NextButton(
-        onPressed: _spinning ? null : _spinWheel,
-        label: '돌리기',
-      );
+      return NextButton(onPressed: _spinning ? null : _spinWheel, label: '돌리기');
     }
     return Column(
       children: [
@@ -293,7 +297,7 @@ class _RandomTripScreenState extends State<RandomTripScreen> {
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.neutralScale[700],
+                    color: AppColors.neutralScale[600],
                   ),
                 ),
                 if (kIslandCities.contains(_city)) ...[
@@ -313,9 +317,7 @@ class _RandomTripScreenState extends State<RandomTripScreen> {
         ),
         const SizedBox(height: 12),
         TextButton(
-          onPressed: left > 0
-              ? () => setState(() => _drawMission())
-              : null,
+          onPressed: left > 0 ? () => setState(() => _drawMission()) : null,
           child: Text('미션 다시 뽑기 ($left번 남음)'),
         ),
       ],

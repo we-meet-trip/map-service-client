@@ -91,8 +91,7 @@ class _PlanMapScreenState extends State<PlanMapScreen> {
   int _renderPass = 0;
   Future<void>? _renderInFlight;
 
-  String get _regionLabel =>
-      [widget.province, widget.city].whereType<String>().join(' ');
+  String get _regionLabel => regionLabel(widget.province, widget.city);
 
   @override
   void initState() {

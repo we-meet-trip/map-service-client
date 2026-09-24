@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/api/places_api_service.dart';
 import '../../../core/api/trip_api_service.dart';
@@ -91,7 +92,11 @@ class _PlanFlowScreenState extends State<PlanFlowScreen> {
     final n = _picked.length;
     return [
       for (var i = 0; i < n; i++)
-        tripStopFromSearchItem(_picked[i], order: i + 1, day: i * days ~/ n + 1),
+        tripStopFromSearchItem(
+          _picked[i],
+          order: i + 1,
+          day: i * days ~/ n + 1,
+        ),
     ];
   }
 
@@ -118,37 +123,45 @@ class _PlanFlowScreenState extends State<PlanFlowScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 앞 화면의 어두운 배경이 상태바를 흰 글자로 바꿔 두므로 되돌린다.
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.dark,
+      child: _buildStep(context),
+    );
+  }
+
+  Widget _buildStep(BuildContext context) {
     return switch (_step) {
       _Step.dates => TripStep1Screen(
-          step: 1,
-          totalSteps: _totalSteps,
-          startDate: _startDate,
-          endDate: _endDate,
-          startHour: _startHour,
-          endHour: _endHour,
-          onDateChanged: (s, e) => setState(() {
-            _startDate = s;
-            _endDate = e;
-          }),
-          onTimeChanged: (s, e) => setState(() {
-            _startHour = s;
-            _endHour = e;
-          }),
-          onPrev: () => context.go('/trip'),
-          onNext: () => _go(_hasPreset ? _Step.map : _Step.region),
-        ),
+        step: 1,
+        totalSteps: _totalSteps,
+        startDate: _startDate,
+        endDate: _endDate,
+        startHour: _startHour,
+        endHour: _endHour,
+        onDateChanged: (s, e) => setState(() {
+          _startDate = s;
+          _endDate = e;
+        }),
+        onTimeChanged: (s, e) => setState(() {
+          _startHour = s;
+          _endHour = e;
+        }),
+        onPrev: () => context.go('/trip'),
+        onNext: () => _go(_hasPreset ? _Step.map : _Step.region),
+      ),
       _Step.region => TripStep5Screen(
-          step: 2,
-          totalSteps: _totalSteps,
-          selectedProvince: _province,
-          selectedCity: _city,
-          onLocationChanged: (p, c) => setState(() {
-            _province = p;
-            _city = c;
-          }),
-          onPrev: () => _go(_Step.dates),
-          onNext: () => _go(_Step.map),
-        ),
+        step: 2,
+        totalSteps: _totalSteps,
+        selectedProvince: _province,
+        selectedCity: _city,
+        onLocationChanged: (p, c) => setState(() {
+          _province = p;
+          _city = c;
+        }),
+        onPrev: () => _go(_Step.dates),
+        onNext: () => _go(_Step.map),
+      ),
       _Step.map => PlanMapScreen(
         province: _province,
         city: _cityOrNull,
@@ -166,22 +179,23 @@ class _PlanFlowScreenState extends State<PlanFlowScreen> {
         },
       ),
       _Step.route => ManualPlanScreen(
-          draft: _draft,
-          initialStops: _draft!.stops,
-          startDate: _startDate!,
-          endDate: _endDate!,
-          activeStartHour: _startHour.toInt(),
-          activeEndHour: _endHour.toInt(),
-          transport: _draft!.transport,
-          province: _province,
-          city: _city,
-          entry: _hasPreset ? 'random_mission' : 'plan_start',
-          title: '동선 짜기',
-          subtitle: '담은 장소의 날짜와 순서를 정해요.\n'
-              '방문 시각과 이동 시간은 동선을 만들 때 계산돼요.',
-          onRouted: _onRouted,
-          onCancel: () => _go(_Step.map),
-        ),
+        draft: _draft,
+        initialStops: _draft!.stops,
+        startDate: _startDate!,
+        endDate: _endDate!,
+        activeStartHour: _startHour.toInt(),
+        activeEndHour: _endHour.toInt(),
+        transport: _draft!.transport,
+        province: _province,
+        city: _city,
+        entry: _hasPreset ? 'random_mission' : 'plan_start',
+        title: '동선 짜기',
+        subtitle:
+            '담은 장소의 날짜와 순서를 정해요.\n'
+            '방문 시각과 이동 시간은 동선을 만들 때 계산돼요.',
+        onRouted: _onRouted,
+        onCancel: () => _go(_Step.map),
+      ),
       _Step.result => TripCreatedScreen(
         response: _result,
         startDate: _startDate,

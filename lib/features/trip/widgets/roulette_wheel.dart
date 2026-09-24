@@ -122,9 +122,10 @@ class _RouletteWheelState extends State<RouletteWheel>
       });
       return;
     }
-    _rotation = Tween(begin: _current, end: stop).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
-    );
+    _rotation = Tween(
+      begin: _current,
+      end: stop,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
     _angle = stop;
     _controller.forward(from: 0);
   }
@@ -151,12 +152,9 @@ class _RouletteWheelState extends State<RouletteWheel>
               top: 16,
               child: AnimatedBuilder(
                 animation: _controller,
-                builder: (context, _) => Transform.rotate(
-                  angle: _current,
-                  child: CustomPaint(
-                    size: Size.square(widget.size),
-                    painter: _WheelPainter(widget.labels),
-                  ),
+                builder: (context, _) => CustomPaint(
+                  size: Size.square(widget.size),
+                  painter: _WheelPainter(widget.labels, _current),
                 ),
               ),
             ),
@@ -174,9 +172,12 @@ class _RouletteWheelState extends State<RouletteWheel>
 }
 
 class _WheelPainter extends CustomPainter {
-  _WheelPainter(this.labels);
+  _WheelPainter(this.labels, this.angle);
 
   final List<String> labels;
+
+  /// 지금 회전량. 글자 방향을 매 프레임 이 값으로 정한다.
+  final double angle;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -194,7 +195,7 @@ class _WheelPainter extends CustomPainter {
     final fontSize = count > 20 ? 10.0 : (count > 12 ? 12.0 : 14.0);
 
     for (var i = 0; i < count; i++) {
-      final start = -math.pi / 2 + i * segment;
+      final start = -math.pi / 2 + i * segment + angle;
       // 칸 수가 홀수면 첫 칸과 끝 칸이 같은 색으로 붙지 않게 세 색을 돌린다.
       final color = colors[(count.isOdd && i == count - 1) ? 2 : i % 2];
       canvas.drawArc(rect, start, segment, true, Paint()..color = color);
@@ -209,29 +210,39 @@ class _WheelPainter extends CustomPainter {
           ..strokeWidth = 1,
       );
 
-      // 글자는 칸 가운데를 따라 바깥쪽을 향해 눕힌다.
+      // 글자는 칸 가운데를 따라 눕힌다. 판의 왼쪽 절반에 온 칸은 그대로 두면
+      // 거꾸로 읽히므로 반 바퀴 뒤집어 늘 바로 읽히게 한다.
       final text = TextPainter(
         text: TextSpan(
           text: labels[i],
           style: TextStyle(
             fontSize: fontSize,
             fontWeight: FontWeight.w600,
-            color: AppColors.neutralScale[700],
+            color: AppColors.neutralScale[600],
           ),
         ),
         textDirection: TextDirection.ltr,
         maxLines: 1,
         ellipsis: '…',
       )..layout(maxWidth: radius * 0.62);
+      final mid = start + segment / 2;
+      final onLeft = math.cos(mid) < 0;
       canvas.save();
       canvas.translate(center.dx, center.dy);
-      canvas.rotate(start + segment / 2);
-      text.paint(canvas, Offset(radius * 0.92 - text.width, -text.height / 2));
+      canvas.rotate(onLeft ? mid + math.pi : mid);
+      text.paint(
+        canvas,
+        Offset(
+          onLeft ? -radius * 0.92 : radius * 0.92 - text.width,
+          -text.height / 2,
+        ),
+      );
       canvas.restore();
     }
     canvas.drawCircle(center, radius * 0.08, Paint()..color = Colors.white);
   }
 
   @override
-  bool shouldRepaint(_WheelPainter oldDelegate) => oldDelegate.labels != labels;
+  bool shouldRepaint(_WheelPainter oldDelegate) =>
+      oldDelegate.labels != labels || oldDelegate.angle != angle;
 }
