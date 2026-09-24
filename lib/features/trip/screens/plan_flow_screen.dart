@@ -175,6 +175,7 @@ class _PlanFlowScreenState extends State<PlanFlowScreen> {
           transport: _draft!.transport,
           province: _province,
           city: _city,
+          entry: _hasPreset ? 'random_mission' : 'plan_start',
           title: '동선 짜기',
           subtitle: '담은 장소의 날짜와 순서를 정해요.\n'
               '방문 시각과 이동 시간은 동선을 만들 때 계산돼요.',

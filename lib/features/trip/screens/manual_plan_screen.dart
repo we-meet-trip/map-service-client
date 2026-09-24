@@ -33,6 +33,7 @@ class ManualPlanScreen extends StatefulWidget {
     required this.city,
     required this.onRouted,
     required this.onCancel,
+    this.entry = 'edit',
     this.title = '일정 직접 고치기',
     this.subtitle = '장소를 눌러 지우거나 옮기고, 끌어서 순서를 바꿔요.\n'
         '방문 시각과 이동 시간은 동선을 만들 때 다시 계산돼요.',
@@ -55,6 +56,9 @@ class ManualPlanScreen extends StatefulWidget {
 
   /// 고치기를 그만두고 돌아간다.
   final VoidCallback onCancel;
+
+  /// 동선 요청을 시작한 화면. 서버가 흐름별 이용을 세는 데 쓴다.
+  final String entry;
 
   /// 화면 제목과 안내. 새로 짜는 흐름과 고치는 흐름이 같은 화면을 쓴다.
   final String title;
@@ -179,6 +183,7 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
     final draft = buildManualRouteDraft(
       stops: _stops,
       optimize: optimize,
+      entry: widget.entry,
       startDate: widget.startDate,
       endDate: widget.endDate,
       activeStartHour: widget.activeStartHour,
