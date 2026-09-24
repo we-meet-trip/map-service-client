@@ -8,6 +8,8 @@ import '../../../common/theme/app_colors.dart';
 import '../../../common/widgets/next_button.dart';
 import '../../../common/widgets/prev_button.dart';
 import '../widgets/roulette_wheel.dart';
+import '../widgets/trip_card.dart';
+import '../widgets/trip_step_header.dart';
 import 'plan_flow_screen.dart';
 
 /// 한 단계에서 다시 돌릴 수 있는 횟수. '처음부터'는 제한하지 않는다.
@@ -59,6 +61,15 @@ class _RandomTripScreenState extends State<RandomTripScreen> {
     _Stage.province => [for (final p in kProvinces) kProvinceShortNames[p]!],
     _Stage.city => _cities,
     _Stage.mission => const [],
+  };
+
+  /// 세종처럼 시군구가 하나뿐이면 두 번째 돌림판을 건너뛰어 단계가 하나 준다.
+  int get _stepCount => _province != null && _cities.length == 1 ? 2 : 3;
+
+  int get _stepNumber => switch (_stage) {
+    _Stage.province => 1,
+    _Stage.city => 2,
+    _Stage.mission => _stepCount,
   };
 
   void _spinWheel() {
@@ -166,46 +177,58 @@ class _RandomTripScreenState extends State<RandomTripScreen> {
         children: [
           Expanded(
             child: ListView(
-              padding: EdgeInsets.fromLTRB(24, topPad + 24, 24, 24),
+              // 아래 버튼 그림자가 내용과 겹치지 않게 여유를 둔다.
+              padding: EdgeInsets.fromLTRB(24, topPad + 24, 24, 48),
               children: [
-                Text(
-                  switch (_stage) {
+                TripStepHeader(
+                  step: _stepNumber,
+                  totalSteps: _stepCount,
+                  isNextEnabled: _stage == _Stage.mission || _settled != null,
+                  title: switch (_stage) {
                     _Stage.province => '어느 지역으로 떠날까요?',
                     _Stage.city => '$_province 어디로 갈까요?',
                     _Stage.mission => '이번 여행의 미션',
                   },
-                  style: TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.neutralScale[600],
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  _stage == _Stage.mission
+                  subtitle: _stage == _Stage.mission
                       ? '${regionLabel(_province!, _city)}에서 해 볼 일이에요.'
                       : '돌림판을 돌려 여행지를 정해요.',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: AppColors.neutralScale[400],
-                  ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 28),
                 if (_stage == _Stage.mission)
                   _buildMissionCard()
-                else ...[
-                  // 결과는 돌림판 위에 둔다. 아래에 두면 작은 화면에서 스크롤해야 보인다.
-                  _buildResultText(),
-                  const SizedBox(height: 12),
-                  Center(
-                    child: RouletteWheel(
-                      key: ValueKey(_stage),
-                      labels: _labels,
-                      spin: _spin,
-                      onSettled: _onSettled,
+                else
+                  TripCard(
+                    child: Column(
+                      children: [
+                        // 결과는 돌림판 위에 둔다. 아래에 두면 작은 화면에서 스크롤해야 보인다.
+                        _buildResultText(),
+                        const SizedBox(height: 12),
+                        LayoutBuilder(
+                          builder: (context, constraints) => RouletteWheel(
+                            key: ValueKey(_stage),
+                            labels: _labels,
+                            spin: _spin,
+                            onSettled: _onSettled,
+                            // 버튼 위에서 카드가 잘리지 않게 화면 높이에도 맞춘다.
+                            size: [
+                              280.0,
+                              constraints.maxWidth,
+                              MediaQuery.sizeOf(context).height * 0.27,
+                            ].reduce(math.min),
+                          ),
+                        ),
+                        if (_settled != null) ...[
+                          const SizedBox(height: 16),
+                          _RerollChip(
+                            label: '다시 돌리기 (${_rerollsLeft[_stage]}번 남음)',
+                            onPressed: _rerollsLeft[_stage]! > 0
+                                ? _spinWheel
+                                : null,
+                          ),
+                        ],
+                      ],
                     ),
                   ),
-                ],
               ],
             ),
           ),
@@ -239,7 +262,7 @@ class _RandomTripScreenState extends State<RandomTripScreen> {
         style: TextStyle(
           fontSize: 20,
           fontWeight: FontWeight.w700,
-          color: AppColors.secondaryScale[500],
+          color: AppColors.secondaryScale[900],
         ),
       ),
     );
@@ -253,44 +276,36 @@ class _RandomTripScreenState extends State<RandomTripScreen> {
         label: mission.query == null ? '일정 짜러 가기  →' : '미션 장소 찾으러 가기  →',
       );
     }
-    final left = _rerollsLeft[_stage]!;
     if (_settled == null) {
       return NextButton(onPressed: _spinning ? null : _spinWheel, label: '돌리기');
     }
-    return Column(
-      children: [
-        NextButton(onPressed: _confirm, label: '이곳으로 할게요  →'),
-        TextButton(
-          onPressed: left > 0 ? _spinWheel : null,
-          child: Text('다시 돌리기 ($left번 남음)'),
-        ),
-      ],
-    );
+    return NextButton(onPressed: _confirm, label: '이곳으로 할게요  →');
   }
 
   Widget _buildMissionCard() {
     final mission = _mission!;
     final left = _rerollsLeft[_Stage.mission]!;
-    return Column(
-      children: [
-        Semantics(
-          liveRegion: true,
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: AppColors.secondaryScale[0],
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.secondaryScale[200]!),
-            ),
+    return TripCard(
+      child: Column(
+        children: [
+          Semantics(
+            liveRegion: true,
             child: Column(
               children: [
-                Icon(
-                  Icons.flag_rounded,
-                  size: 36,
-                  color: AppColors.secondaryScale[500],
+                Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: AppColors.secondaryScale[100],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.flag_rounded,
+                    size: 24,
+                    color: AppColors.secondaryScale[500],
+                  ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
                 Text(
                   mission.title,
                   textAlign: TextAlign.center,
@@ -298,6 +313,7 @@ class _RandomTripScreenState extends State<RandomTripScreen> {
                     fontSize: 20,
                     fontWeight: FontWeight.w700,
                     color: AppColors.neutralScale[600],
+                    height: 1.35,
                   ),
                 ),
                 if (kIslandCities.contains(_city)) ...[
@@ -314,13 +330,68 @@ class _RandomTripScreenState extends State<RandomTripScreen> {
               ],
             ),
           ),
+          const SizedBox(height: 20),
+          _RerollChip(
+            label: '미션 다시 뽑기 ($left번 남음)',
+            onPressed: left > 0 ? () => setState(() => _drawMission()) : null,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 다시 돌리기·다시 뽑기용 알약 버튼. 장소 시트의 '후기 더보기'와 같은 모양이다.
+class _RerollChip extends StatelessWidget {
+  const _RerollChip({required this.label, required this.onPressed});
+
+  final String label;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onPressed != null;
+    final fg = enabled
+        ? AppColors.tripAccentPurple
+        : AppColors.neutralScale[400]!;
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      child: Material(
+        color: enabled
+            ? AppColors.reviewMoreButtonBg
+            : AppColors.neutralScale[100],
+        shape: StadiumBorder(
+          side: BorderSide(
+            color: enabled
+                ? AppColors.tripOriginChipBorder
+                : Colors.transparent,
+          ),
         ),
-        const SizedBox(height: 12),
-        TextButton(
-          onPressed: left > 0 ? () => setState(() => _drawMission()) : null,
-          child: Text('미션 다시 뽑기 ($left번 남음)'),
+        child: InkWell(
+          onTap: onPressed,
+          customBorder: const StadiumBorder(),
+          child: Container(
+            height: 38,
+            padding: const EdgeInsets.symmetric(horizontal: 28),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.refresh_rounded, size: 16, color: fg),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: fg,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
-      ],
+      ),
     );
   }
 }

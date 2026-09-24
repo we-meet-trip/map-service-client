@@ -59,6 +59,8 @@ void main() {
     expect(find.text('미션 다시 뽑기 (2번 남음)'), findsOneWidget);
 
     // 다시 뽑으면 같은 미션이 나오지 않고 남은 횟수가 준다.
+    await tester.ensureVisible(find.text('미션 다시 뽑기 (2번 남음)'));
+    await tester.pump();
     await tester.tap(find.text('미션 다시 뽑기 (2번 남음)'));
     await tester.pump();
     expect(find.text(kRandomMissions[0].title), findsNothing);
@@ -72,6 +74,9 @@ void main() {
     await tester.pump();
     expect(find.text('다시 돌리기 (2번 남음)'), findsOneWidget);
 
+    // 다시 돌리기는 돌림판 아래에 있어 작은 화면에서는 내려야 보인다.
+    await tester.ensureVisible(find.text('다시 돌리기 (2번 남음)'));
+    await tester.pump();
     await tester.tap(find.text('다시 돌리기 (2번 남음)'));
     await tester.pump();
     await tester.pump();

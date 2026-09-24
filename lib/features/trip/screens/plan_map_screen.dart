@@ -13,6 +13,8 @@ import '../../place_explore/models/place_detail.dart';
 import '../../place_explore/widgets/glass_icon_button.dart';
 import '../../place_explore/widgets/place_bottom_sheet.dart';
 import '../../place_explore/widgets/place_pin.dart';
+import '../widgets/trip_card.dart';
+import '../widgets/trip_step_header.dart';
 
 /// 검색 결과가 그 지역 안의 장소인지.
 ///
@@ -43,6 +45,8 @@ class PlanMapScreen extends StatefulWidget {
     this.initialQuery,
     this.initialSelection = const [],
     this.headline = '가고 싶은 곳을 담아요',
+    this.step = 3,
+    this.totalSteps = 3,
     this.api,
   });
 
@@ -57,11 +61,16 @@ class PlanMapScreen extends StatefulWidget {
   final String? initialQuery;
   final List<PlaceSearchItem> initialSelection;
   final String headline;
+
+  /// 앞 단계(날짜·지역)와 이어지는 진행 표시.
+  final int step;
+  final int totalSteps;
   final Future<List<PlaceSearchItem>> Function({
     required String province,
     String? city,
     String? query,
-  })? api;
+  })?
+  api;
 
   @override
   State<PlanMapScreen> createState() => _PlanMapScreenState();
@@ -212,7 +221,7 @@ class _PlanMapScreenState extends State<PlanMapScreen> {
         ),
         padding: EdgeInsets.fromLTRB(
           60,
-          math.min(media.padding.top + 170, limit),
+          math.min(media.padding.top + 230, limit),
           60,
           math.min(media.padding.bottom + 170, limit),
         ),
@@ -267,39 +276,88 @@ class _PlanMapScreenState extends State<PlanMapScreen> {
         height: MediaQuery.of(sheetContext).size.height * 0.7,
         decoration: const BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
-        child: ListView.builder(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          itemCount: _results.length,
-          itemBuilder: (context, index) {
-            final item = _results[index];
-            final added = _selected.containsKey(_keyOf(item));
-            return ListTile(
-              leading: CircleAvatar(
-                radius: 14,
-                backgroundColor: AppColors.primaryScale[100],
-                child: Text(
-                  '${index + 1}',
-                  style: const TextStyle(fontSize: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                margin: const EdgeInsets.only(top: 12, bottom: 16),
+                width: 44,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: AppColors.neutralScale[200],
+                  borderRadius: BorderRadius.circular(3),
                 ),
               ),
-              title: Text(item.name, style: const TextStyle(fontSize: 14)),
-              subtitle: Text(
-                item.displayAddress,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Text(
+                '찾은 장소 ${_results.length}곳',
                 style: TextStyle(
-                  fontSize: 12,
-                  color: AppColors.neutralScale[400],
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.neutralScale[600],
                 ),
               ),
-              trailing: added
-                  ? Icon(Icons.check_circle, color: AppColors.secondaryScale[500])
-                  : null,
-              onTap: () => Navigator.of(sheetContext).pop(item),
-            );
-          },
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: ListView.builder(
+                padding: EdgeInsets.fromLTRB(
+                  8,
+                  0,
+                  8,
+                  12 + MediaQuery.paddingOf(sheetContext).bottom,
+                ),
+                itemCount: _results.length,
+                itemBuilder: (context, index) {
+                  final item = _results[index];
+                  final added = _selected.containsKey(_keyOf(item));
+                  return ListTile(
+                    leading: CircleAvatar(
+                      radius: 14,
+                      backgroundColor: AppColors.secondaryScale[100],
+                      child: Text(
+                        '${index + 1}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.secondaryScale[900],
+                        ),
+                      ),
+                    ),
+                    title: Text(
+                      item.name,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.neutralScale[600],
+                      ),
+                    ),
+                    subtitle: Text(
+                      item.displayAddress,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.neutralScale[400],
+                      ),
+                    ),
+                    trailing: added
+                        ? Icon(
+                            Icons.check_circle,
+                            color: AppColors.secondaryScale[500],
+                          )
+                        : null,
+                    onTap: () => Navigator.of(sheetContext).pop(item),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -337,29 +395,34 @@ class _PlanMapScreenState extends State<PlanMapScreen> {
             ),
           ),
           Positioned(top: 0, left: 0, right: 0, child: _buildHeader(topPad)),
-          Positioned(
-            right: 14,
-            top: 0,
-            bottom: 0,
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  GlassIconButton(
-                    icon: Icons.add,
-                    onPressed: () =>
-                        _mapController?.updateCamera(MapCameraUpdate.zoomIn()),
-                  ),
-                  const SizedBox(height: 8),
-                  GlassIconButton(
-                    icon: Icons.remove,
-                    onPressed: () =>
-                        _mapController?.updateCamera(MapCameraUpdate.zoomOut()),
-                  ),
-                ],
+          // 안내 문구가 떠 있을 때는 볼 장소가 없어 확대 단추를 숨긴다. 둘 다
+          // 화면 가운데에 놓여 겹치기 때문이다.
+          if (_message == null)
+            Positioned(
+              right: 14,
+              top: 0,
+              bottom: 0,
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    GlassIconButton(
+                      icon: Icons.add,
+                      onPressed: () => _mapController?.updateCamera(
+                        MapCameraUpdate.zoomIn(),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    GlassIconButton(
+                      icon: Icons.remove,
+                      onPressed: () => _mapController?.updateCamera(
+                        MapCameraUpdate.zoomOut(),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
           if (_message != null)
             Positioned(
               left: 24,
@@ -390,50 +453,81 @@ class _PlanMapScreenState extends State<PlanMapScreen> {
             AppColors.background,
             AppColors.background.withValues(alpha: 0.0),
           ],
-          stops: const [0.0, 0.75, 1.0],
+          stops: const [0.0, 0.72, 1.0],
         ),
       ),
-      padding: EdgeInsets.fromLTRB(24, topPad + 16, 24, 32),
+      padding: EdgeInsets.fromLTRB(24, topPad + 24, 24, 40),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            widget.headline,
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              color: AppColors.neutralScale[600],
+          TripStepHeader(
+            step: widget.step,
+            totalSteps: widget.totalSteps,
+            isNextEnabled: _selected.isNotEmpty,
+            title: widget.headline,
+            subtitle: '$_regionLabel · 장소를 눌러 후기를 보고 담아요',
+          ),
+          const SizedBox(height: 16),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(40),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.neutralScale[600]!.withAlpha(0x12),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '$_regionLabel · 장소를 눌러 후기를 보고 담아요',
-            style: TextStyle(fontSize: 13, color: AppColors.neutralScale[400]),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _query,
-            textInputAction: TextInputAction.search,
-            onSubmitted: (_) => _search(),
-            decoration: InputDecoration(
-              isDense: true,
-              filled: true,
-              fillColor: Colors.white,
-              hintText: '장소 이름이나 종류로 찾기 (예: 카페)',
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: IconButton(
-                tooltip: '검색',
-                icon: const Icon(Icons.arrow_forward),
-                onPressed: _loading ? null : _search,
+            child: TextField(
+              controller: _query,
+              textInputAction: TextInputAction.search,
+              onSubmitted: (_) => _search(),
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AppColors.neutralScale[600],
               ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+              decoration: InputDecoration(
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                hintText: '장소 이름이나 종류로 찾기 (예: 카페)',
+                hintStyle: TextStyle(
+                  fontSize: 14,
+                  color: AppColors.neutralScale[400],
+                ),
+                // 기본 48px 자리는 알약 모양에서 아이콘과 글자 사이를 너무 띄운다.
+                prefixIcon: Padding(
+                  padding: const EdgeInsets.only(left: 18, right: 8),
+                  child: Icon(
+                    Icons.search_rounded,
+                    size: 20,
+                    color: AppColors.neutralScale[400],
+                  ),
+                ),
+                prefixIconConstraints: const BoxConstraints(),
+                suffixIcon: IconButton(
+                  tooltip: '검색',
+                  icon: Icon(
+                    Icons.arrow_forward_rounded,
+                    color: AppColors.secondaryScale[500],
+                  ),
+                  onPressed: _loading ? null : _search,
+                ),
               ),
             ),
           ),
           if (_loading) ...[
-            const SizedBox(height: 8),
-            const LinearProgressIndicator(),
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                minHeight: 3,
+                color: AppColors.secondaryScale[500],
+                backgroundColor: AppColors.secondaryScale[100],
+              ),
+            ),
           ],
         ],
       ),
@@ -441,19 +535,7 @@ class _PlanMapScreenState extends State<PlanMapScreen> {
   }
 
   Widget _buildNotice(String text) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.neutralScale[600]!.withAlpha(0x1A),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+    return TripCard(
       child: Text(
         text,
         textAlign: TextAlign.center,
@@ -461,6 +543,7 @@ class _PlanMapScreenState extends State<PlanMapScreen> {
           fontSize: 14,
           fontWeight: FontWeight.w500,
           color: AppColors.neutralScale[600],
+          height: 1.5,
         ),
       ),
     );
@@ -480,17 +563,13 @@ class _PlanMapScreenState extends State<PlanMapScreen> {
           stops: const [0.10, 1.0],
         ),
       ),
+      padding: const EdgeInsets.only(top: 40),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (_results.isNotEmpty)
-            TextButton.icon(
-              onPressed: _openList,
-              icon: const Icon(Icons.list_rounded),
-              label: Text('찾은 장소 목록 (${_results.length})'),
-            ),
+          if (_results.isNotEmpty) _buildListChip(),
           Padding(
-            padding: EdgeInsets.fromLTRB(24, 8, 24, 10 + bottomPad),
+            padding: EdgeInsets.fromLTRB(24, 12, 24, 10 + bottomPad),
             child: NextButton(
               onPressed: count > 0
                   ? () => widget.onNext(_selected.values.toList())
@@ -503,6 +582,56 @@ class _PlanMapScreenState extends State<PlanMapScreen> {
             child: PrevButton(onPressed: widget.onPrev),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildListChip() {
+    // 검색창과 같은 흰 알약 모양으로 지도 위에 띄운다.
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(40),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.neutralScale[600]!.withAlpha(0x12),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Semantics(
+        button: true,
+        child: Material(
+          color: Colors.white,
+          shape: const StadiumBorder(),
+          child: InkWell(
+            onTap: _openList,
+            customBorder: const StadiumBorder(),
+            child: Container(
+              height: 38,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.list_rounded,
+                    size: 18,
+                    color: AppColors.secondaryScale[500],
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '찾은 장소 목록 (${_results.length})',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.neutralScale[600],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

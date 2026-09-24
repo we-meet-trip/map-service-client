@@ -167,6 +167,8 @@ class _PlanFlowScreenState extends State<PlanFlowScreen> {
         city: _cityOrNull,
         initialQuery: widget.preset?.query,
         headline: widget.preset?.headline ?? '가고 싶은 곳을 담아요',
+        step: _hasPreset ? 2 : 3,
+        totalSteps: _totalSteps,
         initialSelection: _picked,
         onPrev: () => _go(_hasPreset ? _Step.dates : _Step.region),
         onNext: (selected) {

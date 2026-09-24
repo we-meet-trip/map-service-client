@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../common/theme/app_colors.dart';
@@ -33,7 +34,7 @@ class TripStartScreen extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Column(
               children: [
-                const Spacer(flex: 3),
+                const Spacer(flex: 2),
                 const _SpeechBubble(),
                 const SizedBox(height: 4),
                 Transform.translate(
@@ -46,21 +47,21 @@ class TripStartScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(height: 28),
+                const SizedBox(height: 32),
                 _ChoiceButton(
                   icon: Icons.map_outlined,
                   title: '여행 일정 계획하기',
                   subtitle: '지도에서 장소를 찾아 직접 담아요',
                   onTap: onPlan,
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
                 _ChoiceButton(
                   icon: Icons.auto_awesome_outlined,
                   title: '추천받기',
                   subtitle: 'AI가 조건에 맞는 코스를 짜 드려요',
                   onTap: onStart,
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
                 _ChoiceButton(
                   icon: Icons.casino_outlined,
                   title: '랜덤으로 가기',
@@ -96,50 +97,68 @@ class _ChoiceButton extends StatelessWidget {
       button: true,
       label: '$title. $subtitle',
       excludeSemantics: true,
-      child: Material(
-        color: Colors.white.withAlpha(0x26),
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withAlpha(0x4D)),
-            ),
-            child: Row(
-              children: [
-                Icon(icon, color: Colors.white, size: 26),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.white.withAlpha(0xCC),
-                        ),
-                      ),
-                    ],
+      // 반투명 카드 뒤로 배경 별이 비쳐 글머리표처럼 보이지 않게 흐린다.
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Material(
+            color: AppColors.gradientScale[300]!.withAlpha(0x4D),
+            borderRadius: BorderRadius.circular(20),
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: AppColors.secondaryScale[300]!.withAlpha(0x80),
                   ),
                 ),
-                Icon(
-                  Icons.chevron_right_rounded,
-                  color: Colors.white.withAlpha(0xB3),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: AppColors.secondaryScale[200]!.withAlpha(0x40),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(icon, color: Colors.white, size: 24),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            subtitle,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.white.withAlpha(0xCC),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      size: 20,
+                      color: Colors.white.withAlpha(0xB3),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),

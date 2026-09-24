@@ -150,20 +150,30 @@ class _RouletteWheelState extends State<RouletteWheel>
           children: [
             Positioned(
               top: 16,
-              child: AnimatedBuilder(
-                animation: _controller,
-                builder: (context, _) => CustomPaint(
-                  size: Size.square(widget.size),
-                  painter: _WheelPainter(widget.labels, _current),
+              child: DecoratedBox(
+                // 흰 테두리와 그림자는 돌지 않으니 판 밖에 한 번만 그린다.
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.secondaryScale[500]!.withAlpha(0x26),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: AnimatedBuilder(
+                  animation: _controller,
+                  builder: (context, _) => CustomPaint(
+                    size: Size.square(widget.size),
+                    painter: _WheelPainter(widget.labels, _current),
+                  ),
                 ),
               ),
             ),
             // 바늘은 판 위쪽에 고정한다.
-            Icon(
-              Icons.arrow_drop_down_rounded,
-              size: 40,
-              color: AppColors.secondaryScale[500],
-            ),
+            const CustomPaint(size: Size(22, 26), painter: _NeedlePainter()),
           ],
         ),
       ),
@@ -183,13 +193,14 @@ class _WheelPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final count = labels.length;
     final center = size.center(Offset.zero);
-    final radius = size.width / 2;
+    // 바깥 7px 은 흰 테두리 자리로 비워 둔다.
+    final radius = size.width / 2 - 7;
     final segment = 2 * math.pi / count;
     final rect = Rect.fromCircle(center: center, radius: radius);
     final colors = [
-      AppColors.secondaryScale[100]!,
-      AppColors.primaryScale[100]!,
+      AppColors.secondaryScale[0]!,
       AppColors.secondaryScale[200]!,
+      AppColors.secondaryScale[100]!,
     ];
     // 칸 수가 많으면 글자를 줄여야 칸 안에 들어간다.
     final fontSize = count > 20 ? 10.0 : (count > 12 ? 12.0 : 14.0);
@@ -207,7 +218,7 @@ class _WheelPainter extends CustomPainter {
         Paint()
           ..color = Colors.white
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1,
+          ..strokeWidth = 2,
       );
 
       // 글자는 칸 가운데를 따라 눕힌다. 판의 왼쪽 절반에 온 칸은 그대로 두면
@@ -239,10 +250,53 @@ class _WheelPainter extends CustomPainter {
       );
       canvas.restore();
     }
-    canvas.drawCircle(center, radius * 0.08, Paint()..color = Colors.white);
+    // 가장 옅은 칸은 흰 테두리와 거의 같은 색이라 판 가장자리를 선으로 잡아 준다.
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()
+        ..color = AppColors.primaryScale[100]!
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
+    canvas.drawCircle(center, 20, Paint()..color = Colors.white);
+    canvas.drawCircle(
+      center,
+      19,
+      Paint()
+        ..color = AppColors.primaryScale[100]!
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
   }
 
   @override
   bool shouldRepaint(_WheelPainter oldDelegate) =>
       oldDelegate.labels != labels || oldDelegate.angle != angle;
+}
+
+/// 판 위에 고정된 아래 방향 바늘. 흰 테두리가 있어 어느 칸 색 위에서도 보인다.
+class _NeedlePainter extends CustomPainter {
+  const _NeedlePainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path()
+      ..moveTo(1, 1)
+      ..lineTo(size.width - 1, 1)
+      ..lineTo(size.width / 2, size.height - 1)
+      ..close();
+    canvas.drawPath(path, Paint()..color = AppColors.secondaryScale[900]!);
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..strokeJoin = StrokeJoin.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_NeedlePainter oldDelegate) => false;
 }
