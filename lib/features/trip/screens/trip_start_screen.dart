@@ -3,49 +3,145 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../../common/theme/app_colors.dart';
 import '../../../common/widgets/starry_background.dart';
 
+/// 여행 계획 탭의 첫 화면. 일정을 만드는 세 갈래를 고른다.
+///
+/// AI 추천은 외부 AI 로 여행 조건과 장소 정보를 보내고 호출마다 비용이 든다.
+/// 직접 계획하기와 랜덤 여행은 AI 를 쓰지 않아 동의 없이 바로 시작한다.
 class TripStartScreen extends StatelessWidget {
+  /// AI 추천 마법사를 시작한다.
   final VoidCallback onStart;
-  const TripStartScreen({super.key, required this.onStart});
+
+  /// 지도에서 직접 장소를 찾아 일정을 짠다.
+  final VoidCallback onPlan;
+
+  /// 돌림판으로 여행지와 미션을 뽑는다.
+  final VoidCallback onRandom;
+
+  const TripStartScreen({
+    super.key,
+    required this.onStart,
+    required this.onPlan,
+    required this.onRandom,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: StarryBackground(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            const Spacer(flex: 4),
-
-            const _SpeechBubble(),
-            const SizedBox(height: 4),
-
-            Transform.translate(
-              offset: const Offset(15, 0),
-              child: GestureDetector(
-                onTap: onStart,
-                child: SvgPicture.asset(
-                  'assets/svg/character.svg',
-                  width: 176,
-                  height: 156,
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              children: [
+                const Spacer(flex: 3),
+                const _SpeechBubble(),
+                const SizedBox(height: 4),
+                Transform.translate(
+                  offset: const Offset(15, 0),
+                  child: ExcludeSemantics(
+                    child: SvgPicture.asset(
+                      'assets/svg/character.svg',
+                      width: 150,
+                      height: 133,
+                    ),
+                  ),
                 ),
-              ),
+                const SizedBox(height: 28),
+                _ChoiceButton(
+                  icon: Icons.map_outlined,
+                  title: '여행 일정 계획하기',
+                  subtitle: '지도에서 장소를 찾아 직접 담아요',
+                  onTap: onPlan,
+                ),
+                const SizedBox(height: 12),
+                _ChoiceButton(
+                  icon: Icons.auto_awesome_outlined,
+                  title: '추천받기',
+                  subtitle: 'AI가 조건에 맞는 코스를 짜 드려요',
+                  onTap: onStart,
+                ),
+                const SizedBox(height: 12),
+                _ChoiceButton(
+                  icon: Icons.casino_outlined,
+                  title: '랜덤으로 가기',
+                  subtitle: '돌림판으로 여행지와 미션을 뽑아요',
+                  onTap: onRandom,
+                ),
+                const Spacer(flex: 2),
+              ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
-            const SizedBox(height: 28),
+class _ChoiceButton extends StatelessWidget {
+  const _ChoiceButton({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
 
-            Text(
-              'TOUCH TO START',
-              style: TextStyle(
-                fontSize: 12,
-                letterSpacing: 3.0,
-                fontWeight: FontWeight.w500,
-                color: Colors.white.withAlpha(153),
-              ),
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: '$title. $subtitle',
+      excludeSemantics: true,
+      child: Material(
+        color: Colors.white.withAlpha(0x26),
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withAlpha(0x4D)),
             ),
-
-            const Spacer(flex: 4),
-          ],
+            child: Row(
+              children: [
+                Icon(icon, color: Colors.white, size: 26),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.white.withAlpha(0xCC),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: Colors.white.withAlpha(0xB3),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -87,7 +183,7 @@ class _SpeechBubble extends StatelessWidget {
       child: const Padding(
         padding: EdgeInsets.fromLTRB(28, 13, 28, 23),
         child: Text(
-          '코스 추천 시작',
+          '어떻게 떠나볼까요?',
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,

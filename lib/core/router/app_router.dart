@@ -47,6 +47,8 @@ import '../../features/trip/screens/subway_route_screen.dart';
 import '../api/transit_route_options_service.dart';
 import '../../features/trip/screens/transit_route_options_screen.dart';
 import '../../features/trip/screens/transit_route_map_screen.dart';
+import '../../features/trip/screens/plan_flow_screen.dart';
+import '../../features/trip/screens/random_trip_screen.dart';
 import '../../common/widgets/address_search_screen.dart';
 import '../../data/local/permission_notice_store.dart';
 import '../state/auth_store.dart';
@@ -247,6 +249,20 @@ final appRouter = GoRouter(
                 GoRoute(
                   path: 'manual',
                   builder: (context, state) => const ManualPlanEntryScreen(),
+                ),
+                // AI 없이 지도에서 장소를 찾아 일정을 짜는 자리. 랜덤 여행은
+                // 뽑은 지역과 미션을 extra 로 넘긴다.
+                GoRoute(
+                  path: 'plan',
+                  builder: (context, state) => PlanFlowScreen(
+                    preset: state.extra is PlanPreset
+                        ? state.extra as PlanPreset
+                        : null,
+                  ),
+                ),
+                GoRoute(
+                  path: 'random',
+                  builder: (context, state) => const RandomTripScreen(),
                 ),
                 GoRoute(
                   path: 'place-explore/step1',

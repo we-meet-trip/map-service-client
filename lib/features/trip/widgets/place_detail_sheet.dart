@@ -22,6 +22,7 @@ Future<void> showPlaceDetailSheet(
   String? category,
   double? latitude,
   double? longitude,
+  bool showAiSummary = true,
 }) {
   return showModalBottomSheet(
     context: context,
@@ -40,6 +41,7 @@ Future<void> showPlaceDetailSheet(
       latitude: latitude,
       longitude: longitude,
       initialChildSize: 0.72,
+      showAiSummary: showAiSummary,
     ),
   );
 }

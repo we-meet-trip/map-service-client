@@ -33,6 +33,9 @@ class ManualPlanScreen extends StatefulWidget {
     required this.city,
     required this.onRouted,
     required this.onCancel,
+    this.title = '일정 직접 고치기',
+    this.subtitle = '장소를 눌러 지우거나 옮기고, 끌어서 순서를 바꿔요.\n'
+        '방문 시각과 이동 시간은 동선을 만들 때 다시 계산돼요.',
   });
 
   final List<TripStop> initialStops;
@@ -52,6 +55,10 @@ class ManualPlanScreen extends StatefulWidget {
 
   /// 고치기를 그만두고 돌아간다.
   final VoidCallback onCancel;
+
+  /// 화면 제목과 안내. 새로 짜는 흐름과 고치는 흐름이 같은 화면을 쓴다.
+  final String title;
+  final String subtitle;
 
   @override
   State<ManualPlanScreen> createState() => _ManualPlanScreenState();
@@ -155,20 +162,11 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
     if (picked == null || !mounted) return;
     setState(() {
       _stops.add(
-        TripStop(
+        tripStopFromSearchItem(
+          picked,
           order: _stops.length + 1,
           // 마지막 일차에 붙인다. 어느 날인지는 눌러서 옮길 수 있다.
           day: _stops.isEmpty ? 1 : _stops.last.day,
-          name: picked.name,
-          address: picked.displayAddress,
-          // 시각은 서버가 동선을 짜며 채운다. 여기서 지어내면 화면에는 있는데
-          // 실제 일정과 다른 시각이 보인다.
-          time: '',
-          latitude: picked.latitude,
-          longitude: picked.longitude,
-          category: picked.category,
-          placeUrl: picked.placeUrl,
-          contentId: picked.contentId.isEmpty ? null : picked.contentId,
         ),
       );
     });
@@ -290,7 +288,7 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
               padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
               children: [
                 Text(
-                  '일정 직접 고치기',
+                  widget.title,
                   style: TextStyle(
                     fontSize: 26,
                     fontWeight: FontWeight.w800,
@@ -299,8 +297,7 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '장소를 눌러 지우거나 옮기고, 끌어서 순서를 바꿔요.\n'
-                  '방문 시각과 이동 시간은 동선을 만들 때 다시 계산돼요.',
+                  widget.subtitle,
                   style: TextStyle(
                     fontSize: 13,
                     height: 1.5,
@@ -607,6 +604,27 @@ class _ManualPlanScreenState extends State<ManualPlanScreen> {
     ),
   );
 }
+
+/// 검색으로 고른 장소를 일정의 한 칸으로 바꾼다.
+///
+/// 시각은 비워 둔다. 서버가 동선을 짜며 채우는데, 여기서 지어내면 화면에는
+/// 있는데 실제 일정과 다른 시각이 보인다.
+TripStop tripStopFromSearchItem(
+  PlaceSearchItem item, {
+  required int order,
+  required int day,
+}) => TripStop(
+  order: order,
+  day: day,
+  name: item.name,
+  address: item.displayAddress,
+  time: '',
+  latitude: item.latitude,
+  longitude: item.longitude,
+  category: item.category,
+  placeUrl: item.placeUrl,
+  contentId: item.contentId.isEmpty ? null : item.contentId,
+);
 
 /// 장소를 검색해 고르는 시트. 검색 범위는 이 일정의 지역이다.
 class _PlaceSearchSheet extends StatefulWidget {

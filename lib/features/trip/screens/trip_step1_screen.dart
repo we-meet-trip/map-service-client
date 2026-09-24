@@ -20,9 +20,17 @@ class TripStep1Screen extends StatefulWidget {
   final void Function(DateTime?, DateTime?) onDateChanged;
   final void Function(double, double) onTimeChanged;
 
+  /// 돌아갈 곳. 추천 마법사의 첫 단계에는 없고, 다른 흐름에서 빌려 쓸 때만 준다.
+  final VoidCallback? onPrev;
+  final int step;
+  final int totalSteps;
+
   const TripStep1Screen({
     super.key,
     required this.onNext,
+    this.onPrev,
+    this.step = 1,
+    this.totalSteps = 5,
     this.startDate,
     this.endDate,
     this.startHour = 0,
@@ -66,9 +74,11 @@ class _TripStep1ScreenState extends State<TripStep1Screen> {
   Widget build(BuildContext context) {
     return TripStepScaffold(
       onNext: _canProceed ? widget.onNext : null,
+      onPrev: widget.onPrev,
       children: [
         TripStepHeader(
-          step: 1,
+          step: widget.step,
+          totalSteps: widget.totalSteps,
           title: '일정을 계획해볼까요?',
           subtitle: '성공적인 여행 계획을 위해 여행 일정을 설정해주세요.',
           isNextEnabled: _canProceed,
