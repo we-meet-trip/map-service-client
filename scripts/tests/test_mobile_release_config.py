@@ -4,6 +4,7 @@ import io
 import json
 import os
 from pathlib import Path
+import re
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -34,6 +35,31 @@ class MobileReleaseConfigTest(unittest.TestCase):
             'PUBLIC_SITE_ORIGIN': config.TEST_INVITE_ORIGIN,
             **config.native_identity('test'),
         })
+        self.assertEqual(actual['API_ALLOWED_ORIGINS'].split(','),
+                         ['https://test-api.mapservice.app', 'https://mapapptest.duckdns.org'])
+
+    def test_prod_rejects_every_test_api_host_as_a_test_endpoint(self):
+        # 승인 주소 대조보다 먼저 시험 주소 검사에 걸려야 목록 누락이 드러난다.
+        for origin in config.TEST_API_ORIGIN.split(','):
+            with self.subTest(origin=origin), self.assertRaisesRegex(config.ConfigError, 'test endpoints'):
+                config.make_config('prod', 'android', False, self.production(API_ALLOWED_ORIGINS=origin))
+
+    def test_every_test_host_is_denied_by_every_production_guard(self):
+        root = Path(__file__).resolve().parents[2]
+        # 파일 어딘가가 아니라 운영 금지 목록 리터럴 안에, 주석이 아닌 항목으로 있어야 한다.
+        for path, pattern in (
+                ('lib/core/config/endpoint_policy.dart', r"static const testHosts = \{(.*?)\};"),
+                ('lib/core/config/app_environment.dart',
+                 r"name == 'prod' &&\s*const \{(.*?)\}\.contains\(origin\.host\)"),
+                ('hosting/invite/index.html', r"!test && \[(.*?)\]\.indexOf\(url\.hostname\)")):
+            literal = re.search(pattern, (root / path).read_text(), re.S)
+            self.assertIsNotNone(literal, path)
+            entries = re.sub(r'/\*.*?\*/|//[^\n]*', '', literal.group(1), flags=re.S)
+            for host in config.TEST_HOSTS:
+                with self.subTest(path=path, host=host):
+                    self.assertIn(f"'{host}'", entries)
+        self.assertRegex((root / 'lib/core/config/app_config.dart').read_text(),
+                         r"defaultValue:\s*'" + re.escape(config.TEST_API_ORIGIN) + "'")
 
     def test_prod_never_falls_back_to_test(self):
         for values in [{}, {'API_ALLOWED_ORIGINS': 'https://api.example.com'},

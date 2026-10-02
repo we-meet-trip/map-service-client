@@ -101,6 +101,61 @@ void main() {
     },
   );
 
+  test('production rejects every known test API host', () {
+    for (final host in ['test-api.mapservice.app', 'mapapptest.duckdns.org']) {
+      expect(
+        EndpointPolicy(
+          environment: 'prod',
+          allowedOrigins: 'https://api.example.com,https://$host',
+          configUrl: 'https://config.example.com/prod.json',
+          explicitOrigins: true,
+          explicitConfigUrl: true,
+        ).valid,
+        isFalse,
+        reason: host,
+      );
+      expect(
+        EndpointPolicy(
+          environment: 'prod',
+          allowedOrigins: prod.allowedOrigins,
+          configUrl: 'https://$host/app_config.json',
+          explicitOrigins: true,
+          explicitConfigUrl: true,
+        ).valid,
+        isFalse,
+        reason: host,
+      );
+    }
+  });
+
+  test('test policy trusts the new test API and keeps the previous one', () {
+    const policy = EndpointPolicy(
+      environment: 'test',
+      allowedOrigins:
+          'https://test-api.mapservice.app,https://mapapptest.duckdns.org',
+      configUrl: 'https://mapcenter-b59ca.web.app/app_config.json',
+      explicitOrigins: false,
+      explicitConfigUrl: false,
+    );
+    expect(policy.valid, isTrue);
+    for (final origin in [
+      'https://test-api.mapservice.app',
+      'https://mapapptest.duckdns.org',
+    ]) {
+      expect(
+        policy.remote({'environment': 'test', 'api_base_url': '$origin/'}),
+        origin,
+      );
+    }
+    expect(
+      policy.remote({
+        'environment': 'test',
+        'api_base_url': 'https://api.mapservice.app',
+      }),
+      isNull,
+    );
+  });
+
   test('legacy test document is accepted only by the explicit test policy', () {
     const test = EndpointPolicy(
       environment: 'test',

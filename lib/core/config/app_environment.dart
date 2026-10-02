@@ -43,6 +43,7 @@ class AppEnvironment {
             const {
               'mapcenter-b59ca.web.app',
               'mapcenter-b59ca.firebaseapp.com',
+              'test-api.mapservice.app',
               'mapapptest.duckdns.org',
             }.contains(origin.host))) {
       throw StateError('Invalid PUBLIC_SITE_ORIGIN for the app environment');

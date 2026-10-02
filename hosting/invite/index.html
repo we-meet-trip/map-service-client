@@ -146,7 +146,7 @@
     if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash ||
         (originOnly && value !== url.origin) ||
         (!test && ['mapcenter-b59ca.web.app', 'mapcenter-b59ca.firebaseapp.com',
-                    'mapapptest.duckdns.org'].indexOf(url.hostname) !== -1)) {
+                    'test-api.mapservice.app', 'mapapptest.duckdns.org'].indexOf(url.hostname) !== -1)) {
       throw new Error('environment');
     }
     return url;
