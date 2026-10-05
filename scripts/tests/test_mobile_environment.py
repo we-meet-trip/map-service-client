@@ -67,6 +67,9 @@ class MobileEnvironmentTest(unittest.TestCase):
             self.assertEqual(aasa, [{'appID': 'A1B2C3D4E5.' + identity['NATIVE_APPLICATION_ID'],
                                     'paths': ['/invite/*']}])
             self.assertEqual(artifacts['invite-environment.json']['invite_scheme'], identity['INVITE_URL_SCHEME'])
+            if environment == 'test':
+                self.assertEqual(artifacts['invite-environment.json']['api_allowed_origins'],
+                                 ['https://test-api.mapservice.app', 'https://mapapptest.duckdns.org'])
             self.assertNotIn('GOOGLE_MAPS', json.dumps(artifacts))
 
     def test_missing_prefix_certificate_and_wrong_environment_are_rejected(self):

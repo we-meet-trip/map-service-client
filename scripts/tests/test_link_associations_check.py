@@ -20,7 +20,7 @@ def manifest(**overrides):
         'invite_scheme': 'mapservice-test',
         'invite_origin': 'https://mapcenter-b59ca.web.app',
         'app_config_url': 'https://mapcenter-b59ca.web.app/app_config.json',
-        'api_allowed_origins': ['https://mapapptest.duckdns.org'],
+        'api_allowed_origins': ['https://test-api.mapservice.app', 'https://mapapptest.duckdns.org'],
         'public_site_origin': 'https://mapcenter-b59ca.web.app',
     }
     base.update(overrides)
@@ -103,8 +103,10 @@ class LinkAssociationCheckTest(unittest.TestCase):
         self.assertIn('details', empty.stderr)
 
     def test_app_config_pointing_outside_the_allowed_origins_is_rejected(self):
-        good = self.check(app_config={'environment': 'test', 'api_base_url': 'https://mapapptest.duckdns.org'})
-        self.assertEqual(good.returncode, 0, good.stderr)
+        for base in manifest()['api_allowed_origins']:
+            with self.subTest(base=base):
+                good = self.check(app_config={'environment': 'test', 'api_base_url': base})
+                self.assertEqual(good.returncode, 0, good.stderr)
         bad = self.check(app_config={'environment': 'test', 'api_base_url': 'https://other.example.com'})
         self.assertEqual(bad.returncode, 1)
         self.assertIn('api_base_url', bad.stderr)
@@ -143,15 +145,16 @@ class LinkAssociationCheckTest(unittest.TestCase):
                 ('invite_origin', 'https://mapcenter-b59ca.web.app'),
                 ('public_site_origin', 'https://mapcenter-b59ca.firebaseapp.com'),
                 ('app_config_url', 'https://mapcenter-b59ca.web.app/app_config.json'),
-                ('api_allowed_origins', ['https://mapapptest.duckdns.org'])):
+                ('api_allowed_origins', ['https://mapapptest.duckdns.org']),
+                ('api_allowed_origins', ['https://test-api.mapservice.app'])):
             invite = production()
             invite[field] = value
-            with self.subTest(field=field):
+            with self.subTest(field=field, value=value):
                 result = self.check(invite=invite, links=assetlinks(PROD_PACKAGE),
                                     apple=association(f'ABCDE12345.{PROD_PACKAGE}'),
                                     app_config={'environment': 'prod', 'api_base_url': PROD_API})
                 self.assertEqual(result.returncode, 1)
-                self.assertIn('prod configuration', result.stderr)
+                self.assertIn('test endpoints', result.stderr)
 
     def test_prod_requires_apple_and_remote_config(self):
         args = {'invite': production(), 'links': assetlinks(PROD_PACKAGE),

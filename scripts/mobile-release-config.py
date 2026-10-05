@@ -10,10 +10,11 @@ import subprocess
 import sys
 from urllib.parse import urlsplit
 
-TEST_API_ORIGIN = "https://mapapptest.duckdns.org"
+TEST_API_ORIGIN = "https://test-api.mapservice.app,https://mapapptest.duckdns.org"
 TEST_CONFIG_URL = "https://mapcenter-b59ca.web.app/app_config.json"
 TEST_INVITE_ORIGIN = "https://mapcenter-b59ca.web.app"
-TEST_HOSTS = {"mapapptest.duckdns.org", "mapcenter-b59ca.web.app", "mapcenter-b59ca.firebaseapp.com"}
+TEST_HOSTS = {"test-api.mapservice.app", "mapapptest.duckdns.org", "mapcenter-b59ca.web.app",
+              "mapcenter-b59ca.firebaseapp.com"}
 PROD_URLS = {
     "API_ALLOWED_ORIGINS": "https://api.mapservice.app",
     "APP_CONFIG_URL": "https://mapservice.app/app_config.json",

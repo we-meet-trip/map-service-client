@@ -16,6 +16,7 @@ class EndpointPolicy {
   final bool explicitConfigUrl;
 
   static const testHosts = {
+    'test-api.mapservice.app',
     'mapapptest.duckdns.org',
     'mapcenter-b59ca.web.app',
     'mapcenter-b59ca.firebaseapp.com',

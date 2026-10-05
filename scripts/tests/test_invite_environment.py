@@ -89,6 +89,17 @@ setTimeout(() => process.stdout.write(JSON.stringify({requests, button: elements
         result = self.render(preview_failure=True)
         self.assertEqual(result['button']['attributes']['aria-disabled'], 'false')
 
+    def test_production_page_never_sends_a_token_to_a_test_api(self):
+        production = {'app_environment': 'prod', 'android_package': 'kr.mapservice.client',
+                      'invite_scheme': 'mapservice'}
+        self.assertEqual(self.render(production)['button']['attributes']['aria-disabled'], 'false')
+        for host in ('test-api.mapservice.app', 'mapapptest.duckdns.org'):
+            with self.subTest(host=host):
+                result = self.render({**production, 'api_allowed_origins': [f'https://{host}']},
+                                     api=f'https://{host}')
+                self.assertEqual(result['button']['attributes']['aria-disabled'], 'true')
+                self.assertEqual(len(result['requests']), 1)
+
     def test_invalid_token_is_rejected_before_network(self):
         for token in ['A/extra', 'a%2Fb', 'bad;intent', 'A' * 257]:
             with self.subTest(token=token):

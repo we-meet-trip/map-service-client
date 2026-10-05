@@ -20,7 +20,7 @@ target="$dir/app_config.json"
 
 if [ ! -f "$target" ]; then
   echo "✗ $target 없음 — 이대로 배포하면 앱이 읽는 주소 파일이 사라진다."
-  echo "  배포는 map-service-infra/scripts/map-serve.sh 로 한다(주소를 쓴 뒤 올린다)."
+  echo "  주소 파일(environment·api_base_url)을 먼저 쓴 뒤 다시 배포한다."
   exit 1
 fi
 
