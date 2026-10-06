@@ -32,6 +32,8 @@ MOBILE_FACING = {'app_config.json', 'invite-environment.json', 'invite/index.htm
                  '.well-known/apple-app-site-association', '.well-known/assetlinks.json'}
 DRAFT_NOTICE = ('<main>\n<aside role="note"><strong>운영 준비 초안 — 스토어 제출 및 '
                 '운영 공개 불가</strong></aside>').encode()
+# 고지문 변경을 예고하는 공지 띠의 id. 고지문 변경을 허용할 때는 랜딩에 이 띠가 있어야 한다.
+NOTICE_ID = 'notice-2026-10-20'
 
 
 def module(name, filename):
@@ -126,21 +128,31 @@ def check_inventory(public, manifest, failures):
     return actual
 
 
-def check_baseline(actual, public, baseline, failures):
-    """공개 중인 번들과 대조해 모바일이 읽는 파일이 그대로인지 확인한다."""
+def check_baseline(actual, public, baseline, failures, expected_legal=()):
+    """공개 중인 번들과 대조해 모바일이 읽는 파일이 그대로인지 확인한다.
+
+    expected_legal 에 적은 고지문만 바뀌어야 하고, 그때는 랜딩에 공지 띠가 있어야 한다.
+    """
     live = json.loads(Path(baseline).read_text())['files']
     for name in sorted(MOBILE_FACING):
         if actual.get(name) != live.get(name):
             failures.append('mobile-facing file changed: ' + name)
+    expected = {'legal/' + name + '.html' for name in expected_legal}
     for name in sorted(n for n in live if n.startswith('legal/')):
         stripped = (public / name).read_bytes().replace(DRAFT_NOTICE, b'<main>', 1)
-        if digest(stripped) != live.get(name):
+        changed = digest(stripped) != live.get(name)
+        if changed and name not in expected:
             failures.append('legal page changed: ' + name)
+        if not changed and name in expected:
+            failures.append('legal page expected to change but did not: ' + name)
+    if expected and ('id="' + NOTICE_ID + '"').encode() not in (public / 'index.html').read_bytes():
+        failures.append('landing notice banner missing: ' + NOTICE_ID)
     if actual.get('index.html') == live.get('index.html'):
         failures.append('index.html did not change; the landing was not published')
-    added = set(actual) - set(live)
-    if added != {n for n in actual if n.startswith('assets/')}:
-        failures.append('unexpected new files: ' + str(added))
+    # 새로 생긴 파일은 자산만 허용한다. 자산이 하나도 늘지 않은 것도 정상이다.
+    unexpected = sorted(n for n in set(actual) - set(live) if not n.startswith('assets/'))
+    if unexpected:
+        failures.append('unexpected new files: ' + ', '.join(unexpected))
     if set(live) - set(actual):
         failures.append('files disappeared: ' + str(set(live) - set(actual)))
 
@@ -233,6 +245,9 @@ def main():
     parser.add_argument('--apple-app-id-prefix', required=True)
     parser.add_argument('--baseline-manifest', required=True,
                         help='Manifest of the bundle currently published')
+    parser.add_argument('--expected-legal-change', action='append', default=[], choices=sorted(content.PAGES),
+                        help='Policy page that must differ from the baseline (repeatable); '
+                             'the landing must then carry the notice banner ' + NOTICE_ID)
     args = parser.parse_args()
 
     if not shutil.which('docker'):
@@ -249,7 +264,7 @@ def main():
         output, manifest = build(work, args.android_cert_sha256, args.apple_app_id_prefix)
         public = output / 'public'
         actual = check_inventory(public, manifest, failures)
-        check_baseline(actual, public, args.baseline_manifest, failures)
+        check_baseline(actual, public, args.baseline_manifest, failures, args.expected_legal_change)
         config = adapt(work)
         docker(['rm', '-f', NAME])
         started = docker(['run', '--rm', '-d', '--name', NAME, '--pull', 'never',
