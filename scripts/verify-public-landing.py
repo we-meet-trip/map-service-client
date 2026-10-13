@@ -33,7 +33,7 @@ MOBILE_FACING = {'app_config.json', 'invite-environment.json', 'invite/index.htm
 DRAFT_NOTICE = ('<main>\n<aside role="note"><strong>운영 준비 초안 — 스토어 제출 및 '
                 '운영 공개 불가</strong></aside>').encode()
 # 고지문 변경을 예고하는 공지 띠의 id. 고지문 변경을 허용할 때는 랜딩에 이 띠가 있어야 한다.
-NOTICE_ID = 'notice-2026-10-20'
+NOTICE_ID = 'notice-2026-11-03'
 
 
 def module(name, filename):
