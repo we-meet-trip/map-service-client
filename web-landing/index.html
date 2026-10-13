@@ -150,12 +150,11 @@
   .badge img { display: block; width: auto; height: 48px; }
   .judge-open { display: inline-block; margin-top: 18px; font-size: 14px; }
 
-  /* 심사 안내 — 들어오면 이미 떠 있고, 닫기나 바깥 덮개를 누르면 주소 끝에
-     #judge-closed 가 붙으면서 사라진다. 이 페이지는 스크립트를 두지 않으므로
-     여닫는 일을 링크가 한다. 다시 보기 링크는 주소를 비워 되돌리고, 뒤로 가기도
-     같은 길을 되짚는다. 숨은 표적이 앞 형제여야 이 선택자가 성립한다. */
-  .judge { display: block; }
-  #judge-closed:target ~ .judge { display: none; }
+  /* 심사 안내 — 기본은 숨겨 첫 화면의 공지 띠를 가리지 않는다. 안내 링크가 주소 끝에
+     #judge 를 붙이면 떠 있고, 닫기나 바깥 덮개를 누르면 표적이 #judge-closed 로 바뀌면서
+     사라진다. 이 페이지는 스크립트를 두지 않으므로 여닫는 일을 링크가 한다. */
+  .judge { display: none; }
+  #judge:target { display: block; }
   .judge-veil { position: fixed; inset: 0; z-index: 1; background: rgba(27, 11, 51, .55); }
   .judge-panel {
     position: fixed;
@@ -240,7 +239,7 @@
 </head>
 <body>
 <span id="judge-closed" aria-hidden="true"></span>
-<div class="judge" role="dialog" aria-modal="true" aria-labelledby="judge-account-title">
+<div class="judge" id="judge" role="dialog" aria-modal="true" aria-labelledby="judge-account-title">
   <a class="judge-veil" href="#judge-closed" aria-label="안내 닫기"></a>
   <div class="judge-panel">
     <h2 id="judge-account-title">한국관광공사 웹·앱 개발 부문 심사용 계정</h2>
@@ -516,7 +515,7 @@
           src="/assets/app-store-badge-ko.svg" width="130" height="40"
           alt="App Store 에서 다운로드"></a>
       </div>
-      <a class="judge-open" href="#">한국관광공사 심사용 계정 안내</a>
+      <a class="judge-open" href="#judge">한국관광공사 심사용 계정 안내</a>
       <p>문의는 <a href="mailto:mapadmin26@gmail.com">mapadmin26@gmail.com</a> 으로 보내 주세요.</p>
     </div>
   </section>
