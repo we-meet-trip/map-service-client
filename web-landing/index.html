@@ -150,12 +150,11 @@
   .badge img { display: block; width: auto; height: 48px; }
   .judge-open { display: inline-block; margin-top: 18px; font-size: 14px; }
 
-  /* 심사 안내 — 들어오면 이미 떠 있고, 닫기나 바깥 덮개를 누르면 주소 끝에
-     #judge-closed 가 붙으면서 사라진다. 이 페이지는 스크립트를 두지 않으므로
-     여닫는 일을 링크가 한다. 다시 보기 링크는 주소를 비워 되돌리고, 뒤로 가기도
-     같은 길을 되짚는다. 숨은 표적이 앞 형제여야 이 선택자가 성립한다. */
-  .judge { display: block; }
-  #judge-closed:target ~ .judge { display: none; }
+  /* 심사 안내 — 기본은 숨겨 첫 화면의 공지 띠를 가리지 않는다. 안내 링크가 주소 끝에
+     #judge 를 붙이면 떠 있고, 닫기나 바깥 덮개를 누르면 표적이 #judge-closed 로 바뀌면서
+     사라진다. 이 페이지는 스크립트를 두지 않으므로 여닫는 일을 링크가 한다. */
+  .judge { display: none; }
+  #judge:target { display: block; }
   .judge-veil { position: fixed; inset: 0; z-index: 1; background: rgba(27, 11, 51, .55); }
   .judge-panel {
     position: fixed;
@@ -220,6 +219,12 @@
     font-size: 14px;
   }
 
+  /* 변경 예정 안내 — 스크립트 없이 늘 보이는 공지 띠. 심사 안내 팝업과 따로 둔다. */
+  .change-notice { padding: 14px 0; background: #FFF8E6; border-bottom: 1px solid #6A4B00; color: #201F21; font-size: 14px; }
+  .change-notice h2 { margin: 0; font-size: 15px; font-weight: 700; line-height: 1.5; }
+  .change-notice p { margin: 6px 0 0; }
+  .change-notice .nowrap { white-space: nowrap; }
+
   @media (min-width: 768px) {
     .hero { padding: 104px 20px 112px; }
     .wordmark { font-size: 56px; }
@@ -234,7 +239,7 @@
 </head>
 <body>
 <span id="judge-closed" aria-hidden="true"></span>
-<div class="judge" role="dialog" aria-modal="true" aria-labelledby="judge-account-title">
+<div class="judge" id="judge" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="judge-account-title">
   <a class="judge-veil" href="#judge-closed" aria-label="안내 닫기"></a>
   <div class="judge-panel">
     <h2 id="judge-account-title">한국관광공사 웹·앱 개발 부문 심사용 계정</h2>
@@ -247,6 +252,13 @@
   </div>
 </div>
 <main>
+  <section class="change-notice" id="notice-2026-11-03" aria-labelledby="notice-2026-11-03-title">
+    <div class="wrap">
+      <h2 id="notice-2026-11-03-title">운영 서버 이전과 약관·방침 변경 예정 안내 <span class="nowrap">(2026-11-03 시행)</span></h2>
+      <p>2026-11-03(화) 한국 시간 03:00~07:00 사이에 MAP 운영 서버를 네이버 클라우드 플랫폼(NCP) 한국에서 Google Cloud 서울 리전으로 옮깁니다. 옮기는 동안 서비스를 잠시 이용할 수 없을 수 있습니다. 같은 날 이용약관·개인정보처리방침·위치기반서비스 이용약관 개정을 시행하며, 앱에서 개정된 이용약관 동의와 개정된 개인정보처리방침 확인을 포함한 필수 항목을 다시 선택하도록 요청합니다.</p>
+      <p>서버 이전 준비를 위해 운영 데이터 사본을 새 서울 운영 서버에 시험 복원합니다. 일정과 자세한 내용은 각 변경 안내에서 확인할 수 있습니다. <a href="/legal/privacy.html#notice-2026-11-03">개인정보처리방침 변경 안내</a> · <a href="/legal/terms.html#notice-2026-11-03">이용약관 변경 안내</a> · <a href="/legal/location-terms.html#notice-2026-11-03">위치기반서비스 이용약관 변경 안내</a></p>
+    </div>
+  </section>
   <section class="hero">
     <div class="stars"><span style="left:78%;top:17%;width:3px;height:3px"></span><span style="left:35%;top:15%;width:4px;height:4px"></span><span style="left:17%;top:18%;width:6px;height:6px"></span><span style="left:77%;top:45%;width:3px;height:3px"></span><span style="left:62%;top:52%;width:3px;height:3px"></span><span style="left:24%;top:55%;width:7px;height:7px"></span><span style="left:17%;top:58%;width:3px;height:3px"></span><span style="left:82%;top:69%;width:3px;height:3px"></span><span style="left:73%;top:74%;width:6px;height:6px"></span><span style="left:21%;top:83%;width:2px;height:2px"></span></div>
     <div class="hero-inner">
@@ -503,7 +515,7 @@
           src="/assets/app-store-badge-ko.svg" width="130" height="40"
           alt="App Store 에서 다운로드"></a>
       </div>
-      <a class="judge-open" href="#">한국관광공사 심사용 계정 안내</a>
+      <a class="judge-open" href="#judge">한국관광공사 심사용 계정 안내</a>
       <p>문의는 <a href="mailto:mapadmin26@gmail.com">mapadmin26@gmail.com</a> 으로 보내 주세요.</p>
     </div>
   </section>
