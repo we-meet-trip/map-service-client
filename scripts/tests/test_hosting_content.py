@@ -1,6 +1,7 @@
 import importlib.util
 import json
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -26,6 +27,33 @@ class HostingContentTest(unittest.TestCase):
             target=Path(temp)/'firebase.json';target.write_text(json.dumps(config))
             result=subprocess.run(['python3',str(ROOT/'scripts/hosting-content-check.py'),'--directory',str(ROOT/'hosting'),'--firebase',str(target)],capture_output=True)
             self.assertEqual(result.returncode,1)
+    def test_archive_is_the_pinned_original_plus_one_notice(self):
+        for path in content.ARCHIVES:
+            body = (ROOT/'hosting'/path).read_bytes()
+            self.assertEqual(content.validate_archive(body, path), [])
+            self.assertIn(b'/legal/' + content.ARCHIVES[path][0].encode() + b'.html', content.archive_notice(path))
+        path = 'legal/archive/privacy-2026-09-15.html'
+        body = (ROOT/'hosting'/path).read_bytes()
+        notice = content.archive_notice(path)
+        self.assertEqual(content.validate_archive(body.replace(notice, b'<main>'), path), ['archive_notice_missing'])
+        self.assertEqual(content.validate_archive(body.replace(notice, notice + b'\n' + notice), path), ['archive_notice_duplicated'])
+        self.assertEqual(content.validate_archive(body.replace(notice, notice + b'\n' + notice[7:]), path), ['archive_bytes_changed'])
+        self.assertEqual(content.validate_archive(body.replace(b'</main>', b'<p>x</p></main>'), path), ['archive_bytes_changed'])
+    def test_predeploy_rejects_a_stray_or_missing_archive(self):
+        with tempfile.TemporaryDirectory() as temp:
+            hosting = Path(temp)/'hosting'
+            shutil.copytree(ROOT/'hosting', hosting)
+            command = ['python3', str(ROOT/'scripts/hosting-content-check.py'), '--directory', str(hosting), '--firebase', str(ROOT/'firebase.json')]
+            self.assertEqual(subprocess.run(command, capture_output=True).returncode, 0)
+            stray = hosting/'legal/archive/terms-2026-10-01.html'
+            stray.write_bytes(b'unpinned')
+            self.assertEqual(subprocess.run(command, capture_output=True).returncode, 1)
+            stray.unlink()
+            (hosting/'legal/archive/.DS_Store').write_bytes(b'noise')
+            self.assertEqual(subprocess.run(command, capture_output=True).returncode, 1)
+            (hosting/'legal/archive/.DS_Store').unlink()
+            (hosting/'legal/archive/terms-2026-09-15.html').unlink()
+            self.assertEqual(subprocess.run(command, capture_output=True).returncode, 1)
 
 if __name__ == '__main__':
     unittest.main()
