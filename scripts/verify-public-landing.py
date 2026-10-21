@@ -149,10 +149,18 @@ def check_baseline(actual, public, baseline, failures, expected_legal=()):
         failures.append('landing notice banner missing: ' + NOTICE_ID)
     if actual.get('index.html') == live.get('index.html'):
         failures.append('index.html did not change; the landing was not published')
-    # 새로 생긴 파일은 자산만 허용한다. 자산이 하나도 늘지 않은 것도 정상이다.
-    unexpected = sorted(n for n in set(actual) - set(live) if not n.startswith('assets/'))
+    # 새로 생긴 파일은 자산과 정해진 이름의 이전 판 보관본만 허용한다. 늘지 않은 것도 정상이다.
+    unexpected = sorted(n for n in set(actual) - set(live)
+                        if not n.startswith('assets/') and n not in content.ARCHIVES)
     if unexpected:
         failures.append('unexpected new files: ' + ', '.join(unexpected))
+    # 보관본은 모두 있어야 하고, 새로 생겼든 이미 있었든 원본 바이트에 안내 한 줄만 더한 것이어야 한다.
+    for name in sorted(set(content.ARCHIVES) - set(actual)):
+        failures.append('archive missing: ' + name)
+    for name in sorted(n for n in actual if n in content.ARCHIVES):
+        stripped = (public / name).read_bytes().replace(DRAFT_NOTICE, b'<main>', 1)
+        for error in content.validate_archive(stripped, name):
+            failures.append(error + ': ' + name)
     if set(live) - set(actual):
         failures.append('files disappeared: ' + str(set(live) - set(actual)))
 
@@ -178,6 +186,13 @@ def check_routes(public, actual, failures):
         status, _, body = request(route)
         if status != 200 or digest(body) != actual.get('legal/' + name + '.html'):
             failures.append(f'rewrite broken: {route} -> {status}')
+    # 이전 판 보관본은 재작성 없이 파일 그대로, 고지문과 같은 헤더로 나가야 한다.
+    for name in sorted(content.ARCHIVES):
+        status, headers, body = request('/' + name)
+        if status != 200 or digest(body) != actual.get(name):
+            failures.append(f'archive not served as published: /{name} -> {status}')
+        elif headers.get('Cache-Control') != 'no-store' or 'text/html' not in headers.get('Content-Type', ''):
+            failures.append('archive headers differ from the policy pages: /' + name)
     status, _, body = request('/invite/anything')
     if status != 200 or digest(body) != actual.get('invite/index.html'):
         failures.append(f'invite rewrite broken: {status}')

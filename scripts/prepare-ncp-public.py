@@ -68,6 +68,10 @@ def prepare(output, policy_directory, certificates, apple_prefix, review, *, rel
         raise ValueError('output directory must be new; existing Firebase or production files are never overwritten')
     pages = {name: read_file(policy_directory / (name + '.html')) for name in content.PAGES}
     blockers = policy_blockers(pages, review)
+    # 이전 판 보관본은 검토 파일의 files(현재 판 5종)에 넣지 않는다. 원본 해시와 안내 한 줄로 따로 묶는다.
+    archives = content.archive_files(policy_directory / 'archive')
+    for path, body in archives.items():
+        blockers.extend('archive_' + path + ':' + error for error in content.validate_archive(body, path))
     source_sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
     source_ref = subprocess.check_output(['git', 'branch', '--show-current'], cwd=ROOT, text=True).strip()
     source_changes = subprocess.check_output(['git', 'status', '--porcelain', '--untracked-files=normal'],
@@ -84,10 +88,10 @@ def prepare(output, policy_directory, certificates, apple_prefix, review, *, rel
                  for path, value in generated.items()}
     artifacts['app_config.json'] = (json.dumps({'environment': 'prod', 'api_base_url': mobile.PROD_URLS['API_ALLOWED_ORIGINS']}) + '\n').encode()
     artifacts['invite/index.html'] = read_file(ROOT / 'hosting/invite/index.html')
-    for name, body in pages.items():
+    for path, body in [*(('legal/' + name + '.html', body) for name, body in pages.items()), *archives.items()]:
         if not release:
             body = body.replace(b'<main>', ('<main>\n' + DRAFT_NOTICE).encode(), 1)
-        artifacts['legal/' + name + '.html'] = body
+        artifacts[path] = body
     landing = read_file(LANDING / 'index.html')
     if not release:
         landing = landing.replace(b'<main>', ('<main>\n' + DRAFT_NOTICE).encode(), 1)
